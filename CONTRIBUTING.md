@@ -112,7 +112,7 @@ These are in `.gitignore` and must stay there:
 - **Terraform state** — `*.tfstate*`, `.terraform/`
 - **Local secrets** of any kind
 
-If you accidentally commit one of these: tell the team immediately on Slack and rewrite history before pushing.
+If you accidentally commit one of these: tell the team immediately on Teams/WeChat and rewrite history before pushing.
 
 ---
 
