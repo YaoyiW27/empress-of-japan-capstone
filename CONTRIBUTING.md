@@ -95,7 +95,7 @@ Prof. Coady's grading rubric evaluates **our process of using AI in development*
 | When | What | Length |
 |---|---|---|
 | **Wednesday 3–4pm** | Sprint retro + next sprint planning (all four) | 60 min |
-| Daily | Async standup in Slack | — |
+| Daily | Async standup in Teams | — |
 | Sun/Mon evening | Optional mid-sprint sync if anyone's blocked | 30 min |
 | Wednesday before class | Pre-class demo + alignment | 15 min |
 
