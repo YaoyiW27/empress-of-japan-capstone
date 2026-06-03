@@ -1,0 +1,8 @@
+# Example variable overrides for the infra/terraform root module.
+#
+# Copy to terraform.tfvars to override defaults locally. Real *.tfvars files are
+# gitignored — never commit one. The defaults already target the sandbox, so you
+# normally don't need this file at all.
+
+# region       = "us-west-2"
+# canary_value = "bootstrap-verified-by-yaoyi"

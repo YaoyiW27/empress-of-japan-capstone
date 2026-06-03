@@ -1,0 +1,109 @@
+name: terraform-plan
+
+# Runs on every PR that touches the Terraform module (or this workflow). The
+# OIDC trust policy on empress-gha-deploy only lets the `pull_request` subject
+# assume the role, so plan is the only thing CI can do from a PR.
+on:
+  pull_request:
+    paths:
+      - "infra/terraform/**"
+      - ".github/workflows/plan.yml"
+
+permissions:
+  id-token: write # required for OIDC -> AWS
+  contents: read
+  pull-requests: write # to post the plan diff as a PR comment
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-west-2
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.0
+
+      # Partial backend: bucket + lock table come from repo secrets, never the
+      # repo. backend.hcl is written on the runner only (gitignored locally too).
+      - name: Generate backend config from secrets
+        run: |
+          cat > backend.hcl <<EOF
+          bucket         = "${{ secrets.TF_STATE_BUCKET }}"
+          dynamodb_table = "${{ secrets.TF_LOCK_TABLE }}"
+          region         = "us-west-2"
+          EOF
+
+      - name: Terraform init
+        run: terraform init -input=false -backend-config=backend.hcl
+
+      # fmt / validate / plan use continue-on-error so the PR comment is posted
+      # with all results even when one fails; a final gate step fails the job.
+      - name: Terraform fmt
+        id: fmt
+        run: terraform fmt -check -recursive
+        continue-on-error: true
+
+      - name: Terraform validate
+        id: validate
+        run: terraform validate -no-color
+        continue-on-error: true
+
+      - name: Terraform plan
+        id: plan
+        run: terraform plan -input=false -no-color
+        continue-on-error: true
+
+      - name: Post plan to PR
+        uses: actions/github-script@v7
+        if: always()
+        env:
+          PLAN: ${{ steps.plan.outputs.stdout }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const marker = '<!-- terraform-plan -->';
+            const plan = (process.env.PLAN || '').trim() || 'No plan output.';
+            const body = `${marker}
+            ### Terraform plan — \`infra/terraform\`
+
+            | Step | Result |
+            | --- | --- |
+            | Format | \`${{ steps.fmt.outcome }}\` |
+            | Validate | \`${{ steps.validate.outcome }}\` |
+            | Plan | \`${{ steps.plan.outcome }}\` |
+
+            <details><summary>Show plan</summary>
+
+            \`\`\`terraform
+            ${plan}
+            \`\`\`
+
+            </details>
+
+            *Pusher: @${{ github.actor }} · Event: \`${{ github.event_name }}\`*`;
+
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number });
+            const existing = comments.find(c => c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+
+      # Fail the check if any step failed — the comment above has already posted.
+      - name: Gate on fmt / validate / plan
+        if: steps.fmt.outcome == 'failure' || steps.validate.outcome == 'failure' || steps.plan.outcome == 'failure'
+        run: |
+          echo "fmt=${{ steps.fmt.outcome }} validate=${{ steps.validate.outcome }} plan=${{ steps.plan.outcome }}"
+          exit 1
