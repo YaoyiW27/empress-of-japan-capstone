@@ -3,6 +3,9 @@ data/raw/
 data/donor*.csv
 *.donor.csv
 export_empress_of_japan.csv
+data/export_*.csv
+data/export_*.xlsx
+export_results_*.xlsx
 
 # === AWS / secrets ===
 .env
