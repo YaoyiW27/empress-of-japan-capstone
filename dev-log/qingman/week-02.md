@@ -9,6 +9,11 @@ Date: 2026-06-08
   that grounds the multi-agent RAG backend, documented in `data/schema.md`.
   Must support the privacy tiers, per-ship tagging, embedding storage, and a
   source citation chain identified in last week's audit (#9).
+- **Issue #24** — [backend] Local dev tooling for the schema: a docker-compose
+  stack + runnable SQL + README so the team gets a fully-schema'd pgvector DB in
+  one command. (Follow-up I filed off #10.)
+- **Issue #12** — [data] Sketch the ingest pipeline outline (parse → PII handling
+  → Titan embeddings → pgvector insert), documented in `data/ingest-pipeline.md`.
 
 ## 2. AI Tools Used
 Claude Code (Opus), used in plan mode to design the schema, then to author and
@@ -32,6 +37,13 @@ repo-hygiene pass.
 - **Validated, not just authored** — installed Docker Desktop locally and had
   Claude run the schema DDL against `pgvector/pgvector:pg16`, then functionally
   test the privacy gate by seeding rows and querying the retrieval view.
+- **Turned the design into runnable tooling (#24)** — extracted the validated
+  DDL into `backend/db/schema.sql` and a docker-compose stack that auto-applies
+  it on first start, then proved `docker compose up` yields a fully-schema'd DB
+  with no manual steps.
+- **Outlined the ingest pipeline (#12)** — had Claude sketch the parse →
+  normalize → privacy-filter → chunk → embed → upsert stages grounded in the
+  settled schema, cross-checking every `schema §N` / `audit §N` reference.
 
 ## 4. Useful Output
 - `data/schema.md` — the schema design + validated DDL:
@@ -53,6 +65,16 @@ repo-hygiene pass.
   left a derived spreadsheet committable (see §5).
 - **Local dev environment** — Docker Desktop installed (WSL2 backend), used to
   validate the schema against real Postgres + pgvector.
+- `backend/` dev tooling (#24) — `docker-compose.yml` (pgvector, named volume,
+  healthcheck, schema mounted into `/docker-entrypoint-initdb.d/`),
+  `db/schema.sql` (the runnable source-of-truth DDL), and a short `README.md`
+  with run instructions. Validated end-to-end with `docker compose up`.
+- `data/ingest-pipeline.md` (#12) — the ingest outline: six stages from CSV row
+  to pgvector, the column-fate mapping applied at normalize-time, the privacy
+  filter (drop + redact + gate), Titan V2 batched embedding, idempotent upsert
+  on `content_hash`, plus observability and open dependencies.
+- **Two follow-up issues filed** — #24 (local dev tooling, self-assigned) and
+  #25 (RDS + pgvector provisioning, assigned to Yaoyi, `P3-later`).
 
 ## 5. Human Review / Changes
 - **Caught another `.gitignore` gap.** A new derived file
@@ -73,6 +95,13 @@ repo-hygiene pass.
 - **Kept scope honest.** Confirmed issue #10 is the design doc + DDL only;
   RDS provisioning (infra/Yaoyi), ORM models + migrations, and the ingest
   pipeline are recorded as follow-ups, not silently pulled in.
+- **Avoided throwaway work in #24.** `db/schema.sql` is positioned as the
+  source of truth that will *seed* the future Alembic initial migration, not be
+  replaced by it — noted in the README so the two don't diverge.
+- **Reconciled #12 with the schema, not the issue text.** The issue said "PII
+  tagging (donor flag)," but #10 decided to *drop* donor data, not flag it. Wrote
+  the pipeline to drop-and-redact and posted a comment on #12 explaining the
+  divergence so reviewers aren't surprised.
 
 ## 6. Reflection
 The most valuable move this week was refusing to merge an *unvalidated* schema —
@@ -84,5 +113,7 @@ pre-commit hook that blocks any `data/*.csv`/`*.xlsx` would beat catching it by
 eye each week. The open blocker carried over from last week is unchanged — the
 post-1945 gate needs a `voyage_date` the source data doesn't have, so a
 date-enrichment step is the prerequisite before any passenger-name content can
-go live. Next: hand RDS + pgvector provisioning to Yaoyi and start sketching the
-ingest pipeline against the local Docker instance.
+go live. With the schema designed (#10), runnable locally (#24), and the ingest
+path mapped (#12), the data track now has a clear runway: next is **implementing**
+the ingest pipeline against the local Docker DB and defining the date-enrichment
+approach — while Yaoyi provisions RDS (#25) for the shared environment.
