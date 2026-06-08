@@ -1,11 +1,16 @@
 # === Donor data — NEVER commit ===
+# Guard ALL spreadsheet exports under data/ (incl. *_classified.xlsx), then
+# explicitly allow the safe, structure-only docs. Donor/valuation columns live
+# in these raw/derived sheets — none of them may ever be committed.
 data/raw/
 data/donor*.csv
 *.donor.csv
 export_empress_of_japan.csv
-data/export_*.csv
-data/export_*.xlsx
 export_results_*.xlsx
+data/*.csv
+data/*.xlsx
+!data/audit-notes.md
+!data/schema.md
 
 # === AWS / secrets ===
 .env
