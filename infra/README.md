@@ -76,6 +76,74 @@ aws sts get-caller-identity     # "Account" should be 260256919823
 
 ---
 
+## Cost tracking — $1,000/month budget (issue #20)
+
+A Terraform-managed monthly **cost budget** (`budgets.tf`) watches our $1,000
+sandbox spend and emails the whole team as we approach it. The `Project` tag is
+activated in Cost Explorer for per-project breakdowns.
+
+| Piece | Resource | What it does |
+|---|---|---|
+| Budget | `aws_budgets_budget.monthly` | `$1000` MONTHLY COST budget, account-wide |
+| Alerts | SNS topic `empress-budget-alerts` | Fans notifications out to the team by email |
+| Tag | `aws_ce_cost_allocation_tag.project` | Activates `Project` for Cost Explorer breakdowns |
+
+### Alert thresholds
+
+- **ACTUAL** spend already incurred: **20% ($200), 50% ($500), 80% ($800)**.
+- **FORECASTED** month-end spend: **50%, 80%** (early warning before the money's
+  spent).
+
+> ℹ️ FORECASTED alerts stay dormant for the first few weeks: AWS needs enough
+> usage history to project month-end spend, so on a fresh account they simply
+> won't fire yet. That's expected, not a misconfiguration. The ACTUAL alerts
+> work immediately. The budget also tracks **gross** usage — credits and refunds
+> are excluded (`cost_types` in `budgets.tf`) so a credit-funded sandbox doesn't
+> net spend down to $0 and suppress every alert.
+
+### Alert recipients (confirm your subscription!)
+
+Alerts go to all four of us:
+
+| Member | Email |
+|---|---|
+| Yaoyi (DevOps) | `wang.yaoyi@northeastern.edu` |
+| Kelly (Frontend & 3D) | `hsu.chin@northeastern.edu` |
+| Steven (UX & Voice) | `fang.su@northeastern.edu` |
+| Alina (Backend) | `li.qingm@northeastern.edu` |
+
+> ⚠️ After the first `apply`, AWS emails each of you an **"AWS Notification –
+> Subscription Confirmation"**. **Click the confirm link** — until you do, your
+> subscription is `PendingConfirmation` and you get no alerts. Check spam.
+
+### View budget & costs in the console
+
+- **Budget status:** Billing and Cost Management → **Budgets** → `empress-monthly-cost`
+  (shows current vs. forecasted spend and which thresholds have fired). Output
+  `monthly_budget_name` echoes the name.
+- **Daily breakdown by service:** Cost Management → **Cost Explorer** → set
+  *Granularity = Daily*, *Group by = Service*.
+- **By project:** same view, *Group by = Tag → `Project`*. The `Project` tag is
+  activated by Terraform, but Cost Explorer can take **~24h** after the first
+  apply to backfill it into breakdowns — expect it empty on day one.
+
+### Change the budget or thresholds
+
+All knobs are variables (`variables.tf`) with defaults; edit and open a PR —
+`apply` on merge picks them up:
+
+| Variable | Default | Controls |
+|---|---|---|
+| `monthly_budget_limit` | `1000` | Total monthly budget in USD |
+| `budget_thresholds` | `[20, 50, 80]` | ACTUAL-spend alert % |
+| `forecasted_thresholds` | `[50, 80]` | FORECASTED-spend alert % |
+| `alert_emails` | the 4 above | Who gets alerts (re-confirmation needed for new addresses) |
+
+Thresholds are percentages of `monthly_budget_limit`, so raising the limit
+rescales the dollar trigger points automatically.
+
+---
+
 ## Notes
 
 - **Never commit** Terraform state (`*.tfstate*`, `.terraform/`), `*.tfvars`
