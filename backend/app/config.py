@@ -25,6 +25,19 @@ class Settings(BaseSettings):
     # DATABASE_URL env var (RDS endpoint from a secret in deployed environments).
     database_url: str = "postgresql://postgres:postgres@localhost:5432/empress"
 
+    # --- Ingest / embeddings -------------------------------------------------
+    # "bedrock" (AWS Titan V2, real) or "fake" (deterministic local, no creds).
+    # Defaults to fake so the pipeline runs/tests locally before Bedrock IAM is
+    # provisioned (coordinate with Yaoyi — CLAUDE.md). Flip to bedrock via env.
+    embedder: str = "fake"
+    bedrock_embedding_model: str = "amazon.titan-embed-text-v2:0"
+    aws_region: str = "us-east-1"
+
+    # Optional extra donor-name blocklist file for free-text PII redaction
+    # (one name per line). Built primarily in-memory from the source's donor
+    # column; this is for known stray names. Never committed (keep it local).
+    donor_blocklist_path: str | None = None
+
     @property
     def sqlalchemy_url(self) -> str:
         """Normalise the URL onto the psycopg (v3) driver SQLAlchemy expects."""
