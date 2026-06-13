@@ -9,7 +9,14 @@ from app.config import get_settings
 
 settings = get_settings()
 
-engine = create_engine(settings.sqlalchemy_url, pool_pre_ping=True, future=True)
+# connect_timeout keeps /health/db (and any query) from hanging indefinitely when
+# the database is down — it fails fast with a clear error instead.
+engine = create_engine(
+    settings.sqlalchemy_url,
+    pool_pre_ping=True,
+    future=True,
+    connect_args={"connect_timeout": 5},
+)
 
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
