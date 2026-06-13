@@ -63,7 +63,7 @@ class BedrockTitanEmbedder:
     def __init__(
         self,
         model_id: str = "amazon.titan-embed-text-v2:0",
-        region: str = "us-east-1",
+        region: str = "us-west-2",
         dim: int = EMBEDDING_DIM,
         max_retries: int = 5,
     ) -> None:

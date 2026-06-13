@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     # provisioned (coordinate with Yaoyi — CLAUDE.md). Flip to bedrock via env.
     embedder: str = "fake"
     bedrock_embedding_model: str = "amazon.titan-embed-text-v2:0"
-    aws_region: str = "us-east-1"
+    aws_region: str = "us-west-2"
 
     # Optional extra donor-name blocklist file for free-text PII redaction
     # (one name per line). Built primarily in-memory from the source's donor
