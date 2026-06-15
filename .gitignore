@@ -15,6 +15,7 @@ data/*.xlsx
 # === AWS / secrets ===
 .env
 .env.*
+!.env.example
 *.pem
 .aws-credentials
 aws-exports.js
@@ -36,6 +37,8 @@ __pycache__/
 venv/
 .pytest_cache/
 .mypy_cache/
+.ruff_cache/
+*.egg-info/
 
 # === Node ===
 node_modules/
