@@ -48,3 +48,35 @@ output "knowledge_base_secret_read_policy_arn" {
   description = "ARN of the policy that lets backend tasks read the knowledge-base RDS secrets. Attach to the Fargate task role in #42."
   value       = aws_iam_policy.knowledge_base_secret_read.arn
 }
+
+# --- Async jobs messaging (issue #39, see sqs.tf) ---
+
+output "sqs_jobs_queue_url" {
+  description = "URL of the empress-jobs SQS queue."
+  value       = aws_sqs_queue.jobs.url
+}
+
+output "sqs_jobs_queue_arn" {
+  description = "ARN of the empress-jobs SQS queue."
+  value       = aws_sqs_queue.jobs.arn
+}
+
+output "sqs_jobs_dlq_arn" {
+  description = "ARN of the empress-jobs dead-letter queue."
+  value       = aws_sqs_queue.jobs_dlq.arn
+}
+
+output "sqs_jobs_send_policy_arn" {
+  description = "ARN of the SendMessage policy. Attach to the API task role in #42."
+  value       = aws_iam_policy.sqs_jobs_send.arn
+}
+
+output "sqs_jobs_consume_policy_arn" {
+  description = "ARN of the receive/delete policy. Attach to the worker task role in #42."
+  value       = aws_iam_policy.sqs_jobs_consume.arn
+}
+
+output "bedrock_titan_embed_policy_arn" {
+  description = "ARN of the bedrock:InvokeModel policy for Titan Embed V2. Attach to the Fargate task role in #42."
+  value       = aws_iam_policy.bedrock_titan_embed_invoke.arn
+}
