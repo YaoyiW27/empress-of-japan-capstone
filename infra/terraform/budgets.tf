@@ -2,8 +2,9 @@
 #
 # A single account-wide MONTHLY COST budget fans out to an SNS topic, which
 # emails the four team members when ACTUAL spend crosses 20/50/80% and when
-# FORECASTED spend is on track to cross 50/80%. The `Project` cost-allocation
-# tag is activated so Cost Explorer can break spend down per project.
+# FORECASTED spend is on track to cross 50/80%. The `Project` tag is applied to
+# resources through provider default_tags; activating that tag in Cost Explorer
+# is an out-of-band management-account task because the sandbox SCP denies it.
 #
 # Budgets + Cost Explorer are global services; their APIs resolve to us-east-1
 # automatically, so the existing us-west-2 provider needs no alias.
@@ -93,13 +94,10 @@ resource "aws_budgets_budget" "monthly" {
   }
 }
 
-# ------------------------------------------------------------------
-# Cost Explorer — activate the `Project` tag for per-project breakdowns.
-# ------------------------------------------------------------------
-# The `Project = EmpressOfJapan` default tag (providers.tf) is already applied
-# to our resources, so the key is activatable here. Cost Explorer can take ~24h
-# to backfill the tag into its breakdowns after activation.
-resource "aws_ce_cost_allocation_tag" "project" {
-  tag_key = "Project"
-  status  = "Active"
-}
+# Cost Explorer note:
+# The AWS Innovation Sandbox's Organizations SCP explicitly denies
+# ce:UpdateCostAllocationTagsStatus from this member account, so Terraform
+# cannot manage aws_ce_cost_allocation_tag here. If per-project Cost Explorer
+# breakdowns are needed, an administrator in the management account must activate
+# the `Project` cost allocation tag manually. Resource tagging itself still
+# happens through providers.tf default_tags.
