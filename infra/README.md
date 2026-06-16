@@ -79,14 +79,16 @@ aws sts get-caller-identity     # "Account" should be 260256919823
 ## Cost tracking — $1,000/month budget (issue #20)
 
 A Terraform-managed monthly **cost budget** (`budgets.tf`) watches our $1,000
-sandbox spend and emails the whole team as we approach it. The `Project` tag is
-activated in Cost Explorer for per-project breakdowns.
+sandbox spend and emails the whole team as we approach it. Terraform applies the
+`Project = EmpressOfJapan` tag to managed resources; activating that tag inside
+Cost Explorer is a management-account/manual step because the Innovation Sandbox
+SCP denies `ce:UpdateCostAllocationTagsStatus` from this member account.
 
 | Piece | Resource | What it does |
 |---|---|---|
 | Budget | `aws_budgets_budget.monthly` | `$1000` MONTHLY COST budget, account-wide |
 | Alerts | SNS topic `empress-budget-alerts` | Fans notifications out to the team by email |
-| Tag | `aws_ce_cost_allocation_tag.project` | Activates `Project` for Cost Explorer breakdowns |
+| Tagging | provider `default_tags` | Applies `Project = EmpressOfJapan` to Terraform-managed resources |
 
 ### Alert thresholds
 
@@ -123,9 +125,11 @@ Alerts go to all four of us:
   `monthly_budget_name` echoes the name.
 - **Daily breakdown by service:** Cost Management → **Cost Explorer** → set
   *Granularity = Daily*, *Group by = Service*.
-- **By project:** same view, *Group by = Tag → `Project`*. The `Project` tag is
-  activated by Terraform, but Cost Explorer can take **~24h** after the first
-  apply to backfill it into breakdowns — expect it empty on day one.
+- **By project:** same view, *Group by = Tag → `Project`*, after a management
+  account/admin user activates the `Project` cost allocation tag. Terraform
+  cannot activate it from this sandbox member account because the organization
+  SCP explicitly denies `ce:UpdateCostAllocationTagsStatus`. Cost Explorer can
+  take **~24h** after activation to backfill it into breakdowns.
 
 ### Change the budget or thresholds
 
