@@ -40,15 +40,29 @@ export const scenes: ExperienceScene[] = [
     id: "promenade-deck",
     title: "Promenade Deck",
     blurb: "Stroll the open-air promenade and look out to sea.",
-    photoSrc: "/scenes/deck.jpg",
-    // deck.jpg is ~4:1 (3983x1000); aspect-matched coverage keeps it undistorted
-    // on the sphere segment. Tunable once we see it on screen.
-    hFovDeg: 180,
-    vFovDeg: 45,
+    photoSrc: "/scenes/deck.png",
+    // deck.png is a full equirectangular 360x180 panorama (2:1) — free look all
+    // the way around.
+    hFovDeg: 360,
+    vFovDeg: 180,
     narrator: {
       name: "Storyteller",
       greeting:
         "Welcome aboard the Empress of Japan. Take a moment on the promenade — passengers walked these very boards on the crossing to Yokohama.",
+    },
+  },
+  {
+    id: "first-class-suite",
+    title: "First-Class Suite",
+    blurb: "Look around a first-class suite, paneled in polished wood.",
+    photoSrc: "/scenes/first-class-suite.png",
+    // first-class-suite.png is a full equirectangular 360x180 panorama (2:1).
+    hFovDeg: 360,
+    vFovDeg: 180,
+    narrator: {
+      name: "Curator",
+      greeting:
+        "First-class suites were the height of ocean-liner luxury — a private sitting area, fine joinery, and every comfort for the two-week passage.",
     },
   },
   {

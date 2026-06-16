@@ -85,3 +85,54 @@ mutation patterns are now lint errors, and the fix is to lean on declarative
 drei components / cloning instead of imperative mutation. Next up: coordinate the
 glTF format with Hongyu to replace the cube ship, and start swapping placeholder
 scenes for real photos as they arrive.
+
+---
+
+# AI-Assisted Development Log
+
+Name: Ching-Hsin (Kelly) Hsu
+Week: Week 3 (June 11 – June 17, 2026)
+Date: 2026-06-16
+
+## 1. Task / Goal
+Swap the deck placeholder for a **real equirectangular 360° panorama**, add a
+second 360° scene (first-class suite), and extend the magic-window viewer to
+handle **full 360×180 panoramas** alongside the existing partial/flat photos —
+all on the same `kelly/experience-scenes` branch (updating the open PR).
+
+## 2. AI Tools Used
+Claude Code (Opus 4.8).
+
+## 3. Prompts / Agent Workflow
+Short, direct follow-up to the experience-scenes PR: I dropped the two new images
+into `public/scenes/` and asked Claude to wire them in. It first **inspected the
+files** (both 1774×887, exactly 2:1) and recognized them as equirectangular 360°
+panoramas before touching code — which is the distinction that drives the whole
+viewer branch.
+
+## 4. Useful Output
+- Manifest: `promenade-deck` now points at `deck.png` at 360×180; added a
+  `first-class-suite` scene (also 360×180). Old `deck.jpg` removed.
+- `PanoramaScene.tsx` now supports **both** modes from one component: full
+  panoramas (free 360° spin, near-full vertical look) and partial/flat photos
+  (clamped sphere segment), keyed off whether each axis reaches full coverage.
+
+## 5. Human Review / Changes
+- **Caught a divide-by-zero-style math bug.** My partial-photo "fit" formula
+  uses `tan(hFov/2)`; at 360° coverage that's `tan(180°) ≈ 0`, which collapsed
+  the camera FOV to 0 (black screen). Fixed by skipping the fit on any axis that
+  is already full, and only clamping look-angles for partial axes.
+- **Decoupled horizontal vs. vertical fullness** (`fullH`/`fullV`) so a 360×180
+  panorama spins freely *and* looks up/down, while a hypothetical 360×90
+  (cylindrical) would spin freely but stay vertically clamped.
+- Verified the panoramas render with free look, no mirroring, no black edges,
+  and that the flat cabin photo still behaves (the partial path is unchanged).
+
+## 6. Reflection
+Designing the viewer around a single "angular coverage" abstraction
+(`hFovDeg`/`vFovDeg`) paid off: supporting true 360° panoramas was a localized
+change plus one math guard, not a rewrite — partial photos and full panoramas
+are now the same component with two well-defined branches. The recurring theme
+holds: feeding the agent the *real* assets (and having it check their actual
+dimensions) is what surfaced both the format distinction and the 360° math edge
+case up front.

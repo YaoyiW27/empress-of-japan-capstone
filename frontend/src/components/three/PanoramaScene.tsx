@@ -96,15 +96,22 @@ function LookControls({ scene }: { scene: ExperienceScene }) {
   const photoHFov = deg(scene.hFovDeg);
   const photoVFov = deg(scene.vFovDeg);
 
-  // Vertical FOV that would exactly fill each axis; take the smaller (zoom in a
-  // touch via 0.95 so neither axis shows a gap) as the camera's vertical FOV.
-  const vFovToFillV = photoVFov;
-  const vFovToFillH = 2 * Math.atan(Math.tan(photoHFov / 2) / aspect);
-  const vFov = Math.min(vFovToFillV, vFovToFillH) * 0.95;
+  // Full coverage on an axis (a 360x180 equirectangular panorama) → free look on
+  // that axis. Partial photos get clamped so edges never show.
+  const fullH = scene.hFovDeg >= 360;
+  const fullV = scene.vFovDeg >= 180;
+
+  // A comfortable viewing FOV, shrunk only when the photo is too narrow on an
+  // axis to fill it. (Skip the fit for full axes — tan(180°/...) would blow up.)
+  let vFov = deg(70);
+  if (!fullV) vFov = Math.min(vFov, photoVFov * 0.95);
+  if (!fullH) {
+    const vFovToFillH = 2 * Math.atan(Math.tan(photoHFov / 2) / aspect);
+    vFov = Math.min(vFov, vFovToFillH * 0.95);
+  }
   const hFov = 2 * Math.atan(Math.tan(vFov / 2) * aspect);
 
-  // Allowed swing each way = half the photo coverage minus half the camera FOV,
-  // so the view cone always stays inside the photo.
+  // Allowed look swing = half the photo coverage minus half the camera FOV.
   const azLimit = Math.max(0, photoHFov / 2 - hFov / 2);
   const polLimit = Math.max(0, photoVFov / 2 - vFov / 2);
 
@@ -122,10 +129,10 @@ function LookControls({ scene }: { scene: ExperienceScene }) {
         enableDamping
         dampingFactor={0.1}
         rotateSpeed={-0.4}
-        minAzimuthAngle={-azLimit}
-        maxAzimuthAngle={azLimit}
-        minPolarAngle={Math.PI / 2 - polLimit}
-        maxPolarAngle={Math.PI / 2 + polLimit}
+        minAzimuthAngle={fullH ? -Infinity : -azLimit}
+        maxAzimuthAngle={fullH ? Infinity : azLimit}
+        minPolarAngle={fullV ? 0.01 : Math.PI / 2 - polLimit}
+        maxPolarAngle={fullV ? Math.PI - 0.01 : Math.PI / 2 + polLimit}
       />
     </>
   );
