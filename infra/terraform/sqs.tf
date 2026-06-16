@@ -18,13 +18,15 @@
 # Queues — dead-letter first so the main queue can reference its ARN.
 # ------------------------------------------------------------------
 resource "aws_sqs_queue" "jobs_dlq" {
-  name = "empress-jobs-dlq"
+  name                    = "empress-jobs-dlq"
+  sqs_managed_sse_enabled = true
   # Hold failed messages long enough to inspect/redrive them (max is 14 days).
   message_retention_seconds = 1209600
 }
 
 resource "aws_sqs_queue" "jobs" {
-  name = "empress-jobs"
+  name                    = "empress-jobs"
+  sqs_managed_sse_enabled = true
 
   # Heavy ingest jobs can run minutes — keep a message invisible while a worker
   # processes it so it isn't redelivered mid-run. Tune alongside backend #35.
