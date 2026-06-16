@@ -44,3 +44,8 @@ output "sqs_jobs_consume_policy_arn" {
   description = "ARN of the receive/delete policy. Attach to the worker task role in #42."
   value       = aws_iam_policy.sqs_jobs_consume.arn
 }
+
+output "bedrock_titan_embed_policy_arn" {
+  description = "ARN of the bedrock:InvokeModel policy for Titan Embed V2. Attach to the Fargate task role in #42."
+  value       = aws_iam_policy.bedrock_titan_embed_invoke.arn
+}

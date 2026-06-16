@@ -10,6 +10,14 @@ variable "canary_value" {
   default     = "bootstrap-verified-by-yaoyi"
 }
 
+# --- Bedrock embeddings (issue #48, see bedrock.tf) ---
+
+variable "bedrock_embedding_model_id" {
+  description = "Bedrock foundation model id for ingest embeddings. Mirrors backend/app/config.py (bedrock_embedding_model) — keep the two in sync."
+  type        = string
+  default     = "amazon.titan-embed-text-v2:0"
+}
+
 # --- Cost tracking (issue #20, see budgets.tf) ---
 
 variable "alert_emails" {
