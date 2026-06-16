@@ -2,7 +2,7 @@
 
 Name: Qingman Li (Alina)
 Week: Week 3 (June 11 – June 17, 2026)
-Date: 2026-06-12
+Date: 2026-06-16
 
 ## 1. Task / Goal
 - **Issue #27** — [backend] Scaffold the FastAPI app + SQLAlchemy + Alembic so
@@ -19,6 +19,10 @@ Date: 2026-06-12
   the design slightly to also ingest **external historical material** (e.g.
   Wikipedia) through the `external_historical` source type the schema already
   supports.
+- **Scrum master (this sprint)** — ran the weekly meeting: reviewed last week's
+  progress for each teammate and assigned the next week's tasks across the team.
+- **PR reviews (#49–#53)** — separately, reviewed the sprint's open PRs, most of
+  them on Yaoyi's infra track, since they gate the backend ingest/retrieval work.
 
 ## 2. AI Tools Used
 Claude Code (Opus). For #27, used to scaffold the app to repo conventions and
@@ -143,6 +147,25 @@ guardrail and idempotency hold on real data.
   is clearly labelled non-semantic and dev/test-only, so nobody mistakes a local
   run for a real retrieval index before Bedrock lands.
 
+### PR reviews (#49–#53)
+- **#53 — [infra] Move Cost Explorer tag activation out of Terraform.** While
+  reviewing, traced *why* the apply workflow had been failing on the earlier
+  #32: Cost Explorer cost-allocation tag activation isn't a real Terraform
+  resource the apply path could manage, so it errored every run. Flagged the
+  root cause to Yaoyi, who fixed it by moving the tag activation out of
+  Terraform into a manual step — which is what #53 lands.
+- **#50 — [infra] Add SQS jobs queue + DLQ + scoped IAM for async workers.**
+  Non-blocking comment: neither the main queue nor the DLQ set
+  `sqs_managed_sse_enabled`, so via the Terraform/API path they could land
+  **unencrypted at rest** — and these jobs carry references to VMM archival /
+  ingest payloads. Encryption-at-rest is free and a one-line change. Yaoyi
+  accepted the suggestion and added it to the code.
+- **#49, #51, #52** — reviewed Bedrock `InvokeModel` IAM for Titan Embed V2
+  (#49, the credential path the backend embedder needs), RDS Postgres + pgvector
+  secrets (#51, the shared DB the ingest pipeline targets), and Kelly's frontend
+  experience scenes (#52). Reviewed with an eye on the backend dependencies
+  these unblock.
+
 ## 6. Reflection
 The scaffold itself was routine; the value was in the verification. The Issue's
 real risk is **divergence** — three places now describe the same tables
@@ -166,3 +189,11 @@ passenger-archival content can surface. Next: coordinate Bedrock access, do a
 first real-embedding run, and start the RAG retrieval layer on top of
 `retrievable_chunks` — which now actually has content (VMM catalogue + a first
 external Wikipedia source) to retrieve.
+
+The PR reviews this sprint made the cross-track dependencies concrete: most of
+the open PRs (#49 Bedrock IAM, #51 RDS+pgvector) are exactly the infra the
+backend track is waiting on, so reviewing them carefully wasn't just process —
+it directly de-risks the next backend step. The #53 apply-failure diagnosis and
+the #50 encryption-at-rest catch both reinforced that a review's value is highest
+when it traces *why* something fails (or could leak), not just whether the diff
+looks right.
