@@ -144,6 +144,66 @@ rescales the dollar trigger points automatically.
 
 ---
 
+## Knowledge-base RDS (issue #25)
+
+Terraform provisions the shared/deployed Postgres database for the RAG knowledge
+base. Local development still uses `backend/docker-compose.yml`; this RDS
+instance exists for deployed backend environments and shared testing.
+
+| Piece | Resource | What it does |
+|---|---|---|
+| VPC | `aws_vpc.app` | Isolated sandbox network for backend/RDS resources |
+| Private subnets | `aws_subnet.private[*]` | Two-AZ subnet group for RDS |
+| Backend SG | `aws_security_group.backend` | Future ECS/Fargate backend tasks attach here |
+| DB SG | `aws_security_group.knowledge_base_db` | Allows PostgreSQL only from the backend SG |
+| RDS | `aws_db_instance.knowledge_base` | Postgres 16, `db.t4g.micro`, private, encrypted |
+| Secrets | RDS-managed master secret + `/empress/rds/knowledge_base_connection` | DB password stays in Secrets Manager; metadata secret points at it |
+| IAM | `aws_iam_policy.knowledge_base_secret_read` | Future backend task role attaches this to read DB secrets via IAM |
+| Cost control | `aws_scheduler_schedule.knowledge_base_stop` | Stops the sandbox DB at 10pm America/Vancouver on weekdays |
+
+The DB is intentionally **not public**. To connect manually, use a bastion,
+SSM port forwarding, or an ECS task inside the VPC once backend deployment lands.
+Do not open the DB security group to your home IP for convenience.
+
+### Apply the schema
+
+Alina/backend owns applying the schema after the DB is provisioned. The same DDL
+used by Docker applies unchanged to RDS:
+
+```bash
+psql "<rds-endpoint-or-secret-derived-url>" -v ON_ERROR_STOP=1 -c "CREATE EXTENSION IF NOT EXISTS vector;"
+psql "<rds-endpoint-or-secret-derived-url>" -v ON_ERROR_STOP=1 -f backend/db/schema.sql
+```
+
+`backend/db/schema.sql` already includes `CREATE EXTENSION IF NOT EXISTS vector;`
+so the first command is mainly a quick permissions/allowlist smoke test.
+
+### pgvector version check
+
+After connecting to the RDS database, verify the extension allowlist and
+installed version before applying production data:
+
+```sql
+SELECT name, default_version, installed_version
+FROM pg_available_extensions
+WHERE name = 'vector';
+```
+
+HNSW indexes require pgvector `>= 0.5.0`. Keep `kb_db_engine_version` on
+Postgres 16+ unless AWS RDS release notes confirm an older minor has the needed
+extension version.
+
+### Cost note
+
+The first sandbox shape is single-AZ `db.t4g.micro` with 20 GiB gp3 storage.
+Budget tracking should record it as roughly a low double-digit monthly RDS cost
+when left running continuously, plus storage/backup charges. The weekday 10pm
+stop schedule keeps idle spend lower, but RDS automatically restarts a stopped
+instance after 7 days, so the schedule is kept in Terraform instead of relying
+on one-off manual stops.
+
+---
+
 ## Notes
 
 - **Never commit** Terraform state (`*.tfstate*`, `.terraform/`), `*.tfvars`
