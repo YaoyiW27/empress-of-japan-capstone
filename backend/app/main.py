@@ -6,6 +6,7 @@ Run locally with:
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
+from langgraph.checkpoint.memory import MemorySaver
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
@@ -21,7 +22,11 @@ class ChatRequest(BaseModel):
     message: str
     persona_id: str | None = None
     scene: str | None = None
-    # Prior turns: {"role": "user"|"assistant", "content": str}.
+    # When set, the backend keeps this session's conversation in memory and the
+    # later turns see the earlier ones — send only the new `message` each turn.
+    session_id: str | None = None
+    # Stateless fallback (no session_id): the client supplies prior turns.
+    # {"role": "user"|"assistant", "content": str}.
     history: list[dict[str, str]] = []
 
 
@@ -67,6 +72,10 @@ def create_app() -> FastAPI:
         api_key=settings.gemini_api_key,
     )
     graph = build_graph(chat_model)
+    # Server-side short-term memory: in-process per-session history, keyed by
+    # session_id (lost on restart — swap MemorySaver for a Postgres checkpointer
+    # when cross-restart persistence is needed; tracked alongside the RAG work).
+    session_graph = build_graph(chat_model, checkpointer=MemorySaver())
 
     @app.get("/health")
     def health() -> dict[str, str]:
@@ -102,10 +111,23 @@ def create_app() -> FastAPI:
         (deferred to a follow-up issue).
         """
         persona_id = _resolve_persona(req.persona_id, req.scene)
-        messages = [*req.history, {"role": "user", "content": req.message}]
-        result = graph.invoke(
-            {"persona_id": persona_id, "scene": req.scene, "messages": messages}
-        )
+        user_turn = {"role": "user", "content": req.message}
+        if req.session_id:
+            # Memory path: send only the new turn; the reducer appends it to the
+            # session's checkpointed history so the persona sees prior turns.
+            result = session_graph.invoke(
+                {"persona_id": persona_id, "scene": req.scene, "messages": [user_turn]},
+                config={"configurable": {"thread_id": req.session_id}},
+            )
+        else:
+            # Stateless path: the client supplies the prior turns via `history`.
+            result = graph.invoke(
+                {
+                    "persona_id": persona_id,
+                    "scene": req.scene,
+                    "messages": [*req.history, user_turn],
+                }
+            )
         return ChatResponse(persona_id=result["persona_id"], response=result["response"])
 
     return app

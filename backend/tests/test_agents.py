@@ -1,6 +1,7 @@
 """Unit tests for the LangGraph persona agents (no DB, no AWS — stub chat model)."""
 
 from fastapi.testclient import TestClient
+from langgraph.checkpoint.memory import MemorySaver
 
 from app.agents.graph import build_graph
 from app.agents.llm import StubChatModel
@@ -35,6 +36,29 @@ def test_graph_dispatches_to_named_persona() -> None:
     )
     assert result["persona_id"] == "ming_chen"
     assert "How hot is the engine room?" in result["response"]
+
+
+def test_session_memory_accumulates() -> None:
+    graph = build_graph(StubChatModel(), checkpointer=MemorySaver())
+    cfg = {"configurable": {"thread_id": "s1"}}
+    graph.invoke(
+        {"persona_id": "ming_chen", "messages": [{"role": "user", "content": "Q1"}]}, cfg
+    )
+    result = graph.invoke(
+        {"persona_id": "ming_chen", "messages": [{"role": "user", "content": "Q2"}]}, cfg
+    )
+    contents = [m["content"] for m in result["messages"]]
+    # Turn 2 still sees turn 1 — server-side session memory.
+    assert "Q1" in contents and "Q2" in contents
+
+
+def test_chat_endpoint_session_id_path() -> None:
+    client = TestClient(app)
+    body = {"persona_id": "captain_sinclair", "session_id": "demo-1"}
+    r1 = client.post("/chat", json={**body, "message": "First question?"})
+    r2 = client.post("/chat", json={**body, "message": "Second question?"})
+    assert r1.status_code == 200 and r2.status_code == 200
+    assert r2.json()["persona_id"] == "captain_sinclair"
 
 
 def test_chat_endpoint_happy_path() -> None:
