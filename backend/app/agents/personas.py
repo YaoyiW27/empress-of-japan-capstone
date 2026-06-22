@@ -18,9 +18,7 @@ from pathlib import Path
 
 import yaml
 
-# data/ai/personas/, resolved relative to the repo root (this file is at
-# <root>/backend/app/agents/personas.py).
-PERSONA_DIR = Path(__file__).resolve().parents[3] / "data" / "ai" / "personas"
+from app.config import get_settings
 
 _FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---\n", re.DOTALL)
 # First fenced ``` block following the "## System Prompt" heading.
@@ -58,19 +56,20 @@ def _parse(text: str, source: str) -> Persona:
 
 
 @lru_cache(maxsize=1)
-def load_personas(persona_dir: Path = PERSONA_DIR) -> dict[str, Persona]:
+def load_personas(persona_dir: Path | None = None) -> dict[str, Persona]:
     """Parse every ``*.md`` under ``persona_dir`` into a {id: Persona} registry."""
+    resolved_dir = persona_dir or get_settings().persona_dir
     registry: dict[str, Persona] = {}
-    for path in sorted(persona_dir.glob("*.md")):
+    for path in sorted(resolved_dir.glob("*.md")):
         persona = _parse(path.read_text(encoding="utf-8"), path.name)
         registry[persona.id] = persona
     if not registry:
-        raise ValueError(f"no persona markdown files found in {persona_dir}")
+        raise ValueError(f"no persona markdown files found in {resolved_dir}")
     return registry
 
 
 @lru_cache(maxsize=1)
-def scene_to_personas(persona_dir: Path = PERSONA_DIR) -> dict[str, tuple[str, ...]]:
+def scene_to_personas(persona_dir: Path | None = None) -> dict[str, tuple[str, ...]]:
     """Map each scene to the persona ids that appear in it (frontmatter ``scenes``)."""
     index: dict[str, list[str]] = {}
     for persona in load_personas(persona_dir).values():

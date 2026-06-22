@@ -6,6 +6,7 @@ git-ignored). The database connection string is never committed — see
 """
 
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -53,6 +54,11 @@ class Settings(BaseSettings):
     # (one name per line). Built primarily in-memory from the source's donor
     # column; this is for known stray names. Never committed (keep it local).
     donor_blocklist_path: str | None = None
+
+    # Path to the directory containing persona markdown files.
+    # Defaults to the repo-root relative path for local dev, but can be overridden
+    # via the PERSONA_DIR env var for Docker container deployments (#56).
+    persona_dir: Path = Path(__file__).resolve().parents[2] / "data" / "ai" / "personas"
 
     @property
     def sqlalchemy_url(self) -> str:
