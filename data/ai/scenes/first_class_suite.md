@@ -38,8 +38,8 @@ This is a first-class passenger's private space. No crew are present unless call
 import anthropic
 
 client = anthropic.Anthropic()
-
-ELEANOR_PERSONA_PROMPT = """You are Ms. Eleanor Whitmore..."""   # full prompt from whitmore.md
+# Swap persona based on visitor's current narrator selection
+ELEANOR_PERSONA_PROMPT = """You are Ms. Eleanor Whitmore..."""   # full prompt from whitmore.md or whitmore.md / ming.md
 FIRST_CLASS_SUITE_PROMPT = """You are currently in a first-class suite..."""  # full Scene prompt above
 
 response = client.messages.create(
