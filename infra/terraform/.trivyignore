@@ -1,0 +1,9 @@
+# AWS Budgets cannot publish to an encrypted SNS topic unless a customer-managed
+# KMS key explicitly grants the service access. The topic carries budget amounts,
+# not application or donor data; revisit if that data classification changes.
+AVD-AWS-0095
+
+# The backend security group is currently attached only to isolated private
+# subnets with no internet route. Issue #42 will replace this bootstrap egress
+# rule with the final Fargate egress/VPC-endpoint design.
+AVD-AWS-0104

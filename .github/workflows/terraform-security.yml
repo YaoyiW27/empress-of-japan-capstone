@@ -1,0 +1,34 @@
+name: terraform-security
+
+on:
+  pull_request:
+    paths:
+      - "infra/terraform/**"
+      - ".github/workflows/terraform-security.yml"
+  push:
+    branches: [main]
+    paths:
+      - "infra/terraform/**"
+      - ".github/workflows/terraform-security.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  trivy-config:
+    name: Trivy Terraform scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Scan Terraform configuration
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: "config"
+          scan-ref: "infra/terraform"
+          trivyignores: "infra/terraform/.trivyignore"
+          format: "table"
+          severity: "HIGH,CRITICAL"
+          exit-code: "1"
