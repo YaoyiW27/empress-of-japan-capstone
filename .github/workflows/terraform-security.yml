@@ -28,6 +28,7 @@ jobs:
         with:
           scan-type: "config"
           scan-ref: "infra/terraform"
+          trivyignores: "infra/terraform/.trivyignore"
           format: "table"
           severity: "HIGH,CRITICAL"
           exit-code: "1"
