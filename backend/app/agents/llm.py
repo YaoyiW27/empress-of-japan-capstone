@@ -1,9 +1,9 @@
 """Pluggable chat model — mirrors ``app.ingest.embed`` (CLAUDE.md: Bedrock-first).
 
-``BedrockChatModel`` is the real path (Claude via Bedrock, ``anthropic.``-prefixed
-id); ``StubChatModel`` is a deterministic local stand-in so the agent graph runs and
-is testable before Bedrock *chat* IAM is provisioned (coordinate with Yaoyi — PR #49
-covered embeddings only). Selected by ``settings.chat_model``.
+``BedrockChatModel`` is the real path (Claude Sonnet 4.6 via Bedrock, through the
+US cross-Region inference profile ``us.anthropic.claude-sonnet-4-6``);
+``StubChatModel`` is a deterministic local stand-in so the agent graph runs and is
+testable without AWS creds. Selected by ``settings.chat_model``.
 
 A ``message`` is a ``{"role": "user"|"assistant", "content": str}`` dict.
 """
@@ -54,51 +54,10 @@ class BedrockChatModel:
         return result.content if isinstance(result.content, str) else str(result.content)
 
 
-class GeminiChatModel:
-    """Google Gemini — LOCAL DEV ONLY.
-
-    A free-tier convenience for testing real generation before Bedrock chat IAM
-    is ready. NOT the production path: CLAUDE.md mandates Bedrock-first, so don't
-    commit this as the default `chat_model`. Reads the key from GEMINI_API_KEY
-    (or GOOGLE_API_KEY); never commit the key. Requires `pip install google-genai`.
-    """
-
-    def __init__(self, model_id: str, api_key: str | None = None) -> None:
-        from google import genai  # lazy: only local-dev gemini runs need this
-
-        self.model_id = model_id
-        # Explicit key (from settings/.env) wins; else fall back to the
-        # GEMINI_API_KEY / GOOGLE_API_KEY env var.
-        self._client = genai.Client(api_key=api_key) if api_key else genai.Client()
-
-    def invoke(self, system: str, messages: list[dict[str, str]]) -> str:
-        from google.genai import types
-
-        contents = [
-            types.Content(
-                role="user" if m.get("role") == "user" else "model",
-                parts=[types.Part(text=m["content"])],
-            )
-            for m in messages
-        ]
-        result = self._client.models.generate_content(
-            model=self.model_id,
-            contents=contents,
-            config=types.GenerateContentConfig(system_instruction=system),
-        )
-        return result.text or ""
-
-
-def make_chat_model(
-    kind: str, *, model_id: str, region: str, api_key: str | None = None
-) -> ChatModel:
+def make_chat_model(kind: str, *, model_id: str, region: str) -> ChatModel:
     """Factory selecting the chat model by config (settings.chat_model)."""
     if kind == "bedrock":
         return BedrockChatModel(model_id=model_id, region=region)
-    if kind == "gemini":
-        return GeminiChatModel(model_id=model_id, api_key=api_key)
     if kind == "stub":
         return StubChatModel()
-    raise ValueError(
-        f"unknown chat_model kind: {kind!r} (expected 'bedrock', 'gemini', or 'stub')"
-    )
+    raise ValueError(f"unknown chat_model kind: {kind!r} (expected 'bedrock' or 'stub')")

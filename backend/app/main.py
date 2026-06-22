@@ -62,14 +62,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Compile the agent graph once at startup (like `engine` in db.py).
     model_ids = {
         "bedrock": settings.bedrock_chat_model,
-        "gemini": settings.gemini_chat_model,
         "stub": "",
     }
     chat_model = make_chat_model(
         settings.chat_model,
         model_id=model_ids.get(settings.chat_model, ""),
         region=settings.aws_region,
-        api_key=settings.gemini_api_key,
     )
     graph = build_graph(chat_model)
     # Server-side short-term memory: in-process per-session history, keyed by

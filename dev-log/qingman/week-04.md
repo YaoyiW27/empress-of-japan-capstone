@@ -2,7 +2,7 @@
 
 Name: Qingman Li (Alina)
 Week: Week 4 (June 18 – June 24, 2026)
-Date: 2026-06-21
+Date: 2026-06-22
 
 ## 1. Task / Goal
 - **Issue #31** — [backend] Stand up the **LangGraph multi-agent topology**: an
@@ -22,6 +22,19 @@ Date: 2026-06-21
   `InvokeModel` IAM for a **Claude chat** model. PR #49 only granted invoke on the
   Titan *embedding* model, so there is currently no permission to call a Claude
   chat model from the backend.
+- **Issue #56 (with Yaoyi)** — defined the **backend container contract** for #42
+  (`[infra] Containerize backend + Fargate service + ALB`) so the Dockerfile /
+  task definition match how the FastAPI app actually runs. Yaoyi owns the
+  Docker/ECR/ECS/ALB work; I confirmed the runtime details (start command, port,
+  health check, env vars/secrets, statelessness) against the backend code so he
+  doesn't have to guess.
+- **Issue #84** — [backend] **Switch chat LLM from local-dev Gemini to Claude via
+  Bedrock.** PR #73 (Yaoyi) merged the Claude chat Bedrock IAM policy, so the
+  `BedrockChatModel` path is now usable. Removed the local-dev-only
+  `GeminiChatModel` class, cleaned up `gemini_chat_model` / `gemini_api_key`
+  settings, updated `bedrock_chat_model` to the cross-Region inference profile
+  `us.anthropic.claude-sonnet-4-6`, and verified end-to-end against all three
+  personas with AWS SSO creds.
 
 ## 2. AI Tools Used
 Claude Code (Opus). Planned the change in plan-mode first (explored the backend,
@@ -57,6 +70,20 @@ turns — not just that the tests pass.
   each persona node loads its system prompt and calls the chat model. The persona
   node is exactly where a future `retrieve` step inserts — so #69 is an addition,
   not a rewrite.
+- **Confirmed the deploy contract against the code, not from memory (#56).** For
+  Yaoyi's three open questions I read `config.py` / `main.py` / `personas.py`
+  before answering: (1) **DATABASE_URL** — the backend reads a single
+  `DATABASE_URL` env var with no component-wise assembly, so ECS should inject the
+  full connection string from Secrets Manager (Option A, zero backend change);
+  (2) **statelessness** — `enable_session_memory` defaults off and the `session_id`
+  path returns 501 when off, so the stateless `history` path is safe to run on
+  2+ Fargate tasks now, deferring shared `session_id` memory to #34; (3)
+  **personas in the image** — read-only, loaded once at startup, so baking
+  `data/ai/personas/` into the image is fine, but I flagged a real fragility: the
+  files live at **repo-root** `data/ai/personas/` and `personas.py` resolves them
+  via `Path(__file__).parents[3]` with no env override, so the image must preserve
+  that relative layout or startup fails with "no persona markdown files found."
+  Offered a `PERSONA_DIR` settings override as the de-fragiliser.
 - **Added short-term session memory on request.** After the first cut (stateless,
   client supplies `history`), added **server-side per-session memory** via a
   LangGraph `MemorySaver` checkpointer keyed by `session_id`: the `messages` field
@@ -76,9 +103,9 @@ turns — not just that the tests pass.
     `scene_to_personas` index.
   - `llm.py` — pluggable `ChatModel`: `StubChatModel` (default), `BedrockChatModel`
     (`ChatBedrockConverse`), and a `make_chat_model` factory mirroring
-    `make_embedder`. (Plus a clearly-labelled **local-dev-only** `GeminiChatModel`
-    for testing real generation before Bedrock chat IAM lands — not the production
-    path.)
+    `make_embedder`. The local-dev-only `GeminiChatModel` that was used for
+    testing before Bedrock chat IAM landed has been **removed** in #84 — the
+    factory now accepts only `bedrock` and `stub`.
   - `state.py` — `AgentState` with an `operator.add` reducer on `messages` (so
     session turns accumulate).
   - `graph.py` — `build_graph(chat_model, checkpointer=None)`: dispatch → per-persona
@@ -86,8 +113,9 @@ turns — not just that the tests pass.
 - `backend/app/main.py` — `POST /chat` (`persona_id` / `scene` / `session_id` /
   `history`), persona resolution with 400 (ambiguous scene) / 404 (unknown persona);
   graph compiled once at startup, plus a `session_graph` with in-memory checkpointer.
-- `backend/app/config.py` — `chat_model` (default `stub`), `bedrock_chat_model`,
-  and the dev-only `gemini_chat_model` / `gemini_api_key` (key via local `.env` only).
+- `backend/app/config.py` — `chat_model` (default `stub`), `bedrock_chat_model`
+  (`us.anthropic.claude-sonnet-4-6` cross-Region inference profile).
+  `gemini_chat_model` / `gemini_api_key` removed in #84.
 - `backend/pyproject.toml` — added `langgraph`, `langchain-core`, `langchain-aws`.
 - `backend/tests/test_agents.py` — persona loading, scene disambiguation, graph
   dispatch, **session-memory accumulation**, and `/chat` happy-path + ambiguous-scene
@@ -95,6 +123,11 @@ turns — not just that the tests pass.
 - **Issue hygiene** — #31 rescoped to no-RAG architecture (+ a session-memory task
   and acceptance criterion); **#69** opened for the RAG follow-up; **#70** opened +
   assigned to Yaoyi for Claude chat IAM, with Project Track/Phase set.
+- **Backend container contract (#56)** — answered Yaoyi's three deploy questions
+  with code-cited decisions (Option A `DATABASE_URL` secret; stateless `history`
+  on 2+ tasks, `session_id` memory deferred to #34; personas baked into the image
+  with a `PERSONA_DIR`-override caveat), unblocking #42's Dockerfile / task
+  definition.
 
 ## 5. Human Review / Changes
 - **Refused to let the Issue's RAG requirement block the architecture.** Rather
@@ -108,10 +141,11 @@ turns — not just that the tests pass.
 - **Kept the stub honest.** `StubChatModel` is non-generative and clearly labelled,
   so nobody mistakes a creds-free local run for real model output — same discipline
   as the `FakeEmbedder` last week.
-- **Treated the Gemini key as dev-only and uncommittable.** Added the Gemini path
-  only as a local testing convenience (CLAUDE.md is Bedrock-first), confirmed
-  `backend/.env` is git-ignored via `git check-ignore`, and kept `chat_model`'s
-  committed default at `stub` so the off-convention provider never ships as default.
+- **Removed the Gemini convenience path once Bedrock was ready (#84).** The
+  `GeminiChatModel` was always labelled local-dev-only; once PR #73 landed the
+  Claude chat IAM and end-to-end was verified via AWS SSO creds, deleted the
+  class, its factory branch, and the `gemini_chat_model` / `gemini_api_key`
+  config — keeping the codebase Bedrock-first as CLAUDE.md mandates.
 - **Made memory ownership a deliberate decision, not a default.** "Where does
   session memory live — frontend or backend?" is a real architecture choice that
   also overlaps Steven's UX/voice track; chose backend (better for multi-persona
@@ -133,11 +167,16 @@ point means #69 is additive, not a rewrite. And choosing **scene/explicit routin
 defaults — the kind of decision that's cheap to make now and expensive to reverse
 after the frontend integrates.
 
-Verifying against a real model (Gemini, as a stand-in until Bedrock) was again
-where the confidence came from: the two-turn memory test sending only the new
-message proved the `MemorySaver` + reducer actually carries context, which a
-mocked assertion wouldn't have shown convincingly. **Open blockers:** (1) #70 —
-Claude chat IAM, to flip `chat_model` from stub to Bedrock; (2) #69 / the RAG
-retrieval layer, still gated on the real-embedding run. Next: confirm the chat
-model id with Yaoyi once IAM lands, then start #69 on top of `retrievable_chunks`,
-inserting the `retrieve` step into the persona node the graph already leaves open.
+The pluggable-seam investment paid off immediately for **#84**: once Yaoyi's
+PR #73 merged the Claude chat IAM, flipping the backend from the Gemini dev path
+to real Bedrock was a clean removal — delete `GeminiChatModel`, strip its config,
+update the model id to the cross-Region inference profile, and verify. All three
+personas (`captain_sinclair`, `ming_chen`, `eleanor_whitmore`) replied in
+character via Claude Sonnet 4.6 through `us.anthropic.claude-sonnet-4-6` on first
+try, confirming the Bedrock path end-to-end with AWS SSO sandbox creds.
+
+**Open blockers:** (1) #42 — Fargate task role needs the chat + embedding IAM
+policies attached for deployed runs (local dev works now via SSO); (2) #69 / the
+RAG retrieval layer, still gated on the real-embedding run. Next: start #69 on
+top of `retrievable_chunks`, inserting the `retrieve` step into the persona node
+the graph already leaves open.
