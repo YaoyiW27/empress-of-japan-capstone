@@ -6,6 +6,7 @@ git-ignored). The database connection string is never committed — see
 """
 
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -35,20 +36,13 @@ class Settings(BaseSettings):
 
     # --- Agents / chat LLM ---------------------------------------------------
     # "stub" (deterministic local, no creds) or "bedrock" (real Claude via
-    # Bedrock). Defaults to stub so the agent graph runs/tests locally before
-    # Bedrock *chat* IAM is provisioned (PR #49 covered embeddings only —
-    # coordinate chat-model access with Yaoyi). Flip to bedrock via env.
+    # Bedrock). Defaults to stub so the agent graph runs/tests without AWS creds;
+    # flip to bedrock via env once creds are available (chat IAM landed in #70 /
+    # PR #73, attached to the Fargate task role in #42).
     chat_model: str = "stub"
     # Claude Sonnet 4.6 has no in-Region endpoint in us-west-2, so deployed
     # calls use the US cross-Region inference profile from infra/bedrock.tf.
     bedrock_chat_model: str = "us.anthropic.claude-sonnet-4-6"
-    # LOCAL DEV ONLY (chat_model=gemini): free-tier model for testing real
-    # generation before Bedrock chat IAM lands. Not the production path
-    # (CLAUDE.md is Bedrock-first). Key via GEMINI_API_KEY in local .env only.
-    gemini_chat_model: str = "gemini-2.5-flash"
-    # Gemini key for local-dev chat_model=gemini. Put in local .env only — never
-    # commit. Falls back to the GEMINI_API_KEY/GOOGLE_API_KEY env var if unset.
-    gemini_api_key: str | None = None
 
     # Server-side session memory (the `session_id` chat path) uses an in-process
     # MemorySaver, which is NOT shared across Fargate tasks and is lost on restart.
@@ -60,6 +54,11 @@ class Settings(BaseSettings):
     # (one name per line). Built primarily in-memory from the source's donor
     # column; this is for known stray names. Never committed (keep it local).
     donor_blocklist_path: str | None = None
+
+    # Path to the directory containing persona markdown files.
+    # Defaults to the repo-root relative path for local dev, but can be overridden
+    # via the PERSONA_DIR env var for Docker container deployments (#56).
+    persona_dir: Path = Path(__file__).resolve().parents[2] / "data" / "ai" / "personas"
 
     @property
     def sqlalchemy_url(self) -> str:
