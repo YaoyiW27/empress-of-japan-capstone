@@ -14,7 +14,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.agents.graph import build_graph
 from app.agents.llm import make_chat_model
 from app.agents.personas import load_personas, scene_to_personas
-from app.config import get_settings
+from app.config import Settings, get_settings
 from app.db import engine
 
 
@@ -55,8 +55,8 @@ def _resolve_persona(persona_id: str | None, scene: str | None) -> str:
     raise HTTPException(status_code=400, detail="provide persona_id or scene")
 
 
-def create_app() -> FastAPI:
-    settings = get_settings()
+def create_app(settings: Settings | None = None) -> FastAPI:
+    settings = settings or get_settings()
     app = FastAPI(title=settings.app_name)
 
     # Compile the agent graph once at startup (like `engine` in db.py).
@@ -73,9 +73,15 @@ def create_app() -> FastAPI:
     )
     graph = build_graph(chat_model)
     # Server-side short-term memory: in-process per-session history, keyed by
-    # session_id (lost on restart — swap MemorySaver for a Postgres checkpointer
-    # when cross-restart persistence is needed; tracked alongside the RAG work).
-    session_graph = build_graph(chat_model, checkpointer=MemorySaver())
+    # session_id. The in-process MemorySaver is NOT shared across Fargate tasks
+    # and is lost on restart, so it stays off by default — the supported deployed
+    # path is the stateless client-provided `history`. Flip enable_session_memory
+    # on once #34 swaps in a shared (Postgres) checkpointer. See PR #71 / #42.
+    session_graph = (
+        build_graph(chat_model, checkpointer=MemorySaver())
+        if settings.enable_session_memory
+        else None
+    )
 
     @app.get("/health")
     def health() -> dict[str, str]:
@@ -112,12 +118,23 @@ def create_app() -> FastAPI:
         """
         persona_id = _resolve_persona(req.persona_id, req.scene)
         user_turn = {"role": "user", "content": req.message}
-        if req.session_id:
+        if req.session_id and session_graph is not None:
             # Memory path: send only the new turn; the reducer appends it to the
             # session's checkpointed history so the persona sees prior turns.
             result = session_graph.invoke(
                 {"persona_id": persona_id, "scene": req.scene, "messages": [user_turn]},
                 config={"configurable": {"thread_id": req.session_id}},
+            )
+        elif req.session_id:
+            # session_id given but server-side memory is off (in-process MemorySaver
+            # is not shared across Fargate tasks / survives no restart). Don't pretend
+            # to remember — tell the client to drive history itself until #34 lands.
+            raise HTTPException(
+                status_code=501,
+                detail=(
+                    "session_id memory is not enabled in this deployment yet "
+                    "(shared checkpointer tracked in #34); send prior turns via `history`."
+                ),
             )
         else:
             # Stateless path: the client supplies the prior turns via `history`.

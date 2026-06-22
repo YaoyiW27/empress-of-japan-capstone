@@ -50,6 +50,12 @@ class Settings(BaseSettings):
     # commit. Falls back to the GEMINI_API_KEY/GOOGLE_API_KEY env var if unset.
     gemini_api_key: str | None = None
 
+    # Server-side session memory (the `session_id` chat path) uses an in-process
+    # MemorySaver, which is NOT shared across Fargate tasks and is lost on restart.
+    # Off until #34 provides a shared (Postgres) checkpointer; until then the
+    # supported path is the client-provided `history` (stateless). See PR #71 / #42.
+    enable_session_memory: bool = False
+
     # Optional extra donor-name blocklist file for free-text PII redaction
     # (one name per line). Built primarily in-memory from the source's donor
     # column; this is for known stray names. Never committed (keep it local).

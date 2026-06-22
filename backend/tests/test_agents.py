@@ -52,8 +52,24 @@ def test_session_memory_accumulates() -> None:
     assert "Q1" in contents and "Q2" in contents
 
 
-def test_chat_endpoint_session_id_path() -> None:
+def test_chat_endpoint_session_id_disabled_by_default() -> None:
+    # Server-side memory is off by default (in-process MemorySaver isn't shared
+    # across Fargate tasks; tracked in #34). A session_id request returns 501.
     client = TestClient(app)
+    resp = client.post(
+        "/chat", json={"persona_id": "captain_sinclair", "session_id": "demo-1", "message": "Hi?"}
+    )
+    assert resp.status_code == 501
+
+
+def test_chat_endpoint_session_id_path_when_enabled() -> None:
+    # With the flag on, the session_id memory path works end to end.
+    from app.config import Settings, get_settings
+    from app.main import create_app
+
+    get_settings.cache_clear()
+    app_with_memory = create_app(Settings(enable_session_memory=True))
+    client = TestClient(app_with_memory)
     body = {"persona_id": "captain_sinclair", "session_id": "demo-1"}
     r1 = client.post("/chat", json={**body, "message": "First question?"})
     r2 = client.post("/chat", json={**body, "message": "Second question?"})
