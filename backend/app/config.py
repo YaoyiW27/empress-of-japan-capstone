@@ -33,6 +33,29 @@ class Settings(BaseSettings):
     bedrock_embedding_model: str = "amazon.titan-embed-text-v2:0"
     aws_region: str = "us-west-2"
 
+    # --- Agents / chat LLM ---------------------------------------------------
+    # "stub" (deterministic local, no creds) or "bedrock" (real Claude via
+    # Bedrock). Defaults to stub so the agent graph runs/tests locally before
+    # Bedrock *chat* IAM is provisioned (PR #49 covered embeddings only —
+    # coordinate chat-model access with Yaoyi). Flip to bedrock via env.
+    chat_model: str = "stub"
+    # Bedrock-available Claude model id (anthropic.-prefixed). Confirm the exact
+    # id + console model access with Yaoyi before flipping chat_model=bedrock.
+    bedrock_chat_model: str = "anthropic.claude-sonnet-4-6"
+    # LOCAL DEV ONLY (chat_model=gemini): free-tier model for testing real
+    # generation before Bedrock chat IAM lands. Not the production path
+    # (CLAUDE.md is Bedrock-first). Key via GEMINI_API_KEY in local .env only.
+    gemini_chat_model: str = "gemini-2.5-flash"
+    # Gemini key for local-dev chat_model=gemini. Put in local .env only — never
+    # commit. Falls back to the GEMINI_API_KEY/GOOGLE_API_KEY env var if unset.
+    gemini_api_key: str | None = None
+
+    # Server-side session memory (the `session_id` chat path) uses an in-process
+    # MemorySaver, which is NOT shared across Fargate tasks and is lost on restart.
+    # Off until #34 provides a shared (Postgres) checkpointer; until then the
+    # supported path is the client-provided `history` (stateless). See PR #71 / #42.
+    enable_session_memory: bool = False
+
     # Optional extra donor-name blocklist file for free-text PII redaction
     # (one name per line). Built primarily in-memory from the source's donor
     # column; this is for known stray names. Never committed (keep it local).
