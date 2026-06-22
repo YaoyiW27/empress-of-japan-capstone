@@ -148,6 +148,27 @@ rescales the dollar trigger points automatically.
 
 ---
 
+## Bedrock model access
+
+Terraform creates standalone least-privilege policies for the backend task role:
+
+| Workload | Model/profile | Policy output |
+|---|---|---|
+| RAG embeddings | `amazon.titan-embed-text-v2:0` | `bedrock_titan_embed_policy_arn` |
+| Persona chat | `us.anthropic.claude-sonnet-4-6` | `bedrock_claude_chat_policy_arn` |
+
+Claude Sonnet 4.6 has no in-Region endpoint in `us-west-2`, so chat uses the US
+cross-Region inference profile. Bedrock may process a request in `us-east-1`,
+`us-east-2`, or `us-west-2`; the IAM policy grants only those destination model
+ARNs and requires calls to go through that inference profile.
+
+Before the first Anthropic invocation, complete the Anthropic first-time-use
+form and ensure the sandbox has the required AWS Marketplace subscription
+permissions. These are account-level steps and are not granted to the Fargate
+runtime role. Attach both policy outputs to that role in #42.
+
+---
+
 ## Knowledge-base RDS (issue #25)
 
 Terraform provisions the shared/deployed Postgres database for the RAG knowledge
