@@ -80,3 +80,8 @@ output "bedrock_titan_embed_policy_arn" {
   description = "ARN of the bedrock:InvokeModel policy for Titan Embed V2. Attach to the Fargate task role in #42."
   value       = aws_iam_policy.bedrock_titan_embed_invoke.arn
 }
+
+output "bedrock_claude_chat_policy_arn" {
+  description = "ARN of the Claude chat inference policy. Attach to the Fargate task role in #42."
+  value       = aws_iam_policy.bedrock_claude_chat_invoke.arn
+}

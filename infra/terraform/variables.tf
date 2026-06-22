@@ -87,6 +87,19 @@ variable "bedrock_embedding_model_id" {
   default     = "amazon.titan-embed-text-v2:0"
 }
 
+# --- Bedrock chat (issue #70, see bedrock.tf) ---
+
+variable "bedrock_chat_inference_profile_id" {
+  description = "US cross-Region inference profile for backend chat. Mirrors backend/app/config.py (bedrock_chat_model)."
+  type        = string
+  default     = "us.anthropic.claude-sonnet-4-6"
+
+  validation {
+    condition     = startswith(var.bedrock_chat_inference_profile_id, "us.anthropic.")
+    error_message = "Chat must use a US Anthropic inference profile so destination Regions stay within the US geography."
+  }
+}
+
 # --- Cost tracking (issue #20, see budgets.tf) ---
 
 variable "alert_emails" {

@@ -36,3 +36,55 @@ resource "aws_iam_policy" "bedrock_titan_embed_invoke" {
   description = "Allow bedrock:InvokeModel for Titan Text Embeddings V2 in ${var.region} (issue #48)."
   policy      = data.aws_iam_policy_document.bedrock_titan_embed_invoke.json
 }
+
+# Claude Sonnet 4.6 is not available for in-Region inference from us-west-2.
+# The backend therefore invokes the US cross-Region inference profile, which
+# can route requests to us-east-1, us-east-2, or us-west-2. AWS requires IAM
+# access to both the profile ARN and every destination foundation-model ARN.
+data "aws_caller_identity" "current" {}
+
+locals {
+  bedrock_chat_foundation_model_id = trimprefix(
+    var.bedrock_chat_inference_profile_id,
+    "us.",
+  )
+  bedrock_chat_inference_profile_arn = "arn:aws:bedrock:${var.region}:${data.aws_caller_identity.current.account_id}:inference-profile/${var.bedrock_chat_inference_profile_id}"
+  bedrock_chat_destination_regions   = ["us-east-1", "us-east-2", "us-west-2"]
+}
+
+data "aws_iam_policy_document" "bedrock_claude_chat_invoke" {
+  statement {
+    sid    = "InvokeClaudeChatInferenceProfile"
+    effect = "Allow"
+    actions = [
+      "bedrock:InvokeModel",
+      "bedrock:InvokeModelWithResponseStream",
+    ]
+    resources = [local.bedrock_chat_inference_profile_arn]
+  }
+
+  statement {
+    sid    = "InvokeClaudeChatDestinationModelsViaProfile"
+    effect = "Allow"
+    actions = [
+      "bedrock:InvokeModel",
+      "bedrock:InvokeModelWithResponseStream",
+    ]
+    resources = [
+      for region in local.bedrock_chat_destination_regions :
+      "arn:aws:bedrock:${region}::foundation-model/${local.bedrock_chat_foundation_model_id}"
+    ]
+
+    condition {
+      test     = "StringLike"
+      variable = "bedrock:InferenceProfileArn"
+      values   = [local.bedrock_chat_inference_profile_arn]
+    }
+  }
+}
+
+resource "aws_iam_policy" "bedrock_claude_chat_invoke" {
+  name        = "empress-bedrock-claude-chat-invoke"
+  description = "Allow Claude Sonnet 4.6 chat through the US Bedrock inference profile (issue #70)."
+  policy      = data.aws_iam_policy_document.bedrock_claude_chat_invoke.json
+}

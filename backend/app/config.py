@@ -39,9 +39,9 @@ class Settings(BaseSettings):
     # Bedrock *chat* IAM is provisioned (PR #49 covered embeddings only —
     # coordinate chat-model access with Yaoyi). Flip to bedrock via env.
     chat_model: str = "stub"
-    # Bedrock-available Claude model id (anthropic.-prefixed). Confirm the exact
-    # id + console model access with Yaoyi before flipping chat_model=bedrock.
-    bedrock_chat_model: str = "anthropic.claude-sonnet-4-6"
+    # Claude Sonnet 4.6 has no in-Region endpoint in us-west-2, so deployed
+    # calls use the US cross-Region inference profile from infra/bedrock.tf.
+    bedrock_chat_model: str = "us.anthropic.claude-sonnet-4-6"
     # LOCAL DEV ONLY (chat_model=gemini): free-tier model for testing real
     # generation before Bedrock chat IAM lands. Not the production path
     # (CLAUDE.md is Bedrock-first). Key via GEMINI_API_KEY in local .env only.
