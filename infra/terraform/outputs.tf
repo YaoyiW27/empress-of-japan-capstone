@@ -125,3 +125,8 @@ output "backend_log_group_name" {
   description = "CloudWatch log group for backend container logs."
   value       = aws_cloudwatch_log_group.backend.name
 }
+
+output "backend_task_definition_arn" {
+  description = "ARN of the bootstrap backend ECS task definition."
+  value       = aws_ecs_task_definition.backend.arn
+}

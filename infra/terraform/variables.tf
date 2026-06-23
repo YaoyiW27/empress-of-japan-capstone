@@ -53,6 +53,24 @@ variable "backend_log_retention_days" {
   }
 }
 
+variable "backend_task_cpu" {
+  description = "Fargate CPU units for the backend API task."
+  type        = number
+  default     = 256
+}
+
+variable "backend_task_memory" {
+  description = "Fargate memory in MiB for the backend API task."
+  type        = number
+  default     = 512
+}
+
+variable "backend_bootstrap_image_tag" {
+  description = "Initial immutable ECR image tag used by the Terraform task definition. The deploy workflow registers later commit-SHA revisions."
+  type        = string
+  default     = "bootstrap"
+}
+
 # --- Knowledge base RDS (issue #25, see rds.tf) ---
 
 variable "kb_db_name" {
