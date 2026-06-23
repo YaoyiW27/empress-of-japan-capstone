@@ -50,7 +50,7 @@ export default async function ExperienceScenePage({ params }: Params) {
         </h1>
       </div>
 
-      <NarratorOverlay narrator={scene?.narrators} />
+      <NarratorOverlay scene={scene} />
     </main>
   );
 }
