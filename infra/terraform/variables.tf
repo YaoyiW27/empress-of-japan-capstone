@@ -29,6 +29,17 @@ variable "private_subnet_cidrs" {
   }
 }
 
+variable "public_subnet_cidrs" {
+  description = "Public subnet CIDRs for the ALB and NAT-free sandbox Fargate tasks."
+  type        = list(string)
+  default     = ["10.42.20.0/24", "10.42.21.0/24"]
+
+  validation {
+    condition     = length(var.public_subnet_cidrs) >= 2
+    error_message = "An internet-facing ALB requires public subnets in at least two Availability Zones."
+  }
+}
+
 # --- Knowledge base RDS (issue #25, see rds.tf) ---
 
 variable "kb_db_name" {

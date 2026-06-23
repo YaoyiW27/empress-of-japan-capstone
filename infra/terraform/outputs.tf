@@ -90,3 +90,18 @@ output "backend_ecr_repository_url" {
   description = "ECR repository URL for the backend API image."
   value       = aws_ecr_repository.backend.repository_url
 }
+
+output "public_subnet_ids" {
+  description = "Public subnet IDs for the ALB and NAT-free sandbox Fargate tasks."
+  value       = aws_subnet.public[*].id
+}
+
+output "backend_alb_dns_name" {
+  description = "Public DNS name of the backend application load balancer."
+  value       = aws_lb.backend.dns_name
+}
+
+output "backend_target_group_arn" {
+  description = "Target group ARN used by the backend ECS service."
+  value       = aws_lb_target_group.backend.arn
+}
