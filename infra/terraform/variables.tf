@@ -40,6 +40,19 @@ variable "public_subnet_cidrs" {
   }
 }
 
+# --- ECS backend runtime (issue #42 / #59) ---
+
+variable "backend_log_retention_days" {
+  description = "CloudWatch retention for backend ECS logs. Increase for production-like environments if required."
+  type        = number
+  default     = 14
+
+  validation {
+    condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365], var.backend_log_retention_days)
+    error_message = "Use a CloudWatch-supported retention period."
+  }
+}
+
 # --- Knowledge base RDS (issue #25, see rds.tf) ---
 
 variable "kb_db_name" {

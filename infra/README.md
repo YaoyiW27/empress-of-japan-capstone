@@ -169,6 +169,16 @@ runtime role. Attach both policy outputs to that role in #42.
 
 ---
 
+## Backend ECS logs
+
+The backend writes container stdout/stderr to `/ecs/empress-backend` in
+CloudWatch Logs. Terraform sets an explicit **14-day** sandbox retention period
+through `backend_log_retention_days`, preventing logs from accumulating
+indefinitely. Increase the variable to a supported CloudWatch retention value
+for a longer demo or production-like audit window.
+
+---
+
 ## Knowledge-base RDS (issue #25)
 
 Terraform provisions the shared/deployed Postgres database for the RAG knowledge

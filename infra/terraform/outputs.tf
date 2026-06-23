@@ -105,3 +105,23 @@ output "backend_target_group_arn" {
   description = "Target group ARN used by the backend ECS service."
   value       = aws_lb_target_group.backend.arn
 }
+
+output "ecs_cluster_arn" {
+  description = "ARN of the ECS cluster hosting the backend service."
+  value       = aws_ecs_cluster.app.arn
+}
+
+output "backend_execution_role_arn" {
+  description = "ECS task execution role ARN for ECR, CloudWatch Logs, and secret injection."
+  value       = aws_iam_role.backend_execution.arn
+}
+
+output "backend_task_role_arn" {
+  description = "Application task role ARN for Bedrock and SQS access."
+  value       = aws_iam_role.backend_task.arn
+}
+
+output "backend_log_group_name" {
+  description = "CloudWatch log group for backend container logs."
+  value       = aws_cloudwatch_log_group.backend.name
+}
