@@ -85,3 +85,8 @@ output "bedrock_claude_chat_policy_arn" {
   description = "ARN of the Claude chat inference policy. Attach to the Fargate task role in #42."
   value       = aws_iam_policy.bedrock_claude_chat_invoke.arn
 }
+
+output "backend_ecr_repository_url" {
+  description = "ECR repository URL for the backend API image."
+  value       = aws_ecr_repository.backend.repository_url
+}
