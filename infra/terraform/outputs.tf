@@ -130,3 +130,8 @@ output "backend_task_definition_arn" {
   description = "ARN of the bootstrap backend ECS task definition."
   value       = aws_ecs_task_definition.backend.arn
 }
+
+output "backend_ecs_service_name" {
+  description = "Name of the backend ECS service managed by the deployment workflow."
+  value       = aws_ecs_service.backend.name
+}

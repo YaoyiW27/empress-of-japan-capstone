@@ -71,6 +71,17 @@ variable "backend_bootstrap_image_tag" {
   default     = "bootstrap"
 }
 
+variable "backend_initial_desired_count" {
+  description = "Initial task count before the first image deployment. CI scales the service to 2 after pushing the bootstrap image."
+  type        = number
+  default     = 0
+
+  validation {
+    condition     = var.backend_initial_desired_count == 0
+    error_message = "Keep the Terraform bootstrap service at zero; the deployment workflow owns the running task count."
+  }
+}
+
 # --- Knowledge base RDS (issue #25, see rds.tf) ---
 
 variable "kb_db_name" {

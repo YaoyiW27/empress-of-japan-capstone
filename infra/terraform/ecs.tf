@@ -164,3 +164,46 @@ resource "aws_ecs_task_definition" "backend" {
     aws_iam_role_policy_attachment.backend_execution_rds_secrets,
   ]
 }
+
+# Terraform creates the service at zero tasks because the immutable bootstrap
+# image does not exist until the deployment workflow builds and pushes it. CI
+# then registers the real commit-SHA task revision and scales the service to 2.
+resource "aws_ecs_service" "backend" {
+  name            = "empress-backend"
+  cluster         = aws_ecs_cluster.app.id
+  task_definition = aws_ecs_task_definition.backend.arn
+  desired_count   = var.backend_initial_desired_count
+  launch_type     = "FARGATE"
+
+  platform_version = "LATEST"
+
+  health_check_grace_period_seconds = 60
+
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
+
+  network_configuration {
+    subnets          = aws_subnet.public[*].id
+    security_groups  = [aws_security_group.backend.id]
+    assign_public_ip = true
+  }
+
+  load_balancer {
+    target_group_arn = aws_lb_target_group.backend.arn
+    container_name   = "backend"
+    container_port   = 8000
+  }
+
+  lifecycle {
+    # Application releases own the active revision and steady-state task count.
+    ignore_changes = [task_definition, desired_count]
+  }
+
+  depends_on = [aws_lb_listener.backend_http]
+
+  tags = {
+    Name = "empress-backend"
+  }
+}
