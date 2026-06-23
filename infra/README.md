@@ -177,6 +177,18 @@ through `backend_log_retention_days`, preventing logs from accumulating
 indefinitely. Increase the variable to a supported CloudWatch retention value
 for a longer demo or production-like audit window.
 
+## Run RDS migrations
+
+After the backend has been deployed, run the `migrate-backend` GitHub Actions
+workflow manually and confirm the migration input. It copies the task definition
+currently used by the ECS service, changes its command to
+`alembic upgrade head`, and starts it as a one-off Fargate task.
+
+The task uses the deployed service's VPC subnets, security group, IAM roles, and
+Secrets Manager injection. Database credentials never pass through GitHub or a
+developer laptop. Check the workflow summary and the `migration` stream under
+`/ecs/empress-backend` if the task exits unsuccessfully.
+
 ---
 
 ## Knowledge-base RDS (issue #25)

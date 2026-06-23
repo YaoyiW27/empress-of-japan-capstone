@@ -1,0 +1,146 @@
+name: migrate-backend
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Run Alembic migrations against the deployed RDS database
+        required: true
+        type: boolean
+
+concurrency:
+  group: migrate-backend-sandbox
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-west-2
+  ECS_CLUSTER: empress-app
+  ECS_SERVICE: empress-backend
+
+jobs:
+  migrate:
+    name: Run Alembic migration task
+    if: ${{ inputs.confirm }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Read deployed task and network configuration
+        id: runtime
+        run: |
+          TASK_DEFINITION=$(aws ecs describe-services \
+            --cluster "$ECS_CLUSTER" \
+            --services "$ECS_SERVICE" \
+            --query 'services[0].taskDefinition' \
+            --output text)
+          SUBNETS=$(aws ecs describe-services \
+            --cluster "$ECS_CLUSTER" \
+            --services "$ECS_SERVICE" \
+            --query 'services[0].networkConfiguration.awsvpcConfiguration.subnets' \
+            --output json | jq -r 'join(",")')
+          SECURITY_GROUPS=$(aws ecs describe-services \
+            --cluster "$ECS_CLUSTER" \
+            --services "$ECS_SERVICE" \
+            --query 'services[0].networkConfiguration.awsvpcConfiguration.securityGroups' \
+            --output json | jq -r 'join(",")')
+          ASSIGN_PUBLIC_IP=$(aws ecs describe-services \
+            --cluster "$ECS_CLUSTER" \
+            --services "$ECS_SERVICE" \
+            --query 'services[0].networkConfiguration.awsvpcConfiguration.assignPublicIp' \
+            --output text)
+
+          if [ "$TASK_DEFINITION" = "None" ] || [ -z "$TASK_DEFINITION" ]; then
+            echo "The backend ECS service has no deployed task definition." >&2
+            exit 1
+          fi
+
+          {
+            echo "task-definition=$TASK_DEFINITION"
+            echo "subnets=$SUBNETS"
+            echo "security-groups=$SECURITY_GROUPS"
+            echo "assign-public-ip=$ASSIGN_PUBLIC_IP"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Register one-off migration task definition
+        id: migration-task
+        env:
+          TASK_DEFINITION: ${{ steps.runtime.outputs.task-definition }}
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition "$TASK_DEFINITION" \
+            --query taskDefinition > deployed-task.json
+
+          jq '
+            del(
+              .taskDefinitionArn,
+              .revision,
+              .status,
+              .requiresAttributes,
+              .compatibilities,
+              .registeredAt,
+              .registeredBy
+            )
+            | .family = "empress-backend-migration"
+            | .containerDefinitions[0] |= (
+                del(.healthCheck, .portMappings)
+                | .command = ["alembic", "upgrade", "head"]
+                | .logConfiguration.options["awslogs-stream-prefix"] = "migration"
+              )
+          ' deployed-task.json > migration-task.json
+
+          MIGRATION_TASK_DEFINITION=$(aws ecs register-task-definition \
+            --cli-input-json file://migration-task.json \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+          echo "task-definition=$MIGRATION_TASK_DEFINITION" >> "$GITHUB_OUTPUT"
+
+      - name: Run migration inside the VPC
+        id: run-task
+        env:
+          TASK_DEFINITION: ${{ steps.migration-task.outputs.task-definition }}
+          SUBNETS: ${{ steps.runtime.outputs.subnets }}
+          SECURITY_GROUPS: ${{ steps.runtime.outputs.security-groups }}
+          ASSIGN_PUBLIC_IP: ${{ steps.runtime.outputs.assign-public-ip }}
+        run: |
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "$ECS_CLUSTER" \
+            --task-definition "$TASK_DEFINITION" \
+            --launch-type FARGATE \
+            --network-configuration \
+              "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SECURITY_GROUPS],assignPublicIp=$ASSIGN_PUBLIC_IP}" \
+            --query 'tasks[0].taskArn' \
+            --output text)
+
+          if [ "$TASK_ARN" = "None" ] || [ -z "$TASK_ARN" ]; then
+            echo "ECS did not start the migration task." >&2
+            exit 1
+          fi
+
+          echo "task-arn=$TASK_ARN" >> "$GITHUB_OUTPUT"
+          aws ecs wait tasks-stopped \
+            --cluster "$ECS_CLUSTER" \
+            --tasks "$TASK_ARN"
+
+      - name: Verify migration succeeded
+        env:
+          TASK_ARN: ${{ steps.run-task.outputs.task-arn }}
+        run: |
+          aws ecs describe-tasks \
+            --cluster "$ECS_CLUSTER" \
+            --tasks "$TASK_ARN" \
+            --query 'tasks[0].{stoppedReason:stoppedReason,container:containers[0].{exitCode:exitCode,reason:reason}}'
+
+          EXIT_CODE=$(aws ecs describe-tasks \
+            --cluster "$ECS_CLUSTER" \
+            --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+          test "$EXIT_CODE" = "0"
