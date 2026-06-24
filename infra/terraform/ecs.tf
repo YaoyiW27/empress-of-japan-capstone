@@ -340,6 +340,9 @@ resource "aws_ecs_service" "backend" {
   }
 }
 
+# Initial sandbox scaling guardrails: 2 tasks for basic availability, 6 tasks
+# as a cost cap, and CPU target tracking as a first signal. Load tests should
+# replace these defaults once we can map request volume to latency and spend.
 resource "aws_appautoscaling_target" "backend" {
   max_capacity       = var.backend_autoscaling_max_capacity
   min_capacity       = var.backend_autoscaling_min_capacity

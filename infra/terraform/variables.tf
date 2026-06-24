@@ -83,21 +83,36 @@ variable "backend_initial_desired_count" {
 }
 
 variable "backend_autoscaling_min_capacity" {
-  description = "Minimum number of backend Fargate tasks once the service has been deployed."
+  description = "Minimum backend Fargate tasks after deployment. Starts at 2 for basic availability across AZs; tune after load testing."
   type        = number
   default     = 2
+
+  validation {
+    condition     = var.backend_autoscaling_min_capacity >= 1
+    error_message = "Backend autoscaling minimum capacity must be at least 1."
+  }
 }
 
 variable "backend_autoscaling_max_capacity" {
-  description = "Maximum number of backend Fargate tasks for sandbox cost control."
+  description = "Maximum backend Fargate tasks for sandbox cost control. This is a guardrail, not a proven concurrent-user limit."
   type        = number
   default     = 6
+
+  validation {
+    condition     = var.backend_autoscaling_max_capacity >= var.backend_autoscaling_min_capacity
+    error_message = "Backend autoscaling maximum capacity must be greater than or equal to the minimum capacity."
+  }
 }
 
 variable "backend_autoscaling_cpu_target_percent" {
-  description = "Average ECS service CPU percentage that target-tracking autoscaling should maintain."
+  description = "Average ECS service CPU percentage for target tracking. Start below saturation to leave latency headroom; tune with load tests."
   type        = number
   default     = 60
+
+  validation {
+    condition     = var.backend_autoscaling_cpu_target_percent >= 30 && var.backend_autoscaling_cpu_target_percent <= 80
+    error_message = "Backend CPU target should stay between 30 and 80 percent for this sandbox."
+  }
 }
 
 # --- Knowledge base RDS (issue #25, see rds.tf) ---
