@@ -153,6 +153,38 @@ variable "bedrock_chat_inference_profile_id" {
   }
 }
 
+# --- Backend observability (issue #41, see monitoring.tf / ecs.tf) ---
+
+variable "backend_otel_enabled" {
+  description = "Enable OpenTelemetry trace export from the backend container."
+  type        = bool
+  default     = false
+}
+
+variable "backend_otel_service_name" {
+  description = "OpenTelemetry service.name for backend traces."
+  type        = string
+  default     = "empress-backend"
+}
+
+variable "backend_otel_exporter_otlp_endpoint" {
+  description = "OTLP/HTTP trace endpoint. Honeycomb's direct ingest endpoint is the default."
+  type        = string
+  default     = "https://api.honeycomb.io/v1/traces"
+}
+
+variable "backend_honeycomb_dataset" {
+  description = "Honeycomb dataset for backend traces."
+  type        = string
+  default     = "empress-backend-sandbox"
+}
+
+variable "honeycomb_api_key_secret_arn" {
+  description = "Optional Secrets Manager ARN containing the Honeycomb API key. Leave null until the key is provisioned."
+  type        = string
+  default     = null
+}
+
 # --- Cost tracking (issue #20, see budgets.tf) ---
 
 variable "alert_emails" {

@@ -106,9 +106,13 @@ resource "aws_ecs_task_definition" "backend" {
         { name = "BEDROCK_EMBEDDING_MODEL", value = var.bedrock_embedding_model_id },
         { name = "ENABLE_SESSION_MEMORY", value = "false" },
         { name = "PERSONA_DIR", value = "/app/data/ai/personas" },
+        { name = "OTEL_ENABLED", value = tostring(var.backend_otel_enabled) },
+        { name = "OTEL_SERVICE_NAME", value = var.backend_otel_service_name },
+        { name = "OTEL_EXPORTER_OTLP_ENDPOINT", value = var.backend_otel_exporter_otlp_endpoint },
+        { name = "HONEYCOMB_DATASET", value = var.backend_honeycomb_dataset },
       ]
 
-      secrets = [
+      secrets = concat([
         {
           name      = "DB_HOST"
           valueFrom = "${aws_secretsmanager_secret.knowledge_base_connection.arn}:host::"
@@ -129,7 +133,14 @@ resource "aws_ecs_task_definition" "backend" {
           name      = "DB_PASSWORD"
           valueFrom = "${aws_db_instance.knowledge_base.master_user_secret[0].secret_arn}:password::"
         },
-      ]
+        ],
+        var.honeycomb_api_key_secret_arn == null ? [] : [
+          {
+            name      = "HONEYCOMB_API_KEY"
+            valueFrom = var.honeycomb_api_key_secret_arn
+          }
+        ]
+      )
 
       logConfiguration = {
         logDriver = "awslogs"
