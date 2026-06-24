@@ -8,6 +8,7 @@ traces without requiring code changes in each endpoint.
 from __future__ import annotations
 
 import logging
+from urllib.parse import urlparse
 
 from fastapi import FastAPI
 
@@ -18,12 +19,19 @@ logger = logging.getLogger(__name__)
 _sqlalchemy_instrumented = False
 
 
+def _is_honeycomb_endpoint(endpoint: str) -> bool:
+    hostname = urlparse(endpoint).hostname
+    return hostname == "api.honeycomb.io" or (
+        hostname is not None and hostname.endswith(".honeycomb.io")
+    )
+
+
 def configure_telemetry(app: FastAPI, settings: Settings) -> None:
     """Configure FastAPI + SQLAlchemy tracing when observability is enabled."""
     if not settings.otel_enabled:
         return
 
-    direct_honeycomb = "honeycomb.io" in settings.otel_exporter_otlp_endpoint
+    direct_honeycomb = _is_honeycomb_endpoint(settings.otel_exporter_otlp_endpoint)
     if direct_honeycomb and not settings.honeycomb_api_key:
         logger.warning(
             "OTEL_ENABLED=true and endpoint is Honeycomb, but HONEYCOMB_API_KEY is not set; "
