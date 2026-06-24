@@ -93,6 +93,68 @@ resource "aws_cloudwatch_log_group" "backend" {
   }
 }
 
+locals {
+  otel_collector_config = yamlencode({
+    receivers = {
+      otlp = {
+        protocols = {
+          grpc = {
+            endpoint = "0.0.0.0:4317"
+          }
+          http = {
+            endpoint = "0.0.0.0:4318"
+          }
+        }
+      }
+    }
+
+    processors = {
+      memory_limiter = {
+        check_interval         = "1s"
+        limit_percentage       = 75
+        spike_limit_percentage = 20
+      }
+      batch = {
+        timeout             = "5s"
+        send_batch_size     = 512
+        send_batch_max_size = 1024
+      }
+      resource = {
+        attributes = [
+          {
+            action = "upsert"
+            key    = "deployment.environment"
+            value  = "sandbox"
+          },
+        ]
+      }
+    }
+
+    exporters = {
+      otlphttp = {
+        endpoint = "https://api.honeycomb.io"
+        headers = {
+          "x-honeycomb-team"    = "$${env:HONEYCOMB_API_KEY}"
+          "x-honeycomb-dataset" = var.backend_honeycomb_dataset
+        }
+      }
+      debug = {
+        verbosity = "basic"
+      }
+    }
+
+    service = {
+      pipelines = {
+        traces = {
+          receivers  = ["otlp"]
+          processors = ["memory_limiter", "resource", "batch"]
+          exporters  = var.honeycomb_api_key_secret_arn == null ? ["debug"] : ["otlphttp"]
+        }
+      }
+    }
+  })
+}
+
 resource "aws_ecs_task_definition" "backend" {
   family                   = "empress-backend"
   requires_compatibilities = ["FARGATE"]
@@ -134,7 +196,7 @@ resource "aws_ecs_task_definition" "backend" {
         { name = "HONEYCOMB_DATASET", value = var.backend_honeycomb_dataset },
       ]
 
-      secrets = concat([
+      secrets = [
         {
           name      = "DB_HOST"
           valueFrom = "${aws_secretsmanager_secret.knowledge_base_connection.arn}:host::"
@@ -155,14 +217,7 @@ resource "aws_ecs_task_definition" "backend" {
           name      = "DB_PASSWORD"
           valueFrom = "${aws_db_instance.knowledge_base.master_user_secret[0].secret_arn}:password::"
         },
-        ],
-        var.honeycomb_api_key_secret_arn == null ? [] : [
-          {
-            name      = "HONEYCOMB_API_KEY"
-            valueFrom = "${var.honeycomb_api_key_secret_arn}:api_key::"
-          }
-        ]
-      )
+      ]
 
       logConfiguration = {
         logDriver = "awslogs"
@@ -179,6 +234,49 @@ resource "aws_ecs_task_definition" "backend" {
         timeout     = 5
         retries     = 3
         startPeriod = 30
+      }
+    },
+    {
+      name      = "otel-collector"
+      image     = var.otel_collector_image
+      essential = var.backend_otel_enabled
+      command   = ["--config=env:OTEL_COLLECTOR_CONFIG"]
+
+      environment = [
+        { name = "OTEL_COLLECTOR_CONFIG", value = local.otel_collector_config },
+      ]
+
+      secrets = var.honeycomb_api_key_secret_arn == null ? [] : [
+        {
+          name      = "HONEYCOMB_API_KEY"
+          valueFrom = "${var.honeycomb_api_key_secret_arn}:api_key::"
+        }
+      ]
+
+      portMappings = [
+        {
+          containerPort = 4317
+          hostPort      = 4317
+          protocol      = "tcp"
+          name          = "otlp-grpc"
+          appProtocol   = "grpc"
+        },
+        {
+          containerPort = 4318
+          hostPort      = 4318
+          protocol      = "tcp"
+          name          = "otlp-http"
+          appProtocol   = "http"
+        }
+      ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.backend.name
+          awslogs-region        = var.region
+          awslogs-stream-prefix = "otel"
+        }
       }
     }
   ])

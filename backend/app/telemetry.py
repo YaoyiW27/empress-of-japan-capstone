@@ -23,8 +23,12 @@ def configure_telemetry(app: FastAPI, settings: Settings) -> None:
     if not settings.otel_enabled:
         return
 
-    if not settings.honeycomb_api_key:
-        logger.warning("OTEL_ENABLED=true but HONEYCOMB_API_KEY is not set; skipping tracing")
+    direct_honeycomb = "honeycomb.io" in settings.otel_exporter_otlp_endpoint
+    if direct_honeycomb and not settings.honeycomb_api_key:
+        logger.warning(
+            "OTEL_ENABLED=true and endpoint is Honeycomb, but HONEYCOMB_API_KEY is not set; "
+            "skipping tracing"
+        )
         return
 
     try:
@@ -46,14 +50,18 @@ def configure_telemetry(app: FastAPI, settings: Settings) -> None:
         }
     )
     provider = TracerProvider(resource=resource)
+    headers = {}
+    if settings.honeycomb_api_key:
+        headers = {
+            "x-honeycomb-team": settings.honeycomb_api_key,
+            "x-honeycomb-dataset": settings.honeycomb_dataset,
+        }
+
     provider.add_span_processor(
         BatchSpanProcessor(
             OTLPSpanExporter(
                 endpoint=settings.otel_exporter_otlp_endpoint,
-                headers={
-                    "x-honeycomb-team": settings.honeycomb_api_key,
-                    "x-honeycomb-dataset": settings.honeycomb_dataset,
-                },
+                headers=headers,
             )
         )
     )

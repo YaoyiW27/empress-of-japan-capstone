@@ -56,13 +56,13 @@ variable "backend_log_retention_days" {
 variable "backend_task_cpu" {
   description = "Fargate CPU units for the backend API task."
   type        = number
-  default     = 256
+  default     = 512
 }
 
 variable "backend_task_memory" {
   description = "Fargate memory in MiB for the backend API task."
   type        = number
-  default     = 512
+  default     = 1024
 }
 
 variable "backend_bootstrap_image_tag" {
@@ -168,9 +168,9 @@ variable "backend_otel_service_name" {
 }
 
 variable "backend_otel_exporter_otlp_endpoint" {
-  description = "OTLP/HTTP trace endpoint. Honeycomb's direct ingest endpoint is the default."
+  description = "OTLP/HTTP trace endpoint used by the backend. Defaults to the local OTel Collector sidecar."
   type        = string
-  default     = "https://api.honeycomb.io/v1/traces"
+  default     = "http://127.0.0.1:4318/v1/traces"
 }
 
 variable "backend_honeycomb_dataset" {
@@ -183,6 +183,12 @@ variable "honeycomb_api_key_secret_arn" {
   description = "Optional Secrets Manager ARN containing the Honeycomb API key. Leave null until the key is provisioned."
   type        = string
   default     = null
+}
+
+variable "otel_collector_image" {
+  description = "OpenTelemetry Collector sidecar image. The contrib distribution includes OTLP receivers, batch/memory processors, and OTLP/HTTP exporters."
+  type        = string
+  default     = "otel/opentelemetry-collector-contrib:0.104.0"
 }
 
 # --- Cost tracking (issue #20, see budgets.tf) ---
