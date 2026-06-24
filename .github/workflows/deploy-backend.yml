@@ -1,0 +1,158 @@
+name: deploy-backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "data/ai/personas/**"
+      - ".dockerignore"
+      - ".github/workflows/deploy-backend.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-backend-sandbox
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-west-2
+  ECR_REPOSITORY: empress-backend
+  ECS_CLUSTER: empress-app
+  ECS_SERVICE: empress-backend
+  CONTAINER_NAME: backend
+
+jobs:
+  deploy:
+    name: Build, scan, and deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Wait for deployment infrastructure
+        run: |
+          for attempt in {1..60}; do
+            SERVICE_NAME=$(aws ecs describe-services \
+              --cluster "$ECS_CLUSTER" \
+              --services "$ECS_SERVICE" \
+              --query 'services[0].serviceName' \
+              --output text 2>/dev/null || true)
+
+            if aws ecr describe-repositories \
+              --repository-names "$ECR_REPOSITORY" >/dev/null 2>&1 &&
+              [ "$SERVICE_NAME" = "$ECS_SERVICE" ]; then
+              echo "ECR repository and ECS service are ready."
+              exit 0
+            fi
+
+            echo "Waiting for Terraform apply ($attempt/60)..."
+            sleep 10
+          done
+
+          echo "Deployment infrastructure was not ready after 10 minutes." >&2
+          exit 1
+
+      - name: Log in to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2.1.6
+
+      - name: Build amd64 backend image
+        env:
+          REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build \
+            --platform linux/amd64 \
+            --file backend/Dockerfile \
+            --tag "$REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" \
+            .
+
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: "image"
+          image-ref: "${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}"
+          format: "table"
+          severity: "HIGH,CRITICAL"
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Push immutable image tags
+        env:
+          REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          IMAGE="$REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          if aws ecr describe-images \
+            --repository-name "$ECR_REPOSITORY" \
+            --image-ids imageTag="$IMAGE_TAG" >/dev/null 2>&1; then
+            echo "Image tag $IMAGE_TAG already exists; skipping immutable re-push."
+          else
+            docker push "$IMAGE"
+          fi
+
+          if ! aws ecr describe-images \
+            --repository-name "$ECR_REPOSITORY" \
+            --image-ids imageTag=bootstrap >/dev/null 2>&1; then
+            docker tag "$IMAGE" "$REGISTRY/$ECR_REPOSITORY:bootstrap"
+            docker push "$REGISTRY/$ECR_REPOSITORY:bootstrap"
+          fi
+
+      - name: Download current task definition
+        run: |
+          TASK_DEFINITION=$(aws ecs describe-services \
+            --cluster "$ECS_CLUSTER" \
+            --services "$ECS_SERVICE" \
+            --query 'services[0].taskDefinition' \
+            --output text)
+          aws ecs describe-task-definition \
+            --task-definition "$TASK_DEFINITION" \
+            --query taskDefinition > task-definition.json
+
+      - name: Render task definition with new image
+        id: render
+        uses: aws-actions/amazon-ecs-render-task-definition@v1.8.5
+        with:
+          task-definition: task-definition.json
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: "${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}"
+
+      - name: Deploy task definition
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2.6.2
+        with:
+          task-definition: ${{ steps.render.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: false
+
+      - name: Scale service to two tasks
+        run: |
+          aws ecs update-service \
+            --cluster "$ECS_CLUSTER" \
+            --service "$ECS_SERVICE" \
+            --desired-count 2 >/dev/null
+          aws ecs wait services-stable \
+            --cluster "$ECS_CLUSTER" \
+            --services "$ECS_SERVICE"
+
+      - name: Verify public health endpoint
+        run: |
+          ALB_DNS=$(aws elbv2 describe-load-balancers \
+            --names empress-backend \
+            --query 'LoadBalancers[0].DNSName' \
+            --output text)
+          curl --fail --show-error \
+            --retry 10 \
+            --retry-delay 6 \
+            --retry-all-errors \
+            "http://$ALB_DNS/health"

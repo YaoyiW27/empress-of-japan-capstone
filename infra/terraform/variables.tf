@@ -29,6 +29,59 @@ variable "private_subnet_cidrs" {
   }
 }
 
+variable "public_subnet_cidrs" {
+  description = "Public subnet CIDRs for the ALB and NAT-free sandbox Fargate tasks."
+  type        = list(string)
+  default     = ["10.42.20.0/24", "10.42.21.0/24"]
+
+  validation {
+    condition     = length(var.public_subnet_cidrs) >= 2
+    error_message = "An internet-facing ALB requires public subnets in at least two Availability Zones."
+  }
+}
+
+# --- ECS backend runtime (issue #42 / #59) ---
+
+variable "backend_log_retention_days" {
+  description = "CloudWatch retention for backend ECS logs. Increase for production-like environments if required."
+  type        = number
+  default     = 14
+
+  validation {
+    condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365], var.backend_log_retention_days)
+    error_message = "Use a CloudWatch-supported retention period."
+  }
+}
+
+variable "backend_task_cpu" {
+  description = "Fargate CPU units for the backend API task."
+  type        = number
+  default     = 256
+}
+
+variable "backend_task_memory" {
+  description = "Fargate memory in MiB for the backend API task."
+  type        = number
+  default     = 512
+}
+
+variable "backend_bootstrap_image_tag" {
+  description = "Initial immutable ECR image tag used by the Terraform task definition. The deploy workflow registers later commit-SHA revisions."
+  type        = string
+  default     = "bootstrap"
+}
+
+variable "backend_initial_desired_count" {
+  description = "Initial task count before the first image deployment. CI scales the service to 2 after pushing the bootstrap image."
+  type        = number
+  default     = 0
+
+  validation {
+    condition     = var.backend_initial_desired_count == 0
+    error_message = "Keep the Terraform bootstrap service at zero; the deployment workflow owns the running task count."
+  }
+}
+
 # --- Knowledge base RDS (issue #25, see rds.tf) ---
 
 variable "kb_db_name" {

@@ -85,3 +85,53 @@ output "bedrock_claude_chat_policy_arn" {
   description = "ARN of the Claude chat inference policy. Attach to the Fargate task role in #42."
   value       = aws_iam_policy.bedrock_claude_chat_invoke.arn
 }
+
+output "backend_ecr_repository_url" {
+  description = "ECR repository URL for the backend API image."
+  value       = aws_ecr_repository.backend.repository_url
+}
+
+output "public_subnet_ids" {
+  description = "Public subnet IDs for the ALB and NAT-free sandbox Fargate tasks."
+  value       = aws_subnet.public[*].id
+}
+
+output "backend_alb_dns_name" {
+  description = "Public DNS name of the backend application load balancer."
+  value       = aws_lb.backend.dns_name
+}
+
+output "backend_target_group_arn" {
+  description = "Target group ARN used by the backend ECS service."
+  value       = aws_lb_target_group.backend.arn
+}
+
+output "ecs_cluster_arn" {
+  description = "ARN of the ECS cluster hosting the backend service."
+  value       = aws_ecs_cluster.app.arn
+}
+
+output "backend_execution_role_arn" {
+  description = "ECS task execution role ARN for ECR, CloudWatch Logs, and secret injection."
+  value       = aws_iam_role.backend_execution.arn
+}
+
+output "backend_task_role_arn" {
+  description = "Application task role ARN for Bedrock and SQS access."
+  value       = aws_iam_role.backend_task.arn
+}
+
+output "backend_log_group_name" {
+  description = "CloudWatch log group for backend container logs."
+  value       = aws_cloudwatch_log_group.backend.name
+}
+
+output "backend_task_definition_arn" {
+  description = "ARN of the bootstrap backend ECS task definition."
+  value       = aws_ecs_task_definition.backend.arn
+}
+
+output "backend_ecs_service_name" {
+  description = "Name of the backend ECS service managed by the deployment workflow."
+  value       = aws_ecs_service.backend.name
+}
