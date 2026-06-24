@@ -82,6 +82,24 @@ variable "backend_initial_desired_count" {
   }
 }
 
+variable "backend_autoscaling_min_capacity" {
+  description = "Minimum number of backend Fargate tasks once the service has been deployed."
+  type        = number
+  default     = 2
+}
+
+variable "backend_autoscaling_max_capacity" {
+  description = "Maximum number of backend Fargate tasks for sandbox cost control."
+  type        = number
+  default     = 6
+}
+
+variable "backend_autoscaling_cpu_target_percent" {
+  description = "Average ECS service CPU percentage that target-tracking autoscaling should maintain."
+  type        = number
+  default     = 60
+}
+
 # --- Knowledge base RDS (issue #25, see rds.tf) ---
 
 variable "kb_db_name" {
