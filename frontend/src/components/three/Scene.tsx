@@ -18,8 +18,9 @@ export default function Scene() {
     <Canvas camera={{ position: [3, 3, 3], fov: 50 }}>
       {/* meshStandardMaterial needs light to be visible; this also mirrors
           what real glTF models will need. */}
-      <ambientLight intensity={0.6} />
-      <directionalLight position={[5, 5, 5]} intensity={1} />
+      <ambientLight intensity={0.85} />
+      <directionalLight position={[5, 5, 5]} intensity={1.5} />
+      <directionalLight position={[-4, 2, -3]} intensity={0.5} />
 
       <SpinningCube />
 

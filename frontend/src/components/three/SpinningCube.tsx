@@ -23,8 +23,9 @@ export default function SpinningCube() {
   return (
     <mesh ref={meshRef}>
       <boxGeometry args={[1, 1, 1]} />
-      {/* amber-400 (#fbbf24) to match the brand accent on the home page */}
-      <meshStandardMaterial color="#fbbf24" />
+      {/* navy — the placeholder now sits on the light ivory page (no dark stage),
+          so a deep-navy cube reads clearly. Replaced by the glTF ship later. */}
+      <meshStandardMaterial color="#1c2e4a" roughness={0.5} metalness={0} />
     </mesh>
   );
 }

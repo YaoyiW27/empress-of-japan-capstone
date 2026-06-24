@@ -4,55 +4,93 @@ import { Suspense, useMemo } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
 import { OrbitControls, PerspectiveCamera, useTexture } from "@react-three/drei";
 import * as THREE from "three";
-import type { ExperienceScene } from "@/lib/scenes";
 
 const deg = THREE.MathUtils.degToRad;
 
+export type PanoramaSource = {
+  title: string;
+  /** Photo under /public. Omit to render a procedural placeholder. */
+  photoSrc?: string;
+  /** Horizontal coverage in degrees (default 360 — a full panorama). */
+  hFovDeg?: number;
+  /** Vertical coverage in degrees (default 180 — a full panorama). */
+  vFovDeg?: number;
+};
+
 /**
- * Magic-window viewer: maps a (possibly partial) photo onto the inside of a
- * sphere segment and lets the visitor look around by dragging. The view is
- * clamped to the photo's angular coverage so edges/seam never show.
+ * Magic-window viewer: maps a photo onto the inside of a sphere segment and lets
+ * the visitor look around by dragging. A full 360x180 panorama spins freely; a
+ * partial photo is clamped so edges never show. Changing the `scene` prop swaps
+ * the texture in place — the Canvas/camera persist (no remount).
  *
- * The whole 3D tree only renders on the client (R3F's <Canvas> doesn't render
- * its children during SSR), so browser-only calls here (document, WebGL) are
- * safe under the App Router.
+ * The 3D tree only renders client-side (R3F's <Canvas> doesn't render children
+ * during SSR), so browser-only calls (document, WebGL) are safe here.
  */
-export default function PanoramaScene({ scene }: { scene: ExperienceScene }) {
+export default function PanoramaScene({ scene }: { scene: PanoramaSource }) {
+  const hFovDeg = scene.hFovDeg ?? 360;
+  const vFovDeg = scene.vFovDeg ?? 180;
+
   return (
     <Canvas>
       <Suspense fallback={null}>
         {scene.photoSrc ? (
-          <PhotoSphereImage scene={scene} />
+          <PhotoSphereImage
+            src={scene.photoSrc}
+            hFovDeg={hFovDeg}
+            vFovDeg={vFovDeg}
+          />
         ) : (
-          <PhotoSpherePlaceholder scene={scene} />
+          <PhotoSpherePlaceholder
+            label={scene.title}
+            hFovDeg={hFovDeg}
+            vFovDeg={vFovDeg}
+          />
         )}
       </Suspense>
-      <LookControls scene={scene} />
+      <LookControls hFovDeg={hFovDeg} vFovDeg={vFovDeg} />
     </Canvas>
   );
 }
 
 /** Real photo path. `useTexture` suspends, so it lives in its own component. */
-function PhotoSphereImage({ scene }: { scene: ExperienceScene }) {
-  const texture = useTexture(scene.photoSrc!);
-  return <PhotoMesh texture={texture} scene={scene} />;
+function PhotoSphereImage({
+  src,
+  hFovDeg,
+  vFovDeg,
+}: {
+  src: string;
+  hFovDeg: number;
+  vFovDeg: number;
+}) {
+  const texture = useTexture(src);
+  return <PhotoMesh texture={texture} hFovDeg={hFovDeg} vFovDeg={vFovDeg} />;
 }
 
 /** Photoless path: a procedural placeholder so the scene works before its photo lands. */
-function PhotoSpherePlaceholder({ scene }: { scene: ExperienceScene }) {
-  const texture = usePlaceholderTexture(scene.title);
-  return <PhotoMesh texture={texture} scene={scene} />;
+function PhotoSpherePlaceholder({
+  label,
+  hFovDeg,
+  vFovDeg,
+}: {
+  label: string;
+  hFovDeg: number;
+  vFovDeg: number;
+}) {
+  const texture = usePlaceholderTexture(label);
+  return <PhotoMesh texture={texture} hFovDeg={hFovDeg} vFovDeg={vFovDeg} />;
 }
 
 function PhotoMesh({
   texture,
-  scene,
+  hFovDeg,
+  vFovDeg,
 }: {
   texture: THREE.Texture;
-  scene: ExperienceScene;
+  hFovDeg: number;
+  vFovDeg: number;
 }) {
-  const phiLen = deg(scene.hFovDeg);
-  const thetaLen = deg(scene.vFovDeg);
+  const phiLen = deg(hFovDeg);
+  const thetaLen = deg(vFovDeg);
   // Center the segment on -Z, which is where the camera looks initially.
   const phiStart = (3 * Math.PI) / 2 - phiLen / 2;
   const thetaStart = Math.PI / 2 - thetaLen / 2;
@@ -83,23 +121,22 @@ function PhotoMesh({
 /**
  * Fits the camera to the photo and clamps drag-to-look to its coverage. The
  * camera sits at the sphere center and OrbitControls rotates the view in place
- * (zoom/pan off).
- *
- * We size the camera's FOV to the *tighter* of the two axes so the photo fills
- * the view without revealing empty space beyond its edges: a wide panorama
- * (deck) fills vertically and pans sideways; a near-square photo (cabin) fills
- * horizontally and pans a little vertically.
+ * (zoom/pan off). A full axis (>=360 h / >=180 v) gets free look on that axis.
  */
-function LookControls({ scene }: { scene: ExperienceScene }) {
+function LookControls({
+  hFovDeg,
+  vFovDeg,
+}: {
+  hFovDeg: number;
+  vFovDeg: number;
+}) {
   const { size } = useThree();
   const aspect = size.width / Math.max(1, size.height);
-  const photoHFov = deg(scene.hFovDeg);
-  const photoVFov = deg(scene.vFovDeg);
+  const photoHFov = deg(hFovDeg);
+  const photoVFov = deg(vFovDeg);
 
-  // Full coverage on an axis (a 360x180 equirectangular panorama) → free look on
-  // that axis. Partial photos get clamped so edges never show.
-  const fullH = scene.hFovDeg >= 360;
-  const fullV = scene.vFovDeg >= 180;
+  const fullH = hFovDeg >= 360;
+  const fullV = vFovDeg >= 180;
 
   // A comfortable viewing FOV, shrunk only when the photo is too narrow on an
   // axis to fill it. (Skip the fit for full axes — tan(180°/...) would blow up.)
@@ -111,7 +148,6 @@ function LookControls({ scene }: { scene: ExperienceScene }) {
   }
   const hFov = 2 * Math.atan(Math.tan(vFov / 2) * aspect);
 
-  // Allowed look swing = half the photo coverage minus half the camera FOV.
   const azLimit = Math.max(0, photoHFov / 2 - hFov / 2);
   const polLimit = Math.max(0, photoVFov / 2 - vFov / 2);
 
@@ -146,10 +182,10 @@ function usePlaceholderTexture(label: string): THREE.CanvasTexture {
     canvas.height = 512;
     const ctx = canvas.getContext("2d")!;
 
-    ctx.fillStyle = "#1c1917";
+    ctx.fillStyle = "#1c2e4a";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    ctx.strokeStyle = "#44403c";
+    ctx.strokeStyle = "#3a4a66";
     ctx.lineWidth = 2;
     for (let x = 0; x <= canvas.width; x += 64) {
       ctx.beginPath();
@@ -166,10 +202,10 @@ function usePlaceholderTexture(label: string): THREE.CanvasTexture {
 
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillStyle = "#fbbf24";
-    ctx.font = "bold 48px sans-serif";
+    ctx.fillStyle = "#b8860b";
+    ctx.font = "bold 48px serif";
     ctx.fillText(label, canvas.width / 2, canvas.height / 2 - 24);
-    ctx.fillStyle = "#a8a29e";
+    ctx.fillStyle = "#f4ecd8";
     ctx.font = "24px sans-serif";
     ctx.fillText("photo coming soon", canvas.width / 2, canvas.height / 2 + 36);
 
