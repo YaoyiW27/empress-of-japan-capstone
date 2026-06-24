@@ -108,15 +108,13 @@ jobs:
             docker push "$REGISTRY/$ECR_REPOSITORY:bootstrap"
           fi
 
-      - name: Download current task definition
+      - name: Download latest task definition
         run: |
-          TASK_DEFINITION=$(aws ecs describe-services \
-            --cluster "$ECS_CLUSTER" \
-            --services "$ECS_SERVICE" \
-            --query 'services[0].taskDefinition' \
-            --output text)
+          # Use the latest active family revision so Terraform-owned runtime
+          # config changes, such as observability environment variables, are
+          # picked up on the next application deploy.
           aws ecs describe-task-definition \
-            --task-definition "$TASK_DEFINITION" \
+            --task-definition "$ECS_SERVICE" \
             --query taskDefinition > task-definition.json
 
       - name: Render task definition with new image
