@@ -60,6 +60,15 @@ class Settings(BaseSettings):
     # via the PERSONA_DIR env var for Docker container deployments (#56).
     persona_dir: Path = Path(__file__).resolve().parents[2] / "data" / "ai" / "personas"
 
+    # --- Observability -------------------------------------------------------
+    # Disabled by default so local tests and deployed tasks keep working before
+    # the Honeycomb API key is provisioned in Secrets Manager.
+    otel_enabled: bool = False
+    otel_service_name: str = "empress-backend"
+    otel_exporter_otlp_endpoint: str = "http://127.0.0.1:4318/v1/traces"
+    honeycomb_api_key: str | None = None
+    honeycomb_dataset: str = "empress-backend-sandbox"
+
     @property
     def sqlalchemy_url(self) -> str:
         """Normalise the URL onto the psycopg (v3) driver SQLAlchemy expects."""

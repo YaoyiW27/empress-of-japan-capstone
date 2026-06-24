@@ -40,6 +40,28 @@ resource "aws_iam_role_policy_attachment" "backend_execution_rds_secrets" {
   policy_arn = aws_iam_policy.knowledge_base_secret_read.arn
 }
 
+resource "aws_iam_role_policy" "backend_execution_honeycomb_secret_read" {
+  count = var.honeycomb_api_key_secret_arn == null ? 0 : 1
+
+  name = "empress-backend-honeycomb-secret-read"
+  role = aws_iam_role.backend_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "ReadHoneycombApiKey"
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:DescribeSecret",
+          "secretsmanager:GetSecretValue",
+        ]
+        Resource = var.honeycomb_api_key_secret_arn
+      }
+    ]
+  })
+}
+
 # Credentials exposed to the FastAPI process itself. Keep application actions
 # here and execution-time infrastructure actions on backend_execution above.
 resource "aws_iam_role" "backend_task" {
@@ -69,6 +91,68 @@ resource "aws_cloudwatch_log_group" "backend" {
   tags = {
     Name = "empress-backend"
   }
+}
+
+locals {
+  otel_collector_config = yamlencode({
+    receivers = {
+      otlp = {
+        protocols = {
+          grpc = {
+            endpoint = "0.0.0.0:4317"
+          }
+          http = {
+            endpoint = "0.0.0.0:4318"
+          }
+        }
+      }
+    }
+
+    processors = {
+      memory_limiter = {
+        check_interval         = "1s"
+        limit_percentage       = 75
+        spike_limit_percentage = 20
+      }
+      batch = {
+        timeout             = "5s"
+        send_batch_size     = 512
+        send_batch_max_size = 1024
+      }
+      resource = {
+        attributes = [
+          {
+            action = "upsert"
+            key    = "deployment.environment"
+            value  = "sandbox"
+          },
+        ]
+      }
+    }
+
+    exporters = {
+      otlphttp = {
+        endpoint = "https://api.honeycomb.io"
+        headers = {
+          "x-honeycomb-team"    = "$${env:HONEYCOMB_API_KEY}"
+          "x-honeycomb-dataset" = var.backend_honeycomb_dataset
+        }
+      }
+      debug = {
+        verbosity = "basic"
+      }
+    }
+
+    service = {
+      pipelines = {
+        traces = {
+          receivers  = ["otlp"]
+          processors = ["memory_limiter", "resource", "batch"]
+          exporters  = var.honeycomb_api_key_secret_arn == null ? ["debug"] : ["otlphttp"]
+        }
+      }
+    }
+  })
 }
 
 resource "aws_ecs_task_definition" "backend" {
@@ -106,6 +190,10 @@ resource "aws_ecs_task_definition" "backend" {
         { name = "BEDROCK_EMBEDDING_MODEL", value = var.bedrock_embedding_model_id },
         { name = "ENABLE_SESSION_MEMORY", value = "false" },
         { name = "PERSONA_DIR", value = "/app/data/ai/personas" },
+        { name = "OTEL_ENABLED", value = tostring(var.backend_otel_enabled) },
+        { name = "OTEL_SERVICE_NAME", value = var.backend_otel_service_name },
+        { name = "OTEL_EXPORTER_OTLP_ENDPOINT", value = var.backend_otel_exporter_otlp_endpoint },
+        { name = "HONEYCOMB_DATASET", value = var.backend_honeycomb_dataset },
       ]
 
       secrets = [
@@ -147,6 +235,49 @@ resource "aws_ecs_task_definition" "backend" {
         retries     = 3
         startPeriod = 30
       }
+    },
+    {
+      name      = "otel-collector"
+      image     = var.otel_collector_image
+      essential = var.backend_otel_enabled
+      command   = ["--config=env:OTEL_COLLECTOR_CONFIG"]
+
+      environment = [
+        { name = "OTEL_COLLECTOR_CONFIG", value = local.otel_collector_config },
+      ]
+
+      secrets = var.honeycomb_api_key_secret_arn == null ? [] : [
+        {
+          name      = "HONEYCOMB_API_KEY"
+          valueFrom = "${var.honeycomb_api_key_secret_arn}:api_key::"
+        }
+      ]
+
+      portMappings = [
+        {
+          containerPort = 4317
+          hostPort      = 4317
+          protocol      = "tcp"
+          name          = "otlp-grpc"
+          appProtocol   = "grpc"
+        },
+        {
+          containerPort = 4318
+          hostPort      = 4318
+          protocol      = "tcp"
+          name          = "otlp-http"
+          appProtocol   = "http"
+        }
+      ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.backend.name
+          awslogs-region        = var.region
+          awslogs-stream-prefix = "otel"
+        }
+      }
     }
   ])
 
@@ -162,6 +293,7 @@ resource "aws_ecs_task_definition" "backend" {
   depends_on = [
     aws_iam_role_policy_attachment.backend_execution_managed,
     aws_iam_role_policy_attachment.backend_execution_rds_secrets,
+    aws_iam_role_policy.backend_execution_honeycomb_secret_read,
   ]
 }
 
@@ -205,5 +337,34 @@ resource "aws_ecs_service" "backend" {
 
   tags = {
     Name = "empress-backend"
+  }
+}
+
+# Initial sandbox scaling guardrails: 2 tasks for basic availability, 6 tasks
+# as a cost cap, and CPU target tracking as a first signal. Load tests should
+# replace these defaults once we can map request volume to latency and spend.
+resource "aws_appautoscaling_target" "backend" {
+  max_capacity       = var.backend_autoscaling_max_capacity
+  min_capacity       = var.backend_autoscaling_min_capacity
+  resource_id        = "service/${aws_ecs_cluster.app.name}/${aws_ecs_service.backend.name}"
+  scalable_dimension = "ecs:service:DesiredCount"
+  service_namespace  = "ecs"
+}
+
+resource "aws_appautoscaling_policy" "backend_cpu" {
+  name               = "empress-backend-cpu-target"
+  policy_type        = "TargetTrackingScaling"
+  resource_id        = aws_appautoscaling_target.backend.resource_id
+  scalable_dimension = aws_appautoscaling_target.backend.scalable_dimension
+  service_namespace  = aws_appautoscaling_target.backend.service_namespace
+
+  target_tracking_scaling_policy_configuration {
+    target_value       = var.backend_autoscaling_cpu_target_percent
+    scale_in_cooldown  = 300
+    scale_out_cooldown = 120
+
+    predefined_metric_specification {
+      predefined_metric_type = "ECSServiceAverageCPUUtilization"
+    }
   }
 }
