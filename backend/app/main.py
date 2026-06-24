@@ -3,7 +3,7 @@
 Run locally with:
     uvicorn app.main:app --reload
 """
-
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from langgraph.checkpoint.memory import MemorySaver
@@ -58,7 +58,16 @@ def _resolve_persona(persona_id: str | None, scene: str | None) -> str:
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     app = FastAPI(title=settings.app_name)
-
+    app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
     # Compile the agent graph once at startup (like `engine` in db.py).
     model_ids = {
         "bedrock": settings.bedrock_chat_model,
