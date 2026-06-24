@@ -69,7 +69,7 @@ export const narrators: Narrator[] = [
       { id: "deck", title: "The Boat Deck", photoSrc: "/scenes/first-class/deck.png" },
       {
         id: "first-class-dining-saloon",
-        title: "First-Class Dining Saloon",
+        title: "Dining Saloon",
         photoSrc: "/scenes/first-class/first-class-dining-saloon.png",
       },
       {

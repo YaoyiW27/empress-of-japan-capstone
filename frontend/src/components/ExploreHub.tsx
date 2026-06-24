@@ -64,7 +64,7 @@ export default function ExploreHub() {
         <section className="relative min-h-0 flex-1">
           <Scene />
           <p className="pointer-events-none absolute inset-x-0 bottom-3 text-center text-xs uppercase tracking-[0.2em] text-navy-soft">
-            Drag to rotate · 3D model coming soon
+            Drag to rotate · scroll to zoom
           </p>
         </section>
 

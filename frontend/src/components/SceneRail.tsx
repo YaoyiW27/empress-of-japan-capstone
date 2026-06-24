@@ -1,11 +1,11 @@
 "use client";
 
-import Image from "next/image";
 import type { Scene } from "@/lib/narrators";
 
 /**
- * Horizontal thumbnail strip of a narrator's scenes. The active scene is
- * highlighted with a brass ring; clicking one switches the panorama in place.
+ * Vertical column of separated text buttons down the right edge. Each scene is
+ * its own pill (no shared container, no thumbnails) for clear, mobile-friendly
+ * tap targets; the active scene is filled navy. Clicking switches in place.
  */
 export default function SceneRail({
   scenes,
@@ -17,7 +17,7 @@ export default function SceneRail({
   onSelect: (id: string) => void;
 }) {
   return (
-    <div className="pointer-events-auto flex max-w-[58vw] gap-2 overflow-x-auto rounded-md border border-brass/40 bg-card/85 p-2 shadow-lg backdrop-blur-sm">
+    <div className="pointer-events-auto flex max-h-full flex-col items-end gap-4 overflow-y-auto pr-1">
       {scenes.map((scene) => {
         const active = scene.id === currentId;
         return (
@@ -25,24 +25,14 @@ export default function SceneRail({
             key={scene.id}
             type="button"
             onClick={() => onSelect(scene.id)}
-            title={scene.title}
             aria-current={active}
-            className={`relative h-14 w-24 shrink-0 overflow-hidden rounded-sm border transition-all ${
+            className={`w-40 shrink-0 rounded-xl border px-4 py-3 text-center text-sm font-semibold shadow-md backdrop-blur-sm transition-all sm:w-48 sm:text-base ${
               active
-                ? "border-brass ring-2 ring-brass"
-                : "border-brass/30 opacity-75 hover:opacity-100"
+                ? "border-brass bg-navy text-ivory"
+                : "border-brass/40 bg-card/90 text-navy hover:border-brass hover:bg-card"
             }`}
           >
-            <Image
-              src={scene.photoSrc}
-              alt={scene.title}
-              fill
-              sizes="96px"
-              className="object-cover"
-            />
-            <span className="absolute inset-x-0 bottom-0 truncate bg-navy/70 px-1 py-0.5 text-[0.6rem] font-medium text-ivory">
-              {scene.title}
-            </span>
+            {scene.title}
           </button>
         );
       })}

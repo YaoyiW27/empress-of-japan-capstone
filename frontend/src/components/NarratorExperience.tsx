@@ -58,8 +58,8 @@ export default function NarratorExperience({
         </div>
       </div>
 
-      {/* Top-right: scene switcher */}
-      <div className="pointer-events-none absolute right-4 top-4 flex justify-end sm:right-6 sm:top-6">
+      {/* Right edge: vertical scene switcher */}
+      <div className="pointer-events-none absolute right-3 top-1/2 flex max-h-[82vh] -translate-y-1/2 sm:right-5">
         <SceneRail
           scenes={narrator.scenes}
           currentId={currentId}
