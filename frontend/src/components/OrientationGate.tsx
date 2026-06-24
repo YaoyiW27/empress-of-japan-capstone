@@ -44,9 +44,9 @@ export default function OrientationGate({ children }: { children: ReactNode }) {
 
 function RotateOverlay() {
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-neutral-950 px-8 text-center">
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-ivory px-8 text-center">
       <svg
-        className="h-16 w-16 animate-pulse text-amber-400"
+        className="h-16 w-16 animate-pulse text-brass"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
@@ -60,10 +60,10 @@ function RotateOverlay() {
         <path d="m2 14 2.5 2.5M2 14l2.5-2.5" />
       </svg>
       <div>
-        <p className="text-lg font-semibold text-amber-400">
+        <p className="font-display text-xl font-bold text-navy">
           Please rotate your device
         </p>
-        <p className="mt-2 max-w-xs text-sm text-neutral-400">
+        <p className="mt-2 max-w-xs text-sm text-navy-soft">
           The Empress of Japan experience is designed for landscape. Turn your
           device sideways to continue.
         </p>
