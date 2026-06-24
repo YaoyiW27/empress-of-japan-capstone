@@ -16,6 +16,7 @@ from app.agents.llm import make_chat_model
 from app.agents.personas import load_personas, scene_to_personas
 from app.config import Settings, get_settings
 from app.db import engine
+from app.telemetry import configure_telemetry
 
 
 class ChatRequest(BaseModel):
@@ -58,6 +59,7 @@ def _resolve_persona(persona_id: str | None, scene: str | None) -> str:
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     app = FastAPI(title=settings.app_name)
+    configure_telemetry(app, settings)
 
     # Compile the agent graph once at startup (like `engine` in db.py).
     model_ids = {
