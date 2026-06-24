@@ -40,6 +40,28 @@ resource "aws_iam_role_policy_attachment" "backend_execution_rds_secrets" {
   policy_arn = aws_iam_policy.knowledge_base_secret_read.arn
 }
 
+resource "aws_iam_role_policy" "backend_execution_honeycomb_secret_read" {
+  count = var.honeycomb_api_key_secret_arn == null ? 0 : 1
+
+  name = "empress-backend-honeycomb-secret-read"
+  role = aws_iam_role.backend_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "ReadHoneycombApiKey"
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:DescribeSecret",
+          "secretsmanager:GetSecretValue",
+        ]
+        Resource = var.honeycomb_api_key_secret_arn
+      }
+    ]
+  })
+}
+
 # Credentials exposed to the FastAPI process itself. Keep application actions
 # here and execution-time infrastructure actions on backend_execution above.
 resource "aws_iam_role" "backend_task" {
@@ -137,7 +159,7 @@ resource "aws_ecs_task_definition" "backend" {
         var.honeycomb_api_key_secret_arn == null ? [] : [
           {
             name      = "HONEYCOMB_API_KEY"
-            valueFrom = var.honeycomb_api_key_secret_arn
+            valueFrom = "${var.honeycomb_api_key_secret_arn}:api_key::"
           }
         ]
       )
@@ -173,6 +195,7 @@ resource "aws_ecs_task_definition" "backend" {
   depends_on = [
     aws_iam_role_policy_attachment.backend_execution_managed,
     aws_iam_role_policy_attachment.backend_execution_rds_secrets,
+    aws_iam_role_policy.backend_execution_honeycomb_secret_read,
   ]
 }
 
