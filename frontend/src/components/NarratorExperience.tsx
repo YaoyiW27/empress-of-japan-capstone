@@ -68,7 +68,7 @@ export default function NarratorExperience({
       </div>
 
       {/* Bottom-left: narrator */}
-      <NarratorOverlay narrator={narrator} />
+      <NarratorOverlay narrator={narrator} scene={current} />
     </main>
   );
 }
