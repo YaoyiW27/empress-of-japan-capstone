@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     app_name: str = "empress-backend"
     app_env: str = "local"
     log_level: str = "info"
-    
+
     cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
     # Local dev default mirrors backend/docker-compose.yml. Override via the
     # DATABASE_URL env var (RDS endpoint from a secret in deployed environments).
@@ -60,6 +60,15 @@ class Settings(BaseSettings):
     # Defaults to the repo-root relative path for local dev, but can be overridden
     # via the PERSONA_DIR env var for Docker container deployments (#56).
     persona_dir: Path = Path(__file__).resolve().parents[2] / "data" / "ai" / "personas"
+
+    # --- Observability -------------------------------------------------------
+    # Disabled by default so local tests and deployed tasks keep working before
+    # the Honeycomb API key is provisioned in Secrets Manager.
+    otel_enabled: bool = False
+    otel_service_name: str = "empress-backend"
+    otel_exporter_otlp_endpoint: str = "http://127.0.0.1:4318/v1/traces"
+    honeycomb_api_key: str | None = None
+    honeycomb_dataset: str = "empress-backend-sandbox"
 
     @property
     def sqlalchemy_url(self) -> str:
