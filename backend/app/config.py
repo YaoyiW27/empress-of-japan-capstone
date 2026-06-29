@@ -21,7 +21,15 @@ class Settings(BaseSettings):
     app_name: str = "empress-backend"
     app_env: str = "local"
     log_level: str = "info"
-    
+
+    # --- Observability -------------------------------------------------------
+    # OTel is enabled by default, but local dev does not export spans unless an
+    # OTLP endpoint is configured through the standard env var below.
+    otel_enabled: bool = True
+    otel_service_name: str = "empress-backend"
+    otel_exporter_otlp_endpoint: str | None = None
+    otel_resource_attributes: str | None = None
+
     cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
     # Local dev default mirrors backend/docker-compose.yml. Override via the
     # DATABASE_URL env var (RDS endpoint from a secret in deployed environments).
