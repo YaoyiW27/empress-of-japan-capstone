@@ -36,7 +36,7 @@ export type Narrator = {
 
 export const narrators: Narrator[] = [
   {
-    id: "captain",
+    id: "captain_sinclair",
     name: "Cap. Sinclair",
     role: "Captain",
     blurb: "Command the ship from the bridge and the working decks.",
@@ -53,7 +53,7 @@ export const narrators: Narrator[] = [
     ],
   },
   {
-    id: "first-class",
+    id: "eleanor_whitmore",
     name: "Ms. Whitmore",
     role: "First-Class Passenger",
     blurb: "Promenade the decks and the grand rooms of first class.",
@@ -85,7 +85,7 @@ export const narrators: Narrator[] = [
     ],
   },
   {
-    id: "crew",
+    id: "ming_chen",
     name: "Ming Chen",
     role: "Hong Kong Crew",
     blurb: "See the ship from below, where the crew worked and slept.",
