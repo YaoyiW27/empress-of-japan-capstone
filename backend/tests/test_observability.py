@@ -1,7 +1,8 @@
 """OpenTelemetry setup and propagation tests."""
 
 from fastapi.testclient import TestClient
-from opentelemetry import trace
+from opentelemetry import context, trace
+from opentelemetry.trace import NonRecordingSpan, SpanContext, TraceFlags, TraceState
 
 from app.config import Settings
 from app.main import create_app
@@ -21,10 +22,21 @@ def test_app_creation_with_otel_enabled_without_exporter() -> None:
 
 
 def test_sqs_trace_context_round_trip() -> None:
-    tracer = trace.get_tracer(__name__)
-    with tracer.start_as_current_span("test-parent"):
-        attrs = inject_trace_context({})
+    span_context = SpanContext(
+        trace_id=0x1234567890ABCDEF1234567890ABCDEF,
+        span_id=0x1234567890ABCDEF,
+        is_remote=False,
+        trace_flags=TraceFlags(TraceFlags.SAMPLED),
+        trace_state=TraceState(),
+    )
+    token = context.attach(trace.set_span_in_context(NonRecordingSpan(span_context)))
+    try:
+        attrs: dict[str, dict[str, str]] = {}
+        result = inject_trace_context(attrs)
+    finally:
+        context.detach(token)
 
+    assert result is attrs
     assert "traceparent" in attrs
     assert attrs["traceparent"]["DataType"] == "String"
     assert attrs["traceparent"]["StringValue"].startswith("00-")

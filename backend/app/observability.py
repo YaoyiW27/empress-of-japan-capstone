@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 
 from fastapi import FastAPI
 from opentelemetry import trace
@@ -54,17 +55,33 @@ def _configure_provider(settings: Settings) -> None:
         {
             SERVICE_NAME: settings.otel_service_name,
             DEPLOYMENT_ENVIRONMENT: settings.app_env,
+            **_parse_resource_attributes(settings.otel_resource_attributes),
         }
     )
     provider = TracerProvider(resource=resource)
     if settings.otel_exporter_otlp_endpoint:
-        provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+        exporter = OTLPSpanExporter(endpoint=settings.otel_exporter_otlp_endpoint)
+        provider.add_span_processor(BatchSpanProcessor(exporter))
 
     try:
         trace.set_tracer_provider(provider)
     except Exception as exc:
         log.debug("OpenTelemetry tracer provider was already configured: %s", exc)
     _provider_configured = True
+
+
+def _parse_resource_attributes(value: str | None) -> Mapping[str, str]:
+    """Parse OTEL_RESOURCE_ATTRIBUTES-style key=value pairs."""
+    attrs: dict[str, str] = {}
+    if not value:
+        return attrs
+
+    for pair in value.split(","):
+        key, sep, attr_value = pair.partition("=")
+        key = key.strip()
+        if sep and key:
+            attrs[key] = attr_value.strip()
+    return attrs
 
 
 def _instrument_dependencies(engine=None) -> None:

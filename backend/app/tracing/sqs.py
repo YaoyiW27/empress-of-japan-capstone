@@ -15,7 +15,7 @@ def inject_trace_context(
     message_attributes: MessageAttributes | None = None,
 ) -> MessageAttributes:
     """Inject W3C trace context into SQS MessageAttributes."""
-    attrs: MessageAttributes = message_attributes or {}
+    attrs: MessageAttributes = {} if message_attributes is None else message_attributes
     carrier: dict[str, str] = {}
     propagate.inject(carrier)
     for key, value in carrier.items():
