@@ -1,29 +1,44 @@
 "use client";
 
+import { Suspense } from "react";
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
-import SpinningCube from "./SpinningCube";
+import { OrbitControls, Bounds, Center, Environment } from "@react-three/drei";
+import ShipModel from "./ShipModel";
 
 /**
- * Client-side R3F scene: the "hello world" for the 3D track.
+ * The hub's 3D ship. The glTF's scale/position is unknown, so <Bounds fit> +
+ * <Center> frame it to the view automatically. Drag to rotate, scroll to zoom;
+ * a gentle auto-rotate showcases the model.
  *
- * "use client" is the critical boundary — <Canvas> and three.js rely on
- * browser APIs and must run on the client. This is sufficient under the Next
- * App Router; no next/dynamic({ ssr: false }) is needed.
- *
- * <Canvas> fills its parent, so the route must give it a sized container.
+ * "use client" is the boundary — <Canvas> + three.js run on the client only
+ * (R3F doesn't render Canvas children during SSR), so useGLTF here is safe.
  */
 export default function Scene() {
   return (
-    <Canvas camera={{ position: [3, 3, 3], fov: 50 }}>
-      {/* meshStandardMaterial needs light to be visible; this also mirrors
-          what real glTF models will need. */}
-      <ambientLight intensity={0.6} />
-      <directionalLight position={[5, 5, 5]} intensity={1} />
+    <Canvas camera={{ position: [3, 2, 4], fov: 50 }} dpr={[1, 2]}>
+      {/* Bright, even lighting + image-based lighting so PBR materials (which
+          render dark without an environment) read properly. */}
+      <ambientLight intensity={1} />
+      <hemisphereLight args={["#ffffff", "#c8c8c8", 0.8]} />
+      <directionalLight position={[5, 6, 5]} intensity={1.6} />
+      <directionalLight position={[-4, 2, -3]} intensity={0.6} />
 
-      <SpinningCube />
+      <Suspense fallback={null}>
+        <Bounds fit clip observe margin={1.2}>
+          <Center>
+            <ShipModel />
+          </Center>
+        </Bounds>
+        {/* IBL for reflective/PBR surfaces (preset HDR fetched by drei). */}
+        <Environment preset="city" environmentIntensity={1} />
+      </Suspense>
 
-      <OrbitControls enableDamping />
+      <OrbitControls
+        makeDefault
+        enableDamping
+        autoRotate
+        autoRotateSpeed={0.5}
+      />
     </Canvas>
   );
 }

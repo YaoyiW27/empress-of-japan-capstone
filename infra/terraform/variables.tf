@@ -83,7 +83,7 @@ variable "backend_initial_desired_count" {
 }
 
 variable "backend_autoscaling_min_capacity" {
-  description = "Minimum backend Fargate tasks after deployment. Starts at 2 for basic availability across AZs; tune after load testing."
+  description = "Minimum backend Fargate tasks activated by the deploy workflow after the first image is healthy."
   type        = number
   default     = 2
 
@@ -213,7 +213,7 @@ variable "backend_honeycomb_dataset" {
 }
 
 variable "honeycomb_api_key_secret_arn" {
-  description = "Optional Secrets Manager ARN containing the Honeycomb API key. Leave null until the key is provisioned."
+  description = "Optional Secrets Manager ARN whose entire secret value is the Honeycomb ingest API key (plain string, not JSON)."
   type        = string
   default     = null
 }

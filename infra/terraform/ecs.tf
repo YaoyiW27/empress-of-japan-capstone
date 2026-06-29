@@ -249,7 +249,7 @@ resource "aws_ecs_task_definition" "backend" {
       secrets = var.honeycomb_api_key_secret_arn == null ? [] : [
         {
           name      = "HONEYCOMB_API_KEY"
-          valueFrom = "${var.honeycomb_api_key_secret_arn}:api_key::"
+          valueFrom = var.honeycomb_api_key_secret_arn
         }
       ]
 
@@ -340,15 +340,28 @@ resource "aws_ecs_service" "backend" {
   }
 }
 
-# Initial sandbox scaling guardrails: 2 tasks for basic availability, 6 tasks
-# as a cost cap, and CPU target tracking as a first signal. Load tests should
-# replace these defaults once we can map request volume to latency and spend.
+# Register with a zero bootstrap floor so the first Terraform apply cannot
+# start tasks before the bootstrap image exists. After a successful image
+# deployment, deploy-backend.yml raises the floor to 2. Terraform deliberately
+# ignores that one field because the deployment workflow owns this transition.
 resource "aws_appautoscaling_target" "backend" {
   max_capacity       = var.backend_autoscaling_max_capacity
-  min_capacity       = var.backend_autoscaling_min_capacity
+  min_capacity       = 0
   resource_id        = "service/${aws_ecs_cluster.app.name}/${aws_ecs_service.backend.name}"
   scalable_dimension = "ecs:service:DesiredCount"
   service_namespace  = "ecs"
+
+  lifecycle {
+    ignore_changes = [min_capacity]
+  }
+}
+
+# The deployment workflow reads this after the bootstrap image is healthy,
+# keeping the steady-state floor in Terraform without applying it too early.
+resource "aws_ssm_parameter" "backend_autoscaling_min_capacity" {
+  name  = "/empress/ecs/backend_autoscaling_min_capacity"
+  type  = "String"
+  value = tostring(var.backend_autoscaling_min_capacity)
 }
 
 resource "aws_appautoscaling_policy" "backend_cpu" {

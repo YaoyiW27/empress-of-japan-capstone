@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     app_env: str = "local"
     log_level: str = "info"
 
+    cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
     # Local dev default mirrors backend/docker-compose.yml. Override via the
     # DATABASE_URL env var (RDS endpoint from a secret in deployed environments).
     database_url: str = "postgresql://postgres:postgres@localhost:5432/empress"

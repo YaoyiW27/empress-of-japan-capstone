@@ -16,7 +16,7 @@ export const metadata: Metadata = {
  */
 export default function ScenePage() {
   return (
-    <main className="relative h-screen w-full bg-neutral-950">
+    <main className="relative h-dvh w-full bg-neutral-950">
       <Scene />
 
       <div className="pointer-events-none absolute left-0 top-0 p-6">

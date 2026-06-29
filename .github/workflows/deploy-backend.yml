@@ -24,6 +24,7 @@ env:
   ECS_CLUSTER: empress-app
   ECS_SERVICE: empress-backend
   CONTAINER_NAME: backend
+  ECS_MIN_CAPACITY_PARAMETER: /empress/ecs/backend_autoscaling_min_capacity
 
 jobs:
   deploy:
@@ -47,11 +48,20 @@ jobs:
               --services "$ECS_SERVICE" \
               --query 'services[0].serviceName' \
               --output text 2>/dev/null || true)
+            SCALING_TARGET_COUNT=$(aws application-autoscaling describe-scalable-targets \
+              --service-namespace ecs \
+              --resource-ids "service/$ECS_CLUSTER/$ECS_SERVICE" \
+              --scalable-dimension ecs:service:DesiredCount \
+              --query 'length(ScalableTargets)' \
+              --output text 2>/dev/null || true)
 
             if aws ecr describe-repositories \
               --repository-names "$ECR_REPOSITORY" >/dev/null 2>&1 &&
-              [ "$SERVICE_NAME" = "$ECS_SERVICE" ]; then
-              echo "ECR repository and ECS service are ready."
+              aws ssm get-parameter \
+                --name "$ECS_MIN_CAPACITY_PARAMETER" >/dev/null 2>&1 &&
+              [ "$SERVICE_NAME" = "$ECS_SERVICE" ] &&
+              [ "$SCALING_TARGET_COUNT" = "1" ]; then
+              echo "ECR, ECS, and autoscaling infrastructure are ready."
               exit 0
             fi
 
@@ -133,15 +143,45 @@ jobs:
           cluster: ${{ env.ECS_CLUSTER }}
           wait-for-service-stability: false
 
-      - name: Scale service to two tasks
+      - name: Scale service to steady-state floor
         run: |
+          MIN_CAPACITY=$(aws ssm get-parameter \
+            --name "$ECS_MIN_CAPACITY_PARAMETER" \
+            --query 'Parameter.Value' \
+            --output text)
+
           aws ecs update-service \
             --cluster "$ECS_CLUSTER" \
             --service "$ECS_SERVICE" \
-            --desired-count 2 >/dev/null
+            --desired-count "$MIN_CAPACITY" >/dev/null
           aws ecs wait services-stable \
             --cluster "$ECS_CLUSTER" \
             --services "$ECS_SERVICE"
+
+      - name: Activate autoscaling floor
+        run: |
+          MIN_CAPACITY=$(aws ssm get-parameter \
+            --name "$ECS_MIN_CAPACITY_PARAMETER" \
+            --query 'Parameter.Value' \
+            --output text)
+          MAX_CAPACITY=$(aws application-autoscaling describe-scalable-targets \
+            --service-namespace ecs \
+            --resource-ids "service/$ECS_CLUSTER/$ECS_SERVICE" \
+            --scalable-dimension ecs:service:DesiredCount \
+            --query 'ScalableTargets[0].MaxCapacity' \
+            --output text)
+
+          if [ -z "$MAX_CAPACITY" ] || [ "$MAX_CAPACITY" = "None" ]; then
+            echo "ECS autoscaling target was not found." >&2
+            exit 1
+          fi
+
+          aws application-autoscaling register-scalable-target \
+            --service-namespace ecs \
+            --resource-id "service/$ECS_CLUSTER/$ECS_SERVICE" \
+            --scalable-dimension ecs:service:DesiredCount \
+            --min-capacity "$MIN_CAPACITY" \
+            --max-capacity "$MAX_CAPACITY"
 
       - name: Verify public health endpoint
         run: |
