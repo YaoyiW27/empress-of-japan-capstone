@@ -186,6 +186,65 @@ variable "bedrock_chat_inference_profile_id" {
   }
 }
 
+# --- Voice interaction (issue #96, see voice.tf / ecs.tf) ---
+
+variable "voice_cache_prefix" {
+  description = "S3 object prefix reserved for generated Polly narration audio."
+  type        = string
+  default     = "polly-cache/"
+
+  validation {
+    condition = (
+      length(var.voice_cache_prefix) > 1 &&
+      !startswith(var.voice_cache_prefix, "/") &&
+      endswith(var.voice_cache_prefix, "/")
+    )
+    error_message = "Voice cache prefix must be a non-empty relative prefix ending in '/'."
+  }
+}
+
+variable "voice_polly_engine" {
+  description = "Amazon Polly synthesis engine selected by the backend voice adapter."
+  type        = string
+  default     = "neural"
+
+  validation {
+    condition = contains(
+      ["standard", "neural", "long-form", "generative"],
+      var.voice_polly_engine,
+    )
+    error_message = "Use a supported Amazon Polly engine."
+  }
+}
+
+variable "voice_transcribe_language_code" {
+  description = "Initial Amazon Transcribe language for the English museum demo."
+  type        = string
+  default     = "en-US"
+}
+
+variable "voice_audio_url_ttl_seconds" {
+  description = "Lifetime of presigned S3 URLs returned for generated narration audio."
+  type        = number
+  default     = 900
+
+  validation {
+    condition     = var.voice_audio_url_ttl_seconds >= 60 && var.voice_audio_url_ttl_seconds <= 3600
+    error_message = "Voice audio URL TTL must stay between 60 and 3600 seconds."
+  }
+}
+
+variable "voice_max_text_length" {
+  description = "Maximum narrator-response characters accepted by the Polly adapter."
+  type        = number
+  default     = 1000
+
+  validation {
+    condition     = var.voice_max_text_length >= 1 && var.voice_max_text_length <= 3000
+    error_message = "Voice text length must stay between 1 and 3000 characters."
+  }
+}
+
 # --- Backend observability (issue #41, see monitoring.tf / ecs.tf) ---
 
 variable "backend_otel_enabled" {

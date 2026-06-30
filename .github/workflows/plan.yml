@@ -17,6 +17,9 @@ permissions:
 jobs:
   plan:
     runs-on: ubuntu-latest
+    env:
+      TF_VAR_backend_otel_enabled: "true"
+      TF_VAR_honeycomb_api_key_secret_arn: ${{ vars.HONEYCOMB_API_KEY_SECRET_ARN }}
     defaults:
       run:
         working-directory: infra/terraform
