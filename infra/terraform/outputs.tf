@@ -135,3 +135,13 @@ output "backend_ecs_service_name" {
   description = "Name of the backend ECS service managed by the deployment workflow."
   value       = aws_ecs_service.backend.name
 }
+
+output "voice_cache_bucket_name" {
+  description = "Private S3 bucket used to cache generated Polly narration audio."
+  value       = aws_s3_bucket.voice_cache.bucket
+}
+
+output "backend_voice_runtime_policy_arn" {
+  description = "IAM policy granting the backend scoped Polly, Transcribe, and voice-cache access."
+  value       = aws_iam_policy.backend_voice_runtime.arn
+}

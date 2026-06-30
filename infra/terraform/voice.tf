@@ -4,10 +4,6 @@
 # generated Polly audio under polly-cache/ and returns short-lived presigned GET
 # URLs to the frontend.
 
-locals {
-  voice_cache_prefix = "polly-cache/"
-}
-
 resource "aws_s3_bucket" "voice_cache" {
   bucket        = "empress-voice-cache-${data.aws_caller_identity.current.account_id}-${var.region}"
   force_destroy = true
@@ -44,7 +40,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "voice_cache" {
     status = "Enabled"
 
     filter {
-      prefix = local.voice_cache_prefix
+      prefix = var.voice_cache_prefix
     }
 
     expiration {
@@ -80,7 +76,7 @@ data "aws_iam_policy_document" "backend_voice_runtime" {
       "s3:GetObject",
       "s3:PutObject",
     ]
-    resources = ["${aws_s3_bucket.voice_cache.arn}/${local.voice_cache_prefix}*"]
+    resources = ["${aws_s3_bucket.voice_cache.arn}/${var.voice_cache_prefix}*"]
   }
 }
 
