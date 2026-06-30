@@ -67,6 +67,7 @@ class Settings(BaseSettings):
     otel_enabled: bool = False
     otel_service_name: str = "empress-backend"
     otel_exporter_otlp_endpoint: str = "http://127.0.0.1:4318/v1/traces"
+    otel_resource_attributes: str | None = None
     honeycomb_api_key: str | None = None
     honeycomb_dataset: str = "empress-backend-sandbox"
 

@@ -12,6 +12,10 @@ from __future__ import annotations
 
 from typing import Protocol
 
+from opentelemetry import trace
+
+tracer = trace.get_tracer(__name__)
+
 
 class ChatModel(Protocol):
     model_id: str
@@ -26,13 +30,17 @@ class StubChatModel:
         self.model_id = "stub-chat-v1"
 
     def invoke(self, system: str, messages: list[dict[str, str]]) -> str:
-        last_user = next(
-            (m["content"] for m in reversed(messages) if m.get("role") == "user"),
-            "",
-        )
-        # First sentence of the system prompt identifies the persona ("You are …").
-        identity = system.strip().split(".")[0] if system else "An agent"
-        return f"[stub reply] {identity}. You asked: {last_user!r}"
+        with tracer.start_as_current_span("llm.invoke") as span:
+            span.set_attribute("llm.provider", "stub")
+            span.set_attribute("llm.model_id", self.model_id)
+            span.set_attribute("llm.message_count", len(messages))
+            last_user = next(
+                (m["content"] for m in reversed(messages) if m.get("role") == "user"),
+                "",
+            )
+            # First sentence of the system prompt identifies the persona ("You are …").
+            identity = system.strip().split(".")[0] if system else "An agent"
+            return f"[stub reply] {identity}. You asked: {last_user!r}"
 
 
 class BedrockChatModel:
@@ -46,12 +54,16 @@ class BedrockChatModel:
         self._client = ChatBedrockConverse(model=model_id, region_name=region)
 
     def invoke(self, system: str, messages: list[dict[str, str]]) -> str:
-        lc_messages: list[tuple[str, str]] = [("system", system)]
-        for m in messages:
-            role = "human" if m.get("role") == "user" else "ai"
-            lc_messages.append((role, m["content"]))
-        result = self._client.invoke(lc_messages)
-        return result.content if isinstance(result.content, str) else str(result.content)
+        with tracer.start_as_current_span("llm.invoke") as span:
+            span.set_attribute("llm.provider", "bedrock")
+            span.set_attribute("llm.model_id", self.model_id)
+            span.set_attribute("llm.message_count", len(messages))
+            lc_messages: list[tuple[str, str]] = [("system", system)]
+            for m in messages:
+                role = "human" if m.get("role") == "user" else "ai"
+                lc_messages.append((role, m["content"]))
+            result = self._client.invoke(lc_messages)
+            return result.content if isinstance(result.content, str) else str(result.content)
 
 
 def make_chat_model(kind: str, *, model_id: str, region: str) -> ChatModel:

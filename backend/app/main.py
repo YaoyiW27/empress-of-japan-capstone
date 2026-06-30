@@ -7,6 +7,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from langgraph.checkpoint.memory import MemorySaver
+from opentelemetry import trace
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
@@ -17,6 +18,8 @@ from app.agents.personas import load_personas, scene_to_personas
 from app.config import Settings, get_settings
 from app.db import engine
 from app.telemetry import configure_telemetry
+
+tracer = trace.get_tracer(__name__)
 
 
 class ChatRequest(BaseModel):
@@ -102,8 +105,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         docker-compose database isn't started. Run `docker compose up -d`.
         """
         try:
-            with engine.connect() as conn:
-                conn.execute(text("SELECT 1"))
+            with tracer.start_as_current_span("health.db"):
+                with engine.connect() as conn:
+                    conn.execute(text("SELECT 1"))
         except SQLAlchemyError as exc:
             return JSONResponse(
                 status_code=503,
@@ -122,35 +126,39 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         No RAG grounding yet — the persona answers from its system prompt alone
         (deferred to a follow-up issue).
         """
-        persona_id = _resolve_persona(req.persona_id, req.scene)
-        user_turn = {"role": "user", "content": req.message}
-        if req.session_id and session_graph is not None:
-            # Memory path: send only the new turn; the reducer appends it to the
-            # session's checkpointed history so the persona sees prior turns.
-            result = session_graph.invoke(
-                {"persona_id": persona_id, "scene": req.scene, "messages": [user_turn]},
-                config={"configurable": {"thread_id": req.session_id}},
-            )
-        elif req.session_id:
-            # session_id given but server-side memory is off (in-process MemorySaver
-            # is not shared across Fargate tasks / survives no restart). Don't pretend
-            # to remember — tell the client to drive history itself until #34 lands.
-            raise HTTPException(
-                status_code=501,
-                detail=(
-                    "session_id memory is not enabled in this deployment yet "
-                    "(shared checkpointer tracked in #34); send prior turns via `history`."
-                ),
-            )
-        else:
-            # Stateless path: the client supplies the prior turns via `history`.
-            result = graph.invoke(
-                {
-                    "persona_id": persona_id,
-                    "scene": req.scene,
-                    "messages": [*req.history, user_turn],
-                }
-            )
+        with tracer.start_as_current_span("chat.handle") as span:
+            persona_id = _resolve_persona(req.persona_id, req.scene)
+            span.set_attribute("chat.persona_id", persona_id)
+            span.set_attribute("chat.scene", req.scene or "")
+            span.set_attribute("chat.session_memory_requested", bool(req.session_id))
+            user_turn = {"role": "user", "content": req.message}
+            if req.session_id and session_graph is not None:
+                # Memory path: send only the new turn; the reducer appends it to the
+                # session's checkpointed history so the persona sees prior turns.
+                result = session_graph.invoke(
+                    {"persona_id": persona_id, "scene": req.scene, "messages": [user_turn]},
+                    config={"configurable": {"thread_id": req.session_id}},
+                )
+            elif req.session_id:
+                # session_id given but server-side memory is off (in-process MemorySaver
+                # is not shared across Fargate tasks / survives no restart). Don't pretend
+                # to remember — tell the client to drive history itself until #34 lands.
+                raise HTTPException(
+                    status_code=501,
+                    detail=(
+                        "session_id memory is not enabled in this deployment yet "
+                        "(shared checkpointer tracked in #34); send prior turns via `history`."
+                    ),
+                )
+            else:
+                # Stateless path: the client supplies the prior turns via `history`.
+                result = graph.invoke(
+                    {
+                        "persona_id": persona_id,
+                        "scene": req.scene,
+                        "messages": [*req.history, user_turn],
+                    }
+                )
         return ChatResponse(persona_id=result["persona_id"], response=result["response"])
 
     return app

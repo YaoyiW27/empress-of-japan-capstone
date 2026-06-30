@@ -8,6 +8,7 @@ traces without requiring code changes in each endpoint.
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from urllib.parse import urlparse
 
 from fastapi import FastAPI
@@ -55,6 +56,7 @@ def configure_telemetry(app: FastAPI, settings: Settings) -> None:
         {
             "service.name": settings.otel_service_name,
             "deployment.environment": settings.app_env,
+            **_parse_resource_attributes(settings.otel_resource_attributes),
         }
     )
     provider = TracerProvider(resource=resource)
@@ -83,3 +85,17 @@ def configure_telemetry(app: FastAPI, settings: Settings) -> None:
         _sqlalchemy_instrumented = True
 
     logger.info("OpenTelemetry tracing enabled for %s", settings.otel_service_name)
+
+
+def _parse_resource_attributes(value: str | None) -> Mapping[str, str]:
+    """Parse OTEL_RESOURCE_ATTRIBUTES-style key=value pairs."""
+    attrs: dict[str, str] = {}
+    if not value:
+        return attrs
+
+    for pair in value.split(","):
+        key, sep, attr_value = pair.partition("=")
+        key = key.strip()
+        if sep and key:
+            attrs[key] = attr_value.strip()
+    return attrs

@@ -13,6 +13,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from opentelemetry import trace
 from sqlalchemy.orm import Session
 
 from app.ingest.chunk import chunk_external_doc, compose_vmm_chunk
@@ -29,6 +30,7 @@ from app.ingest.sources import (
 from app.ingest.upsert import upsert_document
 
 log = logging.getLogger("ingest")
+tracer = trace.get_tracer(__name__)
 
 
 @dataclass
@@ -76,25 +78,37 @@ def ingest_vmm(
     stats: IngestStats | None = None,
 ) -> IngestStats:
     """Ingest the VMM catalogue CSV (stages 1–6)."""
-    stats = stats or IngestStats()
-    rows = read_vmm_rows(csv_path)
-    redactor = DonorRedactor.from_donor_values(
-        (r.get("Donated by", "") for r in rows), extra_blocklist_path
-    )
-    source_file = Path(csv_path).name
+    with tracer.start_as_current_span("ingest.vmm") as span:
+        span.set_attribute("ingest.source", str(csv_path))
+        stats = stats or IngestStats()
+        rows = read_vmm_rows(csv_path)
+        span.set_attribute("ingest.rows_loaded", len(rows))
+        redactor = DonorRedactor.from_donor_values(
+            (r.get("Donated by", "") for r in rows), extra_blocklist_path
+        )
+        source_file = Path(csv_path).name
 
-    for i, row in enumerate(rows):
-        stats.rows_in += 1
-        try:
-            doc = normalize_vmm_row(row, source_file=source_file)
-            stats.redactions += apply_privacy(doc, redactor)
-            compose_vmm_chunk(doc)
-            result = upsert_document(session, doc, embedder)
-            _record(stats, doc, result.status, result.chunks_embedded)
-        except Exception:
-            stats.errors += 1
-            log.exception("row %d (%s) failed — skipping", i, row.get("Object identifier", "?"))
-    return stats
+        for i, row in enumerate(rows):
+            stats.rows_in += 1
+            try:
+                with tracer.start_as_current_span("ingest.vmm.row") as row_span:
+                    row_span.set_attribute("ingest.row_index", i)
+                    row_span.set_attribute(
+                        "ingest.object_identifier", row.get("Object identifier", "")
+                    )
+                    doc = normalize_vmm_row(row, source_file=source_file)
+                    stats.redactions += apply_privacy(doc, redactor)
+                    compose_vmm_chunk(doc)
+                    row_span.set_attribute("ingest.chunk_count", len(doc.chunks))
+                    result = upsert_document(session, doc, embedder)
+                    row_span.set_attribute("ingest.upsert_status", result.status)
+                    _record(stats, doc, result.status, result.chunks_embedded)
+            except Exception:
+                stats.errors += 1
+                log.exception("row %d (%s) failed — skipping", i, row.get("Object identifier", "?"))
+        span.set_attribute("ingest.errors", stats.errors)
+        span.set_attribute("ingest.chunks_embedded", stats.chunks_embedded)
+        return stats
 
 
 def ingest_external(
@@ -106,25 +120,36 @@ def ingest_external(
     stats: IngestStats | None = None,
 ) -> IngestStats:
     """Ingest external-historical sources from a manifest (stages 4–6)."""
-    stats = stats or IngestStats()
-    # External text carries no VMM donor context — use an empty donor blocklist
-    # to avoid over-redacting unrelated names in third-party prose.
-    redactor = DonorRedactor([])
-    source_file = str(manifest_path)
+    with tracer.start_as_current_span("ingest.external") as span:
+        span.set_attribute("ingest.source", str(manifest_path))
+        stats = stats or IngestStats()
+        # External text carries no VMM donor context — use an empty donor blocklist
+        # to avoid over-redacting unrelated names in third-party prose.
+        redactor = DonorRedactor([])
+        source_file = str(manifest_path)
 
-    # Build each doc inside the try so a failed fetch (e.g. network/403) skips
-    # that one source instead of aborting the whole batch (ingest-pipeline §10).
-    for entry in load_external_entries(manifest_path):
-        stats.rows_in += 1
-        try:
-            doc = build_external_doc(
-                entry, source_file=source_file, wikipedia_fetcher=wikipedia_fetcher
-            )
-            stats.redactions += apply_privacy(doc, redactor)
-            chunk_external_doc(doc)
-            result = upsert_document(session, doc, embedder)
-            _record(stats, doc, result.status, result.chunks_embedded)
-        except Exception:
-            stats.errors += 1
-            log.exception("external source %r failed — skipping", entry.get("title", "?"))
-    return stats
+        # Build each doc inside the try so a failed fetch (e.g. network/403) skips
+        # that one source instead of aborting the whole batch (ingest-pipeline §10).
+        entries = load_external_entries(manifest_path)
+        span.set_attribute("ingest.rows_loaded", len(entries))
+        for i, entry in enumerate(entries):
+            stats.rows_in += 1
+            try:
+                with tracer.start_as_current_span("ingest.external.row") as row_span:
+                    row_span.set_attribute("ingest.row_index", i)
+                    row_span.set_attribute("ingest.title", entry.get("title", ""))
+                    doc = build_external_doc(
+                        entry, source_file=source_file, wikipedia_fetcher=wikipedia_fetcher
+                    )
+                    stats.redactions += apply_privacy(doc, redactor)
+                    chunk_external_doc(doc)
+                    row_span.set_attribute("ingest.chunk_count", len(doc.chunks))
+                    result = upsert_document(session, doc, embedder)
+                    row_span.set_attribute("ingest.upsert_status", result.status)
+                    _record(stats, doc, result.status, result.chunks_embedded)
+            except Exception:
+                stats.errors += 1
+                log.exception("external source %r failed — skipping", entry.get("title", "?"))
+        span.set_attribute("ingest.errors", stats.errors)
+        span.set_attribute("ingest.chunks_embedded", stats.chunks_embedded)
+        return stats

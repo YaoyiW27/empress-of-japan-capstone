@@ -49,6 +49,7 @@ build/
 .turbo/
 
 # === IDE / OS ===
+.claude/
 .vscode/
 .idea/
 .DS_Store

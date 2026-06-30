@@ -1,0 +1,141 @@
+# AI-Assisted Development Log
+
+Name: Qingman Li (Alina)
+Week: Week 5 (June 25 - July 1, 2026)
+Date: 2026-06-29
+
+## 1. Task / Goal
+- **Issue #38** — [backend] Add **OpenTelemetry distributed tracing
+  instrumentation** to the backend so requests can be traced across the API,
+  agent/LLM path, database work, ingest stages, and the future SQS worker path.
+- The original issue asks for a connected trace spanning **API -> SQS -> worker**,
+  but the current backend branch does not yet contain the SQS producer/worker
+  implementation. I kept the scope honest: instrumented the backend code that
+  exists today and added reusable SQS trace-context helpers so #35 / worker code
+  can later connect to the same trace without redesign.
+- Export is now aligned with PR #90's infra baseline: the backend uses the
+  existing `app.telemetry` initializer and OTLP/HTTP collector sidecar endpoint
+  (`127.0.0.1:4318/v1/traces`) instead of adding a separate gRPC exporter path.
+- Opened **#98** as the explicit follow-up for the remaining API -> SQS -> worker
+  connected trace once #35's backend worker/producer code exists.
+
+## 2. AI Tools Used
+Codex. Used it first in planning mode to read the issue through GitHub CLI,
+inspect the backend/FastAPI/agent/ingest code, and confirm that the SQS worker
+code does not exist in the current branch. Then used Codex to implement the
+instrumentation, add tests, run lint/tests, split the work into separate
+commits for easier review, and then respond to Copilot + Yaoyi review feedback.
+
+## 3. Prompts / Agent Workflow
+- **Recovered the real issue text first.** `gh issue view 38` failed because the
+  default GraphQL query hit a deprecated Projects field, so Codex used
+  `gh api repos/YaoyiW27/empress-of-japan-capstone/issues/38` to read the issue
+  body directly. That clarified the target: FastAPI + worker auto-instrumentation,
+  SQS trace propagation, spans for retrieval/Bedrock/DB, and OTLP export.
+- **Checked the repo before coding.** Codex searched `backend/`, `infra/`, and
+  remote branches for SQS/worker code. The only SQS implementation present is
+  Terraform queue wiring in `infra/terraform/sqs.tf`; there is no backend worker
+  entrypoint yet. That changed the implementation from "complete API-to-worker
+  trace" to "instrument current backend + add propagation helpers for the future
+  worker."
+- **Consolidated OTel setup with the infra baseline.** After PR #90 landed on
+  main, the backend already had `app/telemetry.py` for OTLP/HTTP export to the
+  collector sidecar. I kept that initializer as the single source of truth and
+  layered the backend-owned manual spans on top.
+- **Avoided duplicate instrumentation.** Removed the separate `app/observability.py`
+  initializer from my first cut and kept PR #90's FastAPI + SQLAlchemy setup.
+  Also did not keep psycopg instrumentation, because the backend currently goes
+  through SQLAlchemy and instrumenting both layers could create duplicate DB spans.
+- **Kept local development safe.** OTel remains disabled by default in settings,
+  so local tests and development do not require a collector, Honeycomb
+  credential, or AWS observability setup.
+- **Added manual spans where business stages matter.** Automatic instrumentation
+  covers framework/DB/AWS calls, but Codex also added named spans around the
+  semantic backend stages: `/chat`, persona execution, LLM invocation, embedding
+  batches, ingest rows, document lookup, chunk embedding, and document upsert.
+- **Responded to review feedback.** Copilot caught small correctness issues in
+  the initial helper/test code, and Yaoyi caught the larger integration issue:
+  PR #90 had already established the collector-sidecar telemetry path on main.
+  I accepted both sets of feedback and updated the branch accordingly.
+
+## 4. Useful Output
+- `backend/app/telemetry.py` — the centralized OTel setup from PR #90, kept as
+  the single initializer for FastAPI + SQLAlchemy tracing and OTLP/HTTP export
+  to the collector sidecar. I added parsing for optional
+  `OTEL_RESOURCE_ATTRIBUTES`.
+- `backend/app/config.py` / `backend/.env.example` — new tracing config:
+  `OTEL_ENABLED`, `OTEL_SERVICE_NAME`, `OTEL_EXPORTER_OTLP_ENDPOINT`, and
+  optional `OTEL_RESOURCE_ATTRIBUTES`.
+- `backend/app/main.py` — OTel setup called from the app factory; manual spans
+  around `/chat` and `/health/db`.
+- `backend/app/agents/graph.py` and `backend/app/agents/llm.py` — spans around
+  persona agent execution and LLM calls, including attributes for provider,
+  model id, persona id, and message count.
+- `backend/app/ingest/embed.py`, `pipeline.py`, and `upsert.py` — spans around
+  fake/Bedrock embedding, ingest row processing, document lookup, chunk
+  embedding, and DB upsert status.
+- `backend/app/tracing/sqs.py` — reusable SQS trace propagation helpers:
+  `inject_trace_context`, `extract_trace_context`, and
+  `use_extracted_trace_context`, carrying W3C trace context in SQS
+  `MessageAttributes`.
+- `backend/tests/test_observability.py` — tests that app creation works with
+  OTel disabled/enabled and that SQS trace context can be injected/extracted.
+  The SQS propagation test now constructs a valid `SpanContext` directly, so it
+  is not order-dependent.
+- Verification: `ruff check backend` passed; `pytest backend/tests` passed with
+  23 passed / 2 skipped. The skipped tests are the existing DB integration tests
+  because local Postgres/pgvector was not running.
+- Commits:
+  - `3a94a08 Add backend OpenTelemetry setup`
+  - `947398c Trace backend agent and ingest stages`
+  - `1500412 Add SQS trace propagation helpers`
+  - `30eec17 Format backend entrypoint imports`
+  - `4e7e257 Address OTel review feedback`
+  - `0f9a160 Merge remote-tracking branch 'origin/main' into alina/opentelemetry`
+
+## 5. Human Review / Changes
+- **Moved the remaining distributed-trace work into #98.** Since the backend
+  worker/producer does not exist yet, #98 now tracks the API -> SQS -> worker
+  connected trace after #35 lands. That lets PR #97 close #38 for the backend
+  tracing foundation while keeping the missing worker path visible.
+- **Kept secrets and Honeycomb-specific config out of code.** The backend reads
+  the settings that PR #90 wires from ECS/Secrets Manager; no Honeycomb secret is
+  committed.
+- **Accepted the exporter-protocol correction.** The first cut used an OTLP/gRPC
+  exporter. Yaoyi pointed out that main uses an OTLP/HTTP collector endpoint at
+  `127.0.0.1:4318/v1/traces`, so I consolidated on `app.telemetry` and removed
+  the duplicate gRPC initializer.
+- **Accepted the DB-span correction.** Kept SQLAlchemy instrumentation only; did
+  not add psycopg instrumentation because the backend does not currently make
+  direct psycopg calls.
+- **Chose local-safe defaults.** Missing collector config does not crash the app
+  or tests. This was important because teammates should be able to run the
+  backend locally without observability infrastructure.
+- **Verified behavior instead of only relying on imports.** Ran the backend test
+  suite and lint after installing the new OTel dependencies into the local
+  virtualenv.
+- **Split commits for review.** The final history separates dependency/setup,
+  business instrumentation, SQS propagation, and formatting so reviewers can
+  inspect each concern independently.
+
+## 6. Reflection
+This issue was mostly about making the backend observable without pretending the
+whole distributed system exists yet. The useful move was to separate **current
+trace value** from **future distributed trace completion**: FastAPI, agent, LLM,
+embedding, ingest, and DB spans are valuable immediately, while SQS propagation
+is prepared as a small helper layer for the worker once it lands.
+
+The tricky part was avoiding accidental scope creep while still respecting the
+infra work that landed in parallel. The issue title says distributed tracing
+across API, queue, and worker, but the actual repo only has the queue infra, not
+the worker code. Building a worker just to satisfy tracing would have mixed two
+issues together and made review harder. At the same time, PR #90 had already
+made real deployment choices about collector sidecars and OTLP/HTTP export, so
+the backend PR had to merge main and consolidate instead of creating a second
+telemetry stack.
+
+Next improvement: once #35 adds the SQS producer and worker, wire
+`inject_trace_context` into `SendMessage` and wrap worker message handling with
+`use_extracted_trace_context`, then verify in Honeycomb that one conversation
+appears as a connected API -> queue -> worker trace. That work is now tracked in
+#98.

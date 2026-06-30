@@ -14,7 +14,11 @@ import struct
 import time
 from typing import Protocol
 
+from opentelemetry import trace
+
 from app.models import EMBEDDING_DIM
+
+tracer = trace.get_tracer(__name__)
 
 
 class Embedder(Protocol):
@@ -41,20 +45,24 @@ class FakeEmbedder:
         self.dim = dim
 
     def embed(self, texts: list[str]) -> list[list[float]]:
-        out = []
-        for text in texts:
-            floats: list[float] = []
-            counter = 0
-            while len(floats) < self.dim:
-                digest = hashlib.sha256(f"{text}|{counter}".encode()).digest()
-                # 8 uint32s per 32-byte digest, mapped to [-1, 1) — never NaN/inf.
-                for u in struct.unpack(">8I", digest):
-                    floats.append((u / 0xFFFFFFFF) * 2.0 - 1.0)
-                    if len(floats) >= self.dim:
-                        break
-                counter += 1
-            out.append(_l2_normalize(floats[: self.dim]))
-        return out
+        with tracer.start_as_current_span("embed.batch") as span:
+            span.set_attribute("embed.provider", "fake")
+            span.set_attribute("embed.model_id", self.model_id)
+            span.set_attribute("embed.text_count", len(texts))
+            out = []
+            for text in texts:
+                floats: list[float] = []
+                counter = 0
+                while len(floats) < self.dim:
+                    digest = hashlib.sha256(f"{text}|{counter}".encode()).digest()
+                    # 8 uint32s per 32-byte digest, mapped to [-1, 1) — never NaN/inf.
+                    for u in struct.unpack(">8I", digest):
+                        floats.append((u / 0xFFFFFFFF) * 2.0 - 1.0)
+                        if len(floats) >= self.dim:
+                            break
+                    counter += 1
+                out.append(_l2_normalize(floats[: self.dim]))
+            return out
 
 
 class BedrockTitanEmbedder:
@@ -77,23 +85,32 @@ class BedrockTitanEmbedder:
     def _invoke(self, text: str) -> list[float]:
         import json
 
-        body = json.dumps({"inputText": text, "dimensions": self.dim, "normalize": True})
-        delay = 0.5
-        for attempt in range(self._max_retries):
-            try:
-                resp = self._client.invoke_model(modelId=self.model_id, body=body)
-                payload = json.loads(resp["body"].read())
-                return payload["embedding"]
-            except Exception:  # throttling / transient — backoff then retry
-                if attempt == self._max_retries - 1:
-                    raise
-                time.sleep(delay)
-                delay *= 2
+        with tracer.start_as_current_span("embed.bedrock.invoke") as span:
+            span.set_attribute("embed.provider", "bedrock")
+            span.set_attribute("embed.model_id", self.model_id)
+            span.set_attribute("embed.dim", self.dim)
+            body = json.dumps({"inputText": text, "dimensions": self.dim, "normalize": True})
+            delay = 0.5
+            for attempt in range(self._max_retries):
+                span.set_attribute("embed.attempt", attempt + 1)
+                try:
+                    resp = self._client.invoke_model(modelId=self.model_id, body=body)
+                    payload = json.loads(resp["body"].read())
+                    return payload["embedding"]
+                except Exception:  # throttling / transient — backoff then retry
+                    if attempt == self._max_retries - 1:
+                        raise
+                    time.sleep(delay)
+                    delay *= 2
         raise RuntimeError("unreachable")
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         # Titan embeds one input per call; the batch is a throttled loop.
-        return [self._invoke(t) for t in texts]
+        with tracer.start_as_current_span("embed.batch") as span:
+            span.set_attribute("embed.provider", "bedrock")
+            span.set_attribute("embed.model_id", self.model_id)
+            span.set_attribute("embed.text_count", len(texts))
+            return [self._invoke(t) for t in texts]
 
 
 def make_embedder(kind: str, *, model_id: str, region: str) -> Embedder:
