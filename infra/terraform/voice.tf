@@ -52,3 +52,45 @@ resource "aws_s3_bucket_lifecycle_configuration" "voice_cache" {
     }
   }
 }
+
+# Polly synthesis and Transcribe streaming do not expose resource-level ARNs,
+# so those two actions require Resource="*". S3 access remains scoped to the
+# generated-audio prefix in this one private cache bucket.
+data "aws_iam_policy_document" "backend_voice_runtime" {
+  statement {
+    sid    = "UseVoiceServices"
+    effect = "Allow"
+    actions = [
+      "polly:SynthesizeSpeech",
+      "transcribe:StartStreamTranscription",
+    ]
+    resources = ["*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:RequestedRegion"
+      values   = [var.region]
+    }
+  }
+
+  statement {
+    sid    = "ReadWritePollyCache"
+    effect = "Allow"
+    actions = [
+      "s3:GetObject",
+      "s3:PutObject",
+    ]
+    resources = ["${aws_s3_bucket.voice_cache.arn}/${local.voice_cache_prefix}*"]
+  }
+}
+
+resource "aws_iam_policy" "backend_voice_runtime" {
+  name        = "empress-backend-voice-runtime"
+  description = "Allow the backend to use Transcribe/Polly and cache generated narration audio."
+  policy      = data.aws_iam_policy_document.backend_voice_runtime.json
+}
+
+resource "aws_iam_role_policy_attachment" "backend_task_voice_runtime" {
+  role       = aws_iam_role.backend_task.name
+  policy_arn = aws_iam_policy.backend_voice_runtime.arn
+}
