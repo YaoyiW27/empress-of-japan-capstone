@@ -4,6 +4,21 @@
 # generated Polly audio under polly-cache/ and returns short-lived presigned GET
 # URLs to the frontend.
 
+resource "aws_kms_key" "voice_cache" {
+  description             = "Encrypt cached Polly narration audio"
+  deletion_window_in_days = 7
+  enable_key_rotation     = true
+
+  tags = {
+    Name = "empress-voice-cache"
+  }
+}
+
+resource "aws_kms_alias" "voice_cache" {
+  name          = "alias/empress-voice-cache"
+  target_key_id = aws_kms_key.voice_cache.key_id
+}
+
 resource "aws_s3_bucket" "voice_cache" {
   bucket        = "empress-voice-cache-${data.aws_caller_identity.current.account_id}-${var.region}"
   force_destroy = true
@@ -35,8 +50,11 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "voice_cache" {
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      kms_master_key_id = aws_kms_key.voice_cache.arn
+      sse_algorithm     = "aws:kms"
     }
+
+    bucket_key_enabled = true
   }
 }
 
@@ -121,6 +139,17 @@ data "aws_iam_policy_document" "backend_voice_runtime" {
       "s3:PutObject",
     ]
     resources = ["${aws_s3_bucket.voice_cache.arn}/${var.voice_cache_prefix}*"]
+  }
+
+  statement {
+    sid    = "UseVoiceCacheKey"
+    effect = "Allow"
+    actions = [
+      "kms:Decrypt",
+      "kms:Encrypt",
+      "kms:GenerateDataKey",
+    ]
+    resources = [aws_kms_key.voice_cache.arn]
   }
 }
 
