@@ -23,8 +23,10 @@ Date: 2026-06-29
   separate worker process can consume and run the existing ingest pipeline.
 - After merging the latest `main`, I connected the new #35 SQS producer/worker
   to the existing `app.tracing.sqs` helpers. This implements the code-level
-  trace-context handoff for #98, but #98 still needs a real SQS/LocalStack +
-  Honeycomb end-to-end validation before I would call it fully complete.
+  trace-context handoff for #98.
+- **Issue #98** — completed the code and automated-test portion of the API ->
+  SQS -> worker trace propagation follow-up. The remaining validation is an
+  environment run against real SQS/LocalStack plus a collector/Honeycomb.
 
 ## 2. AI Tools Used
 Codex. Used it first in planning mode to read the issue through GitHub CLI,
@@ -81,6 +83,11 @@ verify that the new worker code still passes alongside the OpenTelemetry changes
   conflicted in `.env.example` and `backend/app/main.py`; Codex kept both sets
   of settings/imports and then wired the new SQS worker to the existing trace
   propagation helper.
+- **Finished #98's worker tracing layer.** Codex added explicit spans for SQS
+  receive, job processing, and message deletion. The processing span starts
+  inside the extracted SQS trace context, records job metadata and ingest counts,
+  and marks failures as OTel errors while preserving the existing SQS retry
+  behavior.
 
 ## 4. Useful Output
 - `backend/app/telemetry.py` — the centralized OTel setup from PR #90, kept as
@@ -110,7 +117,8 @@ verify that the new worker code still passes alongside the OpenTelemetry changes
   SQS `MessageAttributes` and requests all message attributes on receive.
 - `backend/app/jobs/worker.py` — worker entrypoint that polls SQS, runs the
   existing ingest pipeline, deletes messages only after successful processing,
-  and leaves failed messages for SQS retry / DLQ handling.
+  and leaves failed messages for SQS retry / DLQ handling. For #98 it now emits
+  `jobs.worker.receive`, `jobs.worker.process`, and `jobs.worker.delete` spans.
 - `backend/app/main.py` — now includes `POST /ingest/jobs` in addition to the
   telemetry setup. The endpoint publishes ingest jobs and returns a `job_id`.
 - `backend/tests/test_observability.py` — tests that app creation works with
@@ -118,9 +126,10 @@ verify that the new worker code still passes alongside the OpenTelemetry changes
   The SQS propagation test now constructs a valid `SpanContext` directly, so it
   is not order-dependent.
 - `backend/tests/test_jobs.py` — tests for missing queue configuration, API job
-  enqueueing, and typed SQS message round-tripping with message attributes.
-- Verification after #35 and the merge: `ruff check .` passed from `backend/`;
-  `$env:CHAT_MODEL='stub'; pytest` passed with 26 passed / 2 skipped. The
+  enqueueing, typed SQS message round-tripping with message attributes, and a
+  worker span that continues the upstream SQS trace context.
+- Verification after #35, #98, and the merge: `ruff check .` passed from `backend/`;
+  `$env:CHAT_MODEL='stub'; pytest` passed with 27 passed / 2 skipped. The
   skipped tests are the existing DB integration tests because local
   Postgres/pgvector was not running.
 - Commits:
@@ -133,6 +142,7 @@ verify that the new worker code still passes alongside the OpenTelemetry changes
   - `9125c82 feat: add async ingest job worker`
   - `dd764d7 chore: fix backend entrypoint lint`
   - `27b5a23 Merge branch 'main' into alina/ingest-worker`
+  - pending #98 commit: worker spans + SQS trace continuation test
 
 ## 5. Human Review / Changes
 - **Moved the remaining distributed-trace work into #98.** Since the backend
@@ -159,9 +169,9 @@ verify that the new worker code still passes alongside the OpenTelemetry changes
   business instrumentation, SQS propagation, and formatting so reviewers can
   inspect each concern independently.
 - **Kept #98 status honest after #35.** The code-level API -> SQS -> worker trace
-  handoff is now wired because the worker exists, but I did not mark #98 as fully
-  done. It still needs a real queue run and trace verification in Honeycomb or a
-  local collector.
+  handoff and automated span-parent test are now complete, but a real queue run
+  and trace verification in Honeycomb or a local collector still depend on a
+  runtime environment.
 - **Installed updated backend dev dependencies to verify the merge.** After
   merging `main`, local tests initially failed because the new OpenTelemetry
   packages were not installed. I ran `python -m pip install -e .[dev]`, then
@@ -185,8 +195,9 @@ made real deployment choices about collector sidecars and OTLP/HTTP export, so
 the backend PR had to merge main and consolidate instead of creating a second
 telemetry stack.
 
-After #35 landed, I did wire `inject_trace_context` into `SendMessage` and wrap
-worker message handling with `use_extracted_trace_context`. The remaining #98
-work is no longer about missing code structure; it is about real end-to-end
+After #35 landed, I wired `inject_trace_context` into `SendMessage`, wrapped
+worker message handling with `use_extracted_trace_context`, and added explicit
+worker spans plus a unit test proving the worker processing span keeps the
+originating trace id and parent span. The remaining #98 work is deployment
 validation: run API -> queue -> worker against SQS/LocalStack with telemetry
 enabled, then confirm in Honeycomb or a collector that the trace is connected.

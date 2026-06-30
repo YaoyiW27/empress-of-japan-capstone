@@ -7,6 +7,9 @@ import logging
 import signal
 import sys
 
+from opentelemetry import trace
+from opentelemetry.trace import Status, StatusCode
+
 from app.config import Settings, get_settings
 from app.db import SessionLocal
 from app.ingest.embed import make_embedder
@@ -16,6 +19,7 @@ from app.jobs.sqs import SqsJobQueue
 from app.tracing.sqs import use_extracted_trace_context
 
 log = logging.getLogger("jobs.worker")
+tracer = trace.get_tracer(__name__)
 
 
 def process_envelope(envelope: JobEnvelope, settings: Settings) -> IngestStats:
@@ -49,25 +53,59 @@ def process_envelope(envelope: JobEnvelope, settings: Settings) -> IngestStats:
 def poll_once(queue: SqsJobQueue, settings: Settings) -> int:
     """Receive and process one batch. Returns the number of messages seen."""
 
-    messages = queue.receive(
-        max_messages=settings.sqs_max_messages,
-        wait_time_seconds=settings.sqs_wait_time_seconds,
-    )
+    with tracer.start_as_current_span("jobs.worker.receive") as receive_span:
+        receive_span.set_attribute("messaging.system", "aws_sqs")
+        receive_span.set_attribute("messaging.destination.name", queue.queue_url)
+        receive_span.set_attribute("sqs.max_messages", settings.sqs_max_messages)
+        receive_span.set_attribute("sqs.wait_time_seconds", settings.sqs_wait_time_seconds)
+        messages = queue.receive(
+            max_messages=settings.sqs_max_messages,
+            wait_time_seconds=settings.sqs_wait_time_seconds,
+        )
+        receive_span.set_attribute("sqs.message_count", len(messages))
+
     for message in messages:
         envelope = message.envelope
+        job = envelope.job
         log.info(
             "processing job_id=%s message_id=%s kind=%s",
             envelope.job_id,
             message.message_id,
-            envelope.job.kind,
+            job.kind,
         )
-        try:
-            with use_extracted_trace_context(message.message_attributes):
-                stats = process_envelope(envelope, settings)
-        except Exception:
-            log.exception("job failed job_id=%s", envelope.job_id)
-            continue
-        queue.delete(message.receipt_handle)
+        with use_extracted_trace_context(message.message_attributes):
+            with tracer.start_as_current_span("jobs.worker.process") as process_span:
+                process_span.set_attribute("messaging.system", "aws_sqs")
+                process_span.set_attribute("messaging.message.id", message.message_id)
+                process_span.set_attribute("job.id", envelope.job_id)
+                process_span.set_attribute("job.kind", job.kind)
+                process_span.set_attribute("job.has_csv", bool(job.csv))
+                process_span.set_attribute("job.has_external", bool(job.external))
+                process_span.set_attribute("job.embedder", job.embedder or settings.embedder)
+                try:
+                    stats = process_envelope(envelope, settings)
+                except Exception as exc:
+                    process_span.record_exception(exc)
+                    process_span.set_status(Status(StatusCode.ERROR, str(exc)))
+                    process_span.set_attribute("job.status", "failed")
+                    log.exception("job failed job_id=%s", envelope.job_id)
+                    continue
+                process_span.set_attribute("job.status", "completed")
+                process_span.set_attribute("ingest.rows_in", stats.rows_in)
+                process_span.set_attribute("ingest.errors", stats.errors)
+                process_span.set_attribute("ingest.chunks_embedded", stats.chunks_embedded)
+        with tracer.start_as_current_span("jobs.worker.delete") as delete_span:
+            delete_span.set_attribute("messaging.system", "aws_sqs")
+            delete_span.set_attribute("messaging.message.id", message.message_id)
+            delete_span.set_attribute("job.id", envelope.job_id)
+            try:
+                queue.delete(message.receipt_handle)
+            except Exception as exc:
+                delete_span.record_exception(exc)
+                delete_span.set_status(Status(StatusCode.ERROR, str(exc)))
+                raise
+            else:
+                delete_span.set_attribute("job.status", "deleted")
         log.info("completed job_id=%s %s", envelope.job_id, stats.summary())
     return len(messages)
 
