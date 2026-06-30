@@ -3,8 +3,8 @@
 Run locally with:
     uvicorn app.main:app --reload
 """
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from langgraph.checkpoint.memory import MemorySaver
 from pydantic import BaseModel
@@ -16,6 +16,7 @@ from app.agents.llm import make_chat_model
 from app.agents.personas import load_personas, scene_to_personas
 from app.config import Settings, get_settings
 from app.db import engine
+from app.jobs import IngestJob, SqsJobQueue
 
 
 class ChatRequest(BaseModel):
@@ -33,6 +34,11 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     persona_id: str
     response: str
+
+
+class EnqueueJobResponse(BaseModel):
+    job_id: str
+    status: str = "queued"
 
 
 def _resolve_persona(persona_id: str | None, scene: str | None) -> str:
@@ -150,6 +156,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 }
             )
         return ChatResponse(persona_id=result["persona_id"], response=result["response"])
+
+    @app.post("/ingest/jobs", response_model=EnqueueJobResponse, status_code=202)
+    def enqueue_ingest_job(req: IngestJob) -> EnqueueJobResponse:
+        """Publish an ingest job for the async worker."""
+
+        if not settings.jobs_queue_url:
+            raise HTTPException(status_code=503, detail="JOBS_QUEUE_URL is not configured")
+        queue = SqsJobQueue(
+            settings.jobs_queue_url,
+            region=settings.aws_region,
+            endpoint_url=settings.sqs_endpoint_url,
+        )
+        envelope = queue.send_ingest(req)
+        return EnqueueJobResponse(job_id=envelope.job_id)
 
     return app
 

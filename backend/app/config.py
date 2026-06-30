@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     app_name: str = "empress-backend"
     app_env: str = "local"
     log_level: str = "info"
-    
+
     cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
     # Local dev default mirrors backend/docker-compose.yml. Override via the
     # DATABASE_URL env var (RDS endpoint from a secret in deployed environments).
@@ -55,6 +55,15 @@ class Settings(BaseSettings):
     # (one name per line). Built primarily in-memory from the source's donor
     # column; this is for known stray names. Never committed (keep it local).
     donor_blocklist_path: str | None = None
+
+    # --- Async ingest jobs ---------------------------------------------------
+    # The API publishes jobs here and a separate worker process consumes them.
+    # In AWS this is the SQS URL from infra/terraform/sqs.tf; local development
+    # can point sqs_endpoint_url at LocalStack or elasticmq.
+    jobs_queue_url: str | None = None
+    sqs_endpoint_url: str | None = None
+    sqs_wait_time_seconds: int = 20
+    sqs_max_messages: int = 1
 
     # Path to the directory containing persona markdown files.
     # Defaults to the repo-root relative path for local dev, but can be overridden
