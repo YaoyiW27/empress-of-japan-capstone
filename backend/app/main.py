@@ -3,7 +3,9 @@
 Run locally with:
     uvicorn app.main:app --reload
 """
-from fastapi import FastAPI, HTTPException
+import hmac
+
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from langgraph.checkpoint.memory import MemorySaver
@@ -17,6 +19,7 @@ from app.agents.llm import make_chat_model
 from app.agents.personas import load_personas, scene_to_personas
 from app.config import Settings, get_settings
 from app.db import engine
+from app.jobs import IngestJob, SqsJobQueue
 from app.telemetry import configure_telemetry
 
 tracer = trace.get_tracer(__name__)
@@ -39,6 +42,16 @@ class ChatResponse(BaseModel):
     response: str
 
 
+class EnqueueJobResponse(BaseModel):
+    job_id: str
+    status: str = "queued"
+
+
+class EnqueueIngestJobRequest(BaseModel):
+    include_csv: bool = False
+    include_external: bool = True
+
+
 def _resolve_persona(persona_id: str | None, scene: str | None) -> str:
     """Pick the persona: explicit id wins; a scene is a hint, ambiguous if shared."""
     personas = load_personas()
@@ -57,6 +70,36 @@ def _resolve_persona(persona_id: str | None, scene: str | None) -> str:
             )
         return candidates[0]
     raise HTTPException(status_code=400, detail="provide persona_id or scene")
+
+
+def _require_ingest_admin(settings: Settings, token: str | None) -> None:
+    if not settings.ingest_admin_token:
+        raise HTTPException(status_code=503, detail="INGEST_ADMIN_TOKEN is not configured")
+    if token is None or not hmac.compare_digest(token, settings.ingest_admin_token):
+        raise HTTPException(status_code=403, detail="invalid admin token")
+
+
+def _build_ingest_job(req: EnqueueIngestJobRequest, settings: Settings) -> IngestJob:
+    if not req.include_csv and not req.include_external:
+        raise HTTPException(status_code=400, detail="select at least one ingest source")
+
+    csv_path = None
+    external_path = None
+    if req.include_csv:
+        if not settings.ingest_job_csv_path:
+            raise HTTPException(status_code=400, detail="CSV ingest source is not configured")
+        csv_path = settings.ingest_job_csv_path
+    if req.include_external:
+        if not settings.ingest_job_external_path:
+            raise HTTPException(status_code=400, detail="external ingest source is not configured")
+        external_path = settings.ingest_job_external_path
+
+    return IngestJob(
+        csv=csv_path,
+        external=external_path,
+        embedder=settings.embedder,
+        blocklist=settings.donor_blocklist_path if csv_path else None,
+    )
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -160,6 +203,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     }
                 )
         return ChatResponse(persona_id=result["persona_id"], response=result["response"])
+
+    @app.post("/ingest/jobs", response_model=EnqueueJobResponse, status_code=202)
+    def enqueue_ingest_job(
+        req: EnqueueIngestJobRequest,
+        x_admin_token: str | None = Header(default=None, alias="X-Admin-Token"),
+    ) -> EnqueueJobResponse:
+        """Publish an admin-triggered ingest job for the async worker."""
+
+        _require_ingest_admin(settings, x_admin_token)
+        if not settings.jobs_queue_url:
+            raise HTTPException(status_code=503, detail="JOBS_QUEUE_URL is not configured")
+        queue = SqsJobQueue(
+            settings.jobs_queue_url,
+            region=settings.aws_region,
+            endpoint_url=settings.sqs_endpoint_url,
+        )
+        envelope = queue.send_ingest(_build_ingest_job(req, settings))
+        return EnqueueJobResponse(job_id=envelope.job_id)
 
     return app
 

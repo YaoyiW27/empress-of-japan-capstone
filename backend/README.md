@@ -109,6 +109,32 @@ Re-running is idempotent (unchanged rows skipped via `content_hash`; a model
 swap re-embeds). Each run logs counts/KPIs (rows in/out, redactions, per-ship
 coverage); OTel → Honeycomb/CloudWatch export is an infra-track follow-up.
 
+### Async ingest jobs
+
+The admin-only API can enqueue ingest work to SQS and a separate worker can
+consume it. Set `JOBS_QUEUE_URL` to the AWS queue from Terraform, or pair it with
+`SQS_ENDPOINT_URL` for LocalStack/elasticmq. The endpoint does not accept
+arbitrary file paths or embedder choices from clients; it uses the configured
+`INGEST_JOB_EXTERNAL_PATH`, optional `INGEST_JOB_CSV_PATH`, and server-side
+`EMBEDDER`.
+
+```bash
+# submit work through the API
+curl -X POST http://localhost:8000/ingest/jobs \
+  -H "X-Admin-Token: $INGEST_ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"include_external":true}'
+
+# run the worker continuously
+python -m app.jobs.worker
+
+# useful for local smoke tests / one batch in CI
+python -m app.jobs.worker --once
+```
+
+Messages are deleted only after a successful pipeline run. Failures are left on
+the queue for SQS retry and DLQ handling.
+
 ## Local database (Postgres + pgvector)
 
 A local dev database, with the knowledge base schema applied automatically on

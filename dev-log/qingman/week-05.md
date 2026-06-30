@@ -18,6 +18,17 @@ Date: 2026-06-29
   (`127.0.0.1:4318/v1/traces`) instead of adding a separate gRPC exporter path.
 - Opened **#98** as the explicit follow-up for the remaining API -> SQS -> worker
   connected trace once #35's backend worker/producer code exists.
+- **Issue #35** — added the backend async ingest producer/worker path that #38
+  and #98 had been waiting on: the API can enqueue ingest jobs to SQS, and a
+  separate worker process can consume and run the existing ingest pipeline.
+  Because the AWS worker service and consume-policy attachment are still infra
+  follow-up work, the PR should reference #35 rather than close it outright.
+- After merging the latest `main`, I connected the new #35 SQS producer/worker
+  to the existing `app.tracing.sqs` helpers. This implements the code-level
+  trace-context handoff for #98.
+- **Issue #98** — completed the code and automated-test portion of the API ->
+  SQS -> worker trace propagation follow-up. The remaining validation is an
+  environment run against real SQS/LocalStack plus a collector/Honeycomb.
 
 ## 2. AI Tools Used
 Codex. Used it first in planning mode to read the issue through GitHub CLI,
@@ -25,6 +36,9 @@ inspect the backend/FastAPI/agent/ingest code, and confirm that the SQS worker
 code does not exist in the current branch. Then used Codex to implement the
 instrumentation, add tests, run lint/tests, split the work into separate
 commits for easier review, and then respond to Copilot + Yaoyi review feedback.
+Later in the week I used Codex again to implement #35, split the async worker
+work into focused commits, merge the updated `main`, resolve conflicts, and
+verify that the new worker code still passes alongside the OpenTelemetry changes.
 
 ## 3. Prompts / Agent Workflow
 - **Recovered the real issue text first.** `gh issue view 38` failed because the
@@ -57,6 +71,31 @@ commits for easier review, and then respond to Copilot + Yaoyi review feedback.
   the initial helper/test code, and Yaoyi caught the larger integration issue:
   PR #90 had already established the collector-sidecar telemetry path on main.
   I accepted both sets of feedback and updated the branch accordingly.
+- **Implemented the missing worker path for #35.** Codex inspected the existing
+  ingest CLI and SQS Terraform references, then added a shared job payload model,
+  an SQS queue adapter, a `python -m app.jobs.worker` consumer, and a
+  `POST /ingest/jobs` endpoint that returns `202 Accepted` after publishing a
+  job.
+- **Kept the async worker scoped to jobs, not per-row parallelism.** The work
+  distributes ingest at the job level: the API is decoupled from long-running
+  ingest, and multiple workers can consume from the queue. It does not split one
+  CSV or manifest into many internal sub-jobs yet.
+- **Merged updated `main` and resolved conflicts.** The main branch gained the
+  finalized OpenTelemetry PR while the worker branch was in progress. The merge
+  conflicted in `.env.example` and `backend/app/main.py`; Codex kept both sets
+  of settings/imports and then wired the new SQS worker to the existing trace
+  propagation helper.
+- **Finished #98's worker tracing layer.** Codex added explicit spans for SQS
+  receive, job processing, and message deletion. The processing span starts
+  inside the extracted SQS trace context, records job metadata and ingest counts,
+  and marks failures as OTel errors while preserving the existing SQS retry
+  behavior.
+- **Responded to Yaoyi's merge blockers.** Added worker-safe telemetry
+  initialization for `python -m app.jobs.worker`, moved the delete span inside
+  the extracted SQS trace context, and protected `POST /ingest/jobs` behind an
+  admin token. The endpoint now uses server-configured source paths and the
+  server-side embedder instead of accepting arbitrary client file paths or
+  `embedder="bedrock"` from the request body.
 
 ## 4. Useful Output
 - `backend/app/telemetry.py` — the centralized OTel setup from PR #90, kept as
@@ -78,13 +117,31 @@ commits for easier review, and then respond to Copilot + Yaoyi review feedback.
   `inject_trace_context`, `extract_trace_context`, and
   `use_extracted_trace_context`, carrying W3C trace context in SQS
   `MessageAttributes`.
+- `backend/app/jobs/payloads.py` — typed async job payloads for ingest work,
+  including validation that each job supplies at least one source (`csv` and/or
+  `external`).
+- `backend/app/jobs/sqs.py` — SQS-backed queue adapter used by the API producer
+  and worker consumer. After merging `main`, it also injects trace context into
+  SQS `MessageAttributes` and requests all message attributes on receive.
+- `backend/app/jobs/worker.py` — worker entrypoint that polls SQS, runs the
+  existing ingest pipeline, deletes messages only after successful processing,
+  and leaves failed messages for SQS retry / DLQ handling. For #98 it now emits
+  `jobs.worker.receive`, `jobs.worker.process`, and `jobs.worker.delete` spans
+  and initializes OTel without needing a FastAPI app.
+- `backend/app/main.py` — now includes `POST /ingest/jobs` in addition to the
+  telemetry setup. The endpoint publishes server-configured ingest jobs and
+  returns a `job_id` only when called with the admin token.
 - `backend/tests/test_observability.py` — tests that app creation works with
   OTel disabled/enabled and that SQS trace context can be injected/extracted.
   The SQS propagation test now constructs a valid `SpanContext` directly, so it
   is not order-dependent.
-- Verification: `ruff check backend` passed; `pytest backend/tests` passed with
-  23 passed / 2 skipped. The skipped tests are the existing DB integration tests
-  because local Postgres/pgvector was not running.
+- `backend/tests/test_jobs.py` — tests for missing queue configuration, API job
+  enqueueing, typed SQS message round-tripping with message attributes, and a
+  worker span that continues the upstream SQS trace context.
+- Verification after #35, #98, and the merge: `ruff check .` passed from `backend/`;
+  `$env:CHAT_MODEL='stub'; pytest` passed with 31 passed / 2 skipped. The
+  skipped tests are the existing DB integration tests because local
+  Postgres/pgvector was not running.
 - Commits:
   - `3a94a08 Add backend OpenTelemetry setup`
   - `947398c Trace backend agent and ingest stages`
@@ -92,6 +149,11 @@ commits for easier review, and then respond to Copilot + Yaoyi review feedback.
   - `30eec17 Format backend entrypoint imports`
   - `4e7e257 Address OTel review feedback`
   - `0f9a160 Merge remote-tracking branch 'origin/main' into alina/opentelemetry`
+  - `9125c82 feat: add async ingest job worker`
+  - `dd764d7 chore: fix backend entrypoint lint`
+  - `27b5a23 Merge branch 'main' into alina/ingest-worker`
+  - `ed8313d feat: trace async ingest worker jobs`
+  - pending review-fix commit: worker telemetry init + admin ingest endpoint hardening
 
 ## 5. Human Review / Changes
 - **Moved the remaining distributed-trace work into #98.** Since the backend
@@ -117,6 +179,16 @@ commits for easier review, and then respond to Copilot + Yaoyi review feedback.
 - **Split commits for review.** The final history separates dependency/setup,
   business instrumentation, SQS propagation, and formatting so reviewers can
   inspect each concern independently.
+- **Kept #98 status honest after #35.** The code-level API -> SQS -> worker trace
+  handoff and automated span-parent test are now complete, but a real queue run
+  and trace verification in Honeycomb or a local collector still depend on a
+  runtime environment.
+- **Installed updated backend dev dependencies to verify the merge.** After
+  merging `main`, local tests initially failed because the new OpenTelemetry
+  packages were not installed. I ran `python -m pip install -e .[dev]`, then
+  reran lint and tests successfully. Pip warned that the global user environment
+  now has `protobuf` 7.x, which may conflict with unrelated packages such as
+  `mediapipe` or `wandb`; a virtualenv would avoid that cross-project risk.
 
 ## 6. Reflection
 This issue was mostly about making the backend observable without pretending the
@@ -134,8 +206,9 @@ made real deployment choices about collector sidecars and OTLP/HTTP export, so
 the backend PR had to merge main and consolidate instead of creating a second
 telemetry stack.
 
-Next improvement: once #35 adds the SQS producer and worker, wire
-`inject_trace_context` into `SendMessage` and wrap worker message handling with
-`use_extracted_trace_context`, then verify in Honeycomb that one conversation
-appears as a connected API -> queue -> worker trace. That work is now tracked in
-#98.
+After #35 landed, I wired `inject_trace_context` into `SendMessage`, wrapped
+worker message handling with `use_extracted_trace_context`, and added explicit
+worker spans plus a unit test proving the worker processing span keeps the
+originating trace id and parent span. The remaining #98 work is deployment
+validation: run API -> queue -> worker against SQS/LocalStack with telemetry
+enabled, then confirm in Honeycomb or a collector that the trace is connected.

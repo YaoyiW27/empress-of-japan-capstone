@@ -7,6 +7,7 @@ git-ignored). The database connection string is never committed — see
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -31,7 +32,7 @@ class Settings(BaseSettings):
     # "bedrock" (AWS Titan V2, real) or "fake" (deterministic local, no creds).
     # Defaults to fake so the pipeline runs/tests locally before Bedrock IAM is
     # provisioned (coordinate with Yaoyi — CLAUDE.md). Flip to bedrock via env.
-    embedder: str = "fake"
+    embedder: Literal["fake", "bedrock"] = "fake"
     bedrock_embedding_model: str = "amazon.titan-embed-text-v2:0"
     aws_region: str = "us-west-2"
 
@@ -55,6 +56,18 @@ class Settings(BaseSettings):
     # (one name per line). Built primarily in-memory from the source's donor
     # column; this is for known stray names. Never committed (keep it local).
     donor_blocklist_path: str | None = None
+
+    # --- Async ingest jobs ---------------------------------------------------
+    # The API publishes jobs here and a separate worker process consumes them.
+    # In AWS this is the SQS URL from infra/terraform/sqs.tf; local development
+    # can point sqs_endpoint_url at LocalStack or elasticmq.
+    jobs_queue_url: str | None = None
+    sqs_endpoint_url: str | None = None
+    sqs_wait_time_seconds: int = 20
+    sqs_max_messages: int = 1
+    ingest_admin_token: str | None = None
+    ingest_job_csv_path: str | None = None
+    ingest_job_external_path: str | None = "external_sources.json"
 
     # Path to the directory containing persona markdown files.
     # Defaults to the repo-root relative path for local dev, but can be overridden

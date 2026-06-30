@@ -6,6 +6,7 @@ from opentelemetry.trace import NonRecordingSpan, SpanContext, TraceFlags, Trace
 
 from app.config import Settings
 from app.main import create_app
+from app.telemetry import configure_worker_telemetry
 from app.tracing.sqs import extract_trace_context, inject_trace_context
 
 
@@ -25,6 +26,17 @@ def test_app_creation_with_otel_enabled_without_export_credentials() -> None:
     )
     client = TestClient(app)
     assert client.get("/health").json() == {"status": "ok"}
+
+
+def test_worker_telemetry_init_without_fastapi_app() -> None:
+    configure_worker_telemetry(Settings(otel_enabled=False))
+    configure_worker_telemetry(
+        Settings(
+            otel_enabled=True,
+            otel_exporter_otlp_endpoint="https://api.honeycomb.io/v1/traces",
+            honeycomb_api_key=None,
+        )
+    )
 
 
 def test_sqs_trace_context_round_trip() -> None:
