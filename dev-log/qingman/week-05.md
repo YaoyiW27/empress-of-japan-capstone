@@ -21,6 +21,8 @@ Date: 2026-06-29
 - **Issue #35** — added the backend async ingest producer/worker path that #38
   and #98 had been waiting on: the API can enqueue ingest jobs to SQS, and a
   separate worker process can consume and run the existing ingest pipeline.
+  Because the AWS worker service and consume-policy attachment are still infra
+  follow-up work, the PR should reference #35 rather than close it outright.
 - After merging the latest `main`, I connected the new #35 SQS producer/worker
   to the existing `app.tracing.sqs` helpers. This implements the code-level
   trace-context handoff for #98.
@@ -88,6 +90,12 @@ verify that the new worker code still passes alongside the OpenTelemetry changes
   inside the extracted SQS trace context, records job metadata and ingest counts,
   and marks failures as OTel errors while preserving the existing SQS retry
   behavior.
+- **Responded to Yaoyi's merge blockers.** Added worker-safe telemetry
+  initialization for `python -m app.jobs.worker`, moved the delete span inside
+  the extracted SQS trace context, and protected `POST /ingest/jobs` behind an
+  admin token. The endpoint now uses server-configured source paths and the
+  server-side embedder instead of accepting arbitrary client file paths or
+  `embedder="bedrock"` from the request body.
 
 ## 4. Useful Output
 - `backend/app/telemetry.py` — the centralized OTel setup from PR #90, kept as
@@ -118,9 +126,11 @@ verify that the new worker code still passes alongside the OpenTelemetry changes
 - `backend/app/jobs/worker.py` — worker entrypoint that polls SQS, runs the
   existing ingest pipeline, deletes messages only after successful processing,
   and leaves failed messages for SQS retry / DLQ handling. For #98 it now emits
-  `jobs.worker.receive`, `jobs.worker.process`, and `jobs.worker.delete` spans.
+  `jobs.worker.receive`, `jobs.worker.process`, and `jobs.worker.delete` spans
+  and initializes OTel without needing a FastAPI app.
 - `backend/app/main.py` — now includes `POST /ingest/jobs` in addition to the
-  telemetry setup. The endpoint publishes ingest jobs and returns a `job_id`.
+  telemetry setup. The endpoint publishes server-configured ingest jobs and
+  returns a `job_id` only when called with the admin token.
 - `backend/tests/test_observability.py` — tests that app creation works with
   OTel disabled/enabled and that SQS trace context can be injected/extracted.
   The SQS propagation test now constructs a valid `SpanContext` directly, so it
@@ -129,7 +139,7 @@ verify that the new worker code still passes alongside the OpenTelemetry changes
   enqueueing, typed SQS message round-tripping with message attributes, and a
   worker span that continues the upstream SQS trace context.
 - Verification after #35, #98, and the merge: `ruff check .` passed from `backend/`;
-  `$env:CHAT_MODEL='stub'; pytest` passed with 27 passed / 2 skipped. The
+  `$env:CHAT_MODEL='stub'; pytest` passed with 31 passed / 2 skipped. The
   skipped tests are the existing DB integration tests because local
   Postgres/pgvector was not running.
 - Commits:
@@ -142,7 +152,8 @@ verify that the new worker code still passes alongside the OpenTelemetry changes
   - `9125c82 feat: add async ingest job worker`
   - `dd764d7 chore: fix backend entrypoint lint`
   - `27b5a23 Merge branch 'main' into alina/ingest-worker`
-  - pending #98 commit: worker spans + SQS trace continuation test
+  - `ed8313d feat: trace async ingest worker jobs`
+  - pending review-fix commit: worker telemetry init + admin ingest endpoint hardening
 
 ## 5. Human Review / Changes
 - **Moved the remaining distributed-trace work into #98.** Since the backend

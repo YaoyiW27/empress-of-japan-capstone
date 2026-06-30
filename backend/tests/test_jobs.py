@@ -15,11 +15,37 @@ from app.jobs.sqs import ReceivedJob
 from app.main import create_app
 from app.tracing.sqs import inject_trace_context
 
+ADMIN_HEADERS = {"X-Admin-Token": "secret"}
+
+
+def test_ingest_job_endpoint_requires_admin_token_config() -> None:
+    client = TestClient(create_app(Settings(jobs_queue_url="https://sqs.example/jobs")))
+
+    resp = client.post("/ingest/jobs", json={"include_external": True})
+
+    assert resp.status_code == 503
+    assert resp.json()["detail"] == "INGEST_ADMIN_TOKEN is not configured"
+
+
+def test_ingest_job_endpoint_rejects_invalid_admin_token() -> None:
+    client = TestClient(
+        create_app(Settings(jobs_queue_url="https://sqs.example/jobs", ingest_admin_token="secret"))
+    )
+
+    resp = client.post(
+        "/ingest/jobs",
+        headers={"X-Admin-Token": "wrong"},
+        json={"include_external": True},
+    )
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "invalid admin token"
+
 
 def test_ingest_job_endpoint_requires_queue_url() -> None:
-    client = TestClient(create_app(Settings(jobs_queue_url=None)))
+    client = TestClient(create_app(Settings(jobs_queue_url=None, ingest_admin_token="secret")))
 
-    resp = client.post("/ingest/jobs", json={"external": "external_sources.json"})
+    resp = client.post("/ingest/jobs", headers=ADMIN_HEADERS, json={"include_external": True})
 
     assert resp.status_code == 503
     assert resp.json()["detail"] == "JOBS_QUEUE_URL is not configured"
@@ -41,16 +67,54 @@ def test_ingest_job_endpoint_enqueues(monkeypatch) -> None:
             return JobEnvelope(job_id="job-123", job=job)
 
     monkeypatch.setattr("app.main.SqsJobQueue", FakeQueue)
-    client = TestClient(create_app(Settings(jobs_queue_url="https://sqs.example/jobs")))
+    client = TestClient(
+        create_app(
+            Settings(
+                jobs_queue_url="https://sqs.example/jobs",
+                ingest_admin_token="secret",
+                ingest_job_csv_path="../data/export.csv",
+                ingest_job_external_path="external_sources.json",
+                embedder="fake",
+            )
+        )
+    )
 
     resp = client.post(
         "/ingest/jobs",
-        json={"csv": "../data/export.csv", "external": "external_sources.json"},
+        headers=ADMIN_HEADERS,
+        json={
+            "include_csv": True,
+            "include_external": True,
+            "csv": "../../ignored.csv",
+            "external": "../../ignored.json",
+            "embedder": "bedrock",
+        },
     )
 
     assert resp.status_code == 202
     assert resp.json() == {"job_id": "job-123", "status": "queued"}
-    assert sent == [IngestJob(csv="../data/export.csv", external="external_sources.json")]
+    assert sent == [
+        IngestJob(
+            csv="../data/export.csv",
+            external="external_sources.json",
+            embedder="fake",
+        )
+    ]
+
+
+def test_ingest_job_endpoint_requires_configured_csv_source() -> None:
+    client = TestClient(
+        create_app(Settings(jobs_queue_url="https://sqs.example/jobs", ingest_admin_token="secret"))
+    )
+
+    resp = client.post(
+        "/ingest/jobs",
+        headers=ADMIN_HEADERS,
+        json={"include_csv": True, "include_external": False},
+    )
+
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "CSV ingest source is not configured"
 
 
 def test_sqs_queue_round_trips_typed_ingest_message() -> None:
@@ -155,11 +219,15 @@ def test_worker_process_span_continues_sqs_trace_context(monkeypatch) -> None:
 
     spans = {span.name: span for span in exporter.get_finished_spans()}
     process_span = spans["jobs.worker.process"]
+    delete_span = spans["jobs.worker.delete"]
     assert count == 1
     assert queue.deleted == "receipt-1"
     assert process_span.context.trace_id == upstream.trace_id
     assert process_span.parent is not None
     assert process_span.parent.span_id == upstream.span_id
+    assert delete_span.context.trace_id == upstream.trace_id
+    assert delete_span.parent is not None
+    assert delete_span.parent.span_id == upstream.span_id
     assert process_span.attributes["job.id"] == "job-123"
     assert process_span.attributes["job.status"] == "completed"
     assert process_span.attributes["ingest.rows_in"] == 2

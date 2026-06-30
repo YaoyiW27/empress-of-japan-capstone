@@ -1,4 +1,4 @@
-"""Optional OpenTelemetry setup for the deployed backend.
+"""Optional OpenTelemetry setup for the deployed backend and worker.
 
 CloudWatch gives us service-level health first. When OTEL_ENABLED=true and a
 Honeycomb API key is injected at runtime, this module adds request and database
@@ -27,10 +27,9 @@ def _is_honeycomb_endpoint(endpoint: str) -> bool:
     )
 
 
-def configure_telemetry(app: FastAPI, settings: Settings) -> None:
-    """Configure FastAPI + SQLAlchemy tracing when observability is enabled."""
+def _configure_tracer_provider(settings: Settings):
     if not settings.otel_enabled:
-        return
+        return None
 
     direct_honeycomb = _is_honeycomb_endpoint(settings.otel_exporter_otlp_endpoint)
     if direct_honeycomb and not settings.honeycomb_api_key:
@@ -38,12 +37,11 @@ def configure_telemetry(app: FastAPI, settings: Settings) -> None:
             "OTEL_ENABLED=true and endpoint is Honeycomb, but HONEYCOMB_API_KEY is not set; "
             "skipping tracing"
         )
-        return
+        return None
 
     try:
         from opentelemetry import trace
         from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
         from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
         from opentelemetry.sdk.resources import Resource
         from opentelemetry.sdk.trace import TracerProvider
@@ -77,14 +75,35 @@ def configure_telemetry(app: FastAPI, settings: Settings) -> None:
     )
     trace.set_tracer_provider(provider)
 
-    FastAPIInstrumentor.instrument_app(app, tracer_provider=provider)
-
     global _sqlalchemy_instrumented
     if not _sqlalchemy_instrumented:
         SQLAlchemyInstrumentor().instrument(engine=engine, tracer_provider=provider)
         _sqlalchemy_instrumented = True
 
+    return provider
+
+
+def configure_telemetry(app: FastAPI, settings: Settings) -> None:
+    """Configure FastAPI + SQLAlchemy tracing when observability is enabled."""
+    provider = _configure_tracer_provider(settings)
+    if provider is None:
+        return
+
+    try:
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+    except ImportError as exc:
+        logger.warning("FastAPI instrumentation is unavailable; skipping tracing: %s", exc)
+        return
+
+    FastAPIInstrumentor.instrument_app(app, tracer_provider=provider)
     logger.info("OpenTelemetry tracing enabled for %s", settings.otel_service_name)
+
+
+def configure_worker_telemetry(settings: Settings) -> None:
+    """Configure tracing for the standalone worker process."""
+    provider = _configure_tracer_provider(settings)
+    if provider is not None:
+        logger.info("OpenTelemetry worker tracing enabled for %s", settings.otel_service_name)
 
 
 def _parse_resource_attributes(value: str | None) -> Mapping[str, str]:

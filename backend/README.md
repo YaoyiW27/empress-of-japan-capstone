@@ -111,15 +111,19 @@ coverage); OTel → Honeycomb/CloudWatch export is an infra-track follow-up.
 
 ### Async ingest jobs
 
-The API can enqueue ingest work to SQS and a separate worker can consume it. Set
-`JOBS_QUEUE_URL` to the AWS queue from Terraform, or pair it with
-`SQS_ENDPOINT_URL` for LocalStack/elasticmq.
+The admin-only API can enqueue ingest work to SQS and a separate worker can
+consume it. Set `JOBS_QUEUE_URL` to the AWS queue from Terraform, or pair it with
+`SQS_ENDPOINT_URL` for LocalStack/elasticmq. The endpoint does not accept
+arbitrary file paths or embedder choices from clients; it uses the configured
+`INGEST_JOB_EXTERNAL_PATH`, optional `INGEST_JOB_CSV_PATH`, and server-side
+`EMBEDDER`.
 
 ```bash
 # submit work through the API
 curl -X POST http://localhost:8000/ingest/jobs \
+  -H "X-Admin-Token: $INGEST_ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"external":"external_sources.json","embedder":"fake"}'
+  -d '{"include_external":true}'
 
 # run the worker continuously
 python -m app.jobs.worker

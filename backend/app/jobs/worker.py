@@ -16,6 +16,7 @@ from app.ingest.embed import make_embedder
 from app.ingest.pipeline import IngestStats, ingest_external, ingest_vmm
 from app.jobs.payloads import JobEnvelope
 from app.jobs.sqs import SqsJobQueue
+from app.telemetry import configure_worker_telemetry
 from app.tracing.sqs import use_extracted_trace_context
 
 log = logging.getLogger("jobs.worker")
@@ -94,18 +95,18 @@ def poll_once(queue: SqsJobQueue, settings: Settings) -> int:
                 process_span.set_attribute("ingest.rows_in", stats.rows_in)
                 process_span.set_attribute("ingest.errors", stats.errors)
                 process_span.set_attribute("ingest.chunks_embedded", stats.chunks_embedded)
-        with tracer.start_as_current_span("jobs.worker.delete") as delete_span:
-            delete_span.set_attribute("messaging.system", "aws_sqs")
-            delete_span.set_attribute("messaging.message.id", message.message_id)
-            delete_span.set_attribute("job.id", envelope.job_id)
-            try:
-                queue.delete(message.receipt_handle)
-            except Exception as exc:
-                delete_span.record_exception(exc)
-                delete_span.set_status(Status(StatusCode.ERROR, str(exc)))
-                raise
-            else:
-                delete_span.set_attribute("job.status", "deleted")
+            with tracer.start_as_current_span("jobs.worker.delete") as delete_span:
+                delete_span.set_attribute("messaging.system", "aws_sqs")
+                delete_span.set_attribute("messaging.message.id", message.message_id)
+                delete_span.set_attribute("job.id", envelope.job_id)
+                try:
+                    queue.delete(message.receipt_handle)
+                except Exception as exc:
+                    delete_span.record_exception(exc)
+                    delete_span.set_status(Status(StatusCode.ERROR, str(exc)))
+                    raise
+                else:
+                    delete_span.set_attribute("job.status", "deleted")
         log.info("completed job_id=%s %s", envelope.job_id, stats.summary())
     return len(messages)
 
@@ -133,6 +134,7 @@ def main(argv: list[str] | None = None) -> int:
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     settings = get_settings()
+    configure_worker_telemetry(settings)
     if not settings.jobs_queue_url:
         log.error("JOBS_QUEUE_URL is required")
         return 2
