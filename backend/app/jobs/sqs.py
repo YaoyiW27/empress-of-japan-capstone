@@ -8,6 +8,7 @@ from typing import Any
 import boto3
 
 from app.jobs.payloads import IngestJob, JobEnvelope
+from app.tracing.sqs import MessageAttributes, inject_trace_context
 
 
 @dataclass(frozen=True)
@@ -15,6 +16,7 @@ class ReceivedJob:
     envelope: JobEnvelope
     receipt_handle: str
     message_id: str
+    message_attributes: MessageAttributes
 
 
 class SqsJobQueue:
@@ -40,6 +42,7 @@ class SqsJobQueue:
         self._client.send_message(
             QueueUrl=self.queue_url,
             MessageBody=envelope.model_dump_json(),
+            MessageAttributes=inject_trace_context(),
         )
         return envelope
 
@@ -48,6 +51,7 @@ class SqsJobQueue:
             QueueUrl=self.queue_url,
             MaxNumberOfMessages=max_messages,
             WaitTimeSeconds=wait_time_seconds,
+            MessageAttributeNames=["All"],
         )
         jobs: list[ReceivedJob] = []
         for message in response.get("Messages", []):
@@ -56,6 +60,7 @@ class SqsJobQueue:
                     envelope=JobEnvelope.model_validate_json(message["Body"]),
                     receipt_handle=message["ReceiptHandle"],
                     message_id=message["MessageId"],
+                    message_attributes=message.get("MessageAttributes", {}),
                 )
             )
         return jobs

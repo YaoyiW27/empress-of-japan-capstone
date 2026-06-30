@@ -13,16 +13,23 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from langgraph.graph import END, StateGraph
+from opentelemetry import trace
 
 from app.agents.llm import ChatModel
 from app.agents.personas import Persona, load_personas
 from app.agents.state import AgentState
 
+tracer = trace.get_tracer(__name__)
+
 
 def _persona_node(persona: Persona, chat_model: ChatModel) -> Callable[[AgentState], AgentState]:
     def run(state: AgentState) -> AgentState:
-        messages = state.get("messages", [])
-        response = chat_model.invoke(persona.system_prompt, messages)
+        with tracer.start_as_current_span("agent.persona") as span:
+            span.set_attribute("agent.persona_id", persona.id)
+            span.set_attribute("agent.scene_count", len(persona.scenes))
+            messages = state.get("messages", [])
+            span.set_attribute("agent.message_count", len(messages))
+            response = chat_model.invoke(persona.system_prompt, messages)
         # Return only deltas: the assistant turn is appended to history (via the
         # `messages` reducer) so the next turn in this session sees it.
         return {

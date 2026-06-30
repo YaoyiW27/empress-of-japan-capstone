@@ -49,18 +49,22 @@ def test_sqs_queue_round_trips_typed_ingest_message() -> None:
         def __init__(self) -> None:
             self.body = ""
             self.deleted = ""
+            self.message_attributes = {}
 
-        def send_message(self, *, QueueUrl: str, MessageBody: str) -> None:
+        def send_message(self, *, QueueUrl: str, MessageBody: str, MessageAttributes: dict) -> None:
             assert QueueUrl == "queue-url"
             self.body = MessageBody
+            self.message_attributes = MessageAttributes
 
         def receive_message(self, **_kwargs):
+            assert _kwargs["MessageAttributeNames"] == ["All"]
             return {
                 "Messages": [
                     {
                         "Body": self.body,
                         "ReceiptHandle": "receipt-1",
                         "MessageId": "message-1",
+                        "MessageAttributes": self.message_attributes,
                     }
                 ]
             }
@@ -78,4 +82,5 @@ def test_sqs_queue_round_trips_typed_ingest_message() -> None:
 
     assert messages[0].envelope == envelope
     assert messages[0].message_id == "message-1"
+    assert messages[0].message_attributes == client.message_attributes
     assert client.deleted == "receipt-1"

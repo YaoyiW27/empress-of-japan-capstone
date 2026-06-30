@@ -13,6 +13,7 @@ from app.ingest.embed import make_embedder
 from app.ingest.pipeline import IngestStats, ingest_external, ingest_vmm
 from app.jobs.payloads import JobEnvelope
 from app.jobs.sqs import SqsJobQueue
+from app.tracing.sqs import use_extracted_trace_context
 
 log = logging.getLogger("jobs.worker")
 
@@ -61,7 +62,8 @@ def poll_once(queue: SqsJobQueue, settings: Settings) -> int:
             envelope.job.kind,
         )
         try:
-            stats = process_envelope(envelope, settings)
+            with use_extracted_trace_context(message.message_attributes):
+                stats = process_envelope(envelope, settings)
         except Exception:
             log.exception("job failed job_id=%s", envelope.job_id)
             continue
