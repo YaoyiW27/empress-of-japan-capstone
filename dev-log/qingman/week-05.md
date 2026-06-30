@@ -35,9 +35,10 @@ commits for easier review.
   entrypoint yet. That changed the implementation from "complete API-to-worker
   trace" to "instrument current backend + add propagation helpers for the future
   worker."
-- **Added OTel setup as an app-level concern.** Created `app/observability.py`
-  with idempotent OpenTelemetry setup for service metadata, deployment resource
-  tags, framework tracing, database tracing, and AWS client tracing.
+- **Consolidated OTel setup with the infra baseline.** After PR #90 landed on
+  main, the backend already had `app/telemetry.py` for OTLP/HTTP export to the
+  collector sidecar. I kept that initializer as the single source of truth and
+  layered the backend-owned manual spans on top.
 - **Kept local development safe.** OTel is enabled by default, but spans are not
   exported unless `OTEL_EXPORTER_OTLP_ENDPOINT` is configured. This means local
   tests and development do not require a collector, Honeycomb credential, or AWS
@@ -51,9 +52,9 @@ commits for easier review.
   spans, SQS propagation helpers/tests, and a tiny ruff formatting cleanup.
 
 ## 4. Useful Output
-- `backend/app/observability.py` — central OTel setup for the backend:
-  FastAPI, SQLAlchemy, psycopg, botocore instrumentation, OTLP exporter when
-  configured, and no-export local behavior when no endpoint is set.
+- `backend/app/telemetry.py` — the centralized OTel setup from PR #90, kept as
+  the single initializer for FastAPI + SQLAlchemy tracing and OTLP/HTTP export
+  to the collector sidecar.
 - `backend/app/config.py` / `backend/.env.example` — new tracing config:
   `OTEL_ENABLED`, `OTEL_SERVICE_NAME`, `OTEL_EXPORTER_OTLP_ENDPOINT`, and
   optional `OTEL_RESOURCE_ATTRIBUTES`.

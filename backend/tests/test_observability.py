@@ -15,8 +15,14 @@ def test_app_creation_with_otel_disabled() -> None:
     assert client.get("/health").status_code == 200
 
 
-def test_app_creation_with_otel_enabled_without_exporter() -> None:
-    app = create_app(Settings(otel_enabled=True, otel_exporter_otlp_endpoint=None))
+def test_app_creation_with_otel_enabled_without_export_credentials() -> None:
+    app = create_app(
+        Settings(
+            otel_enabled=True,
+            otel_exporter_otlp_endpoint="https://api.honeycomb.io/v1/traces",
+            honeycomb_api_key=None,
+        )
+    )
     client = TestClient(app)
     assert client.get("/health").json() == {"status": "ok"}
 

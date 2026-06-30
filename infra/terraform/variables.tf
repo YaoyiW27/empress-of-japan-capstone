@@ -56,13 +56,13 @@ variable "backend_log_retention_days" {
 variable "backend_task_cpu" {
   description = "Fargate CPU units for the backend API task."
   type        = number
-  default     = 256
+  default     = 512
 }
 
 variable "backend_task_memory" {
   description = "Fargate memory in MiB for the backend API task."
   type        = number
-  default     = 512
+  default     = 1024
 }
 
 variable "backend_bootstrap_image_tag" {
@@ -79,6 +79,39 @@ variable "backend_initial_desired_count" {
   validation {
     condition     = var.backend_initial_desired_count == 0
     error_message = "Keep the Terraform bootstrap service at zero; the deployment workflow owns the running task count."
+  }
+}
+
+variable "backend_autoscaling_min_capacity" {
+  description = "Minimum backend Fargate tasks activated by the deploy workflow after the first image is healthy."
+  type        = number
+  default     = 2
+
+  validation {
+    condition     = var.backend_autoscaling_min_capacity >= 1
+    error_message = "Backend autoscaling minimum capacity must be at least 1."
+  }
+}
+
+variable "backend_autoscaling_max_capacity" {
+  description = "Maximum backend Fargate tasks for sandbox cost control. This is a guardrail, not a proven concurrent-user limit."
+  type        = number
+  default     = 6
+
+  validation {
+    condition     = var.backend_autoscaling_max_capacity >= var.backend_autoscaling_min_capacity
+    error_message = "Backend autoscaling maximum capacity must be greater than or equal to the minimum capacity."
+  }
+}
+
+variable "backend_autoscaling_cpu_target_percent" {
+  description = "Average ECS service CPU percentage for target tracking. Start below saturation to leave latency headroom; tune with load tests."
+  type        = number
+  default     = 60
+
+  validation {
+    condition     = var.backend_autoscaling_cpu_target_percent >= 30 && var.backend_autoscaling_cpu_target_percent <= 80
+    error_message = "Backend CPU target should stay between 30 and 80 percent for this sandbox."
   }
 }
 
@@ -151,6 +184,44 @@ variable "bedrock_chat_inference_profile_id" {
     condition     = startswith(var.bedrock_chat_inference_profile_id, "us.anthropic.")
     error_message = "Chat must use a US Anthropic inference profile so destination Regions stay within the US geography."
   }
+}
+
+# --- Backend observability (issue #41, see monitoring.tf / ecs.tf) ---
+
+variable "backend_otel_enabled" {
+  description = "Enable OpenTelemetry trace export from the backend container."
+  type        = bool
+  default     = false
+}
+
+variable "backend_otel_service_name" {
+  description = "OpenTelemetry service.name for backend traces."
+  type        = string
+  default     = "empress-backend"
+}
+
+variable "backend_otel_exporter_otlp_endpoint" {
+  description = "OTLP/HTTP trace endpoint used by the backend. Defaults to the local OTel Collector sidecar."
+  type        = string
+  default     = "http://127.0.0.1:4318/v1/traces"
+}
+
+variable "backend_honeycomb_dataset" {
+  description = "Honeycomb dataset for backend traces."
+  type        = string
+  default     = "empress-backend-sandbox"
+}
+
+variable "honeycomb_api_key_secret_arn" {
+  description = "Optional Secrets Manager ARN whose entire secret value is the Honeycomb ingest API key (plain string, not JSON)."
+  type        = string
+  default     = null
+}
+
+variable "otel_collector_image" {
+  description = "OpenTelemetry Collector sidecar image. The contrib distribution includes OTLP receivers, batch/memory processors, and OTLP/HTTP exporters."
+  type        = string
+  default     = "otel/opentelemetry-collector-contrib:0.104.0"
 }
 
 # --- Cost tracking (issue #20, see budgets.tf) ---
