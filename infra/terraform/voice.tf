@@ -22,6 +22,14 @@ resource "aws_s3_bucket_public_access_block" "voice_cache" {
   restrict_public_buckets = true
 }
 
+resource "aws_s3_bucket_ownership_controls" "voice_cache" {
+  bucket = aws_s3_bucket.voice_cache.id
+
+  rule {
+    object_ownership = "BucketOwnerEnforced"
+  }
+}
+
 resource "aws_s3_bucket_server_side_encryption_configuration" "voice_cache" {
   bucket = aws_s3_bucket.voice_cache.id
 
@@ -47,6 +55,42 @@ resource "aws_s3_bucket_lifecycle_configuration" "voice_cache" {
       days = 30
     }
   }
+}
+
+data "aws_iam_policy_document" "voice_cache_transport" {
+  statement {
+    sid    = "DenyInsecureTransport"
+    effect = "Deny"
+    actions = [
+      "s3:*",
+    ]
+    resources = [
+      aws_s3_bucket.voice_cache.arn,
+      "${aws_s3_bucket.voice_cache.arn}/*",
+    ]
+
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+
+    condition {
+      test     = "Bool"
+      variable = "aws:PrincipalIsAWSService"
+      values   = ["false"]
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "voice_cache_transport" {
+  bucket = aws_s3_bucket.voice_cache.id
+  policy = data.aws_iam_policy_document.voice_cache_transport.json
 }
 
 # Polly synthesis and Transcribe streaming do not expose resource-level ARNs,
