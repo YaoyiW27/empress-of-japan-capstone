@@ -44,10 +44,10 @@ export const narrators: Narrator[] = [
     portraitSrc: "/narrator/captain.png",
     cutoutSrc: "/narrator/captain-cutout.png",
     scenes: [
-      { id: "bridge", title: "The Bridge", photoSrc: "/scenes/captain/bridge.png" },
+      { id: "bridge", title: "Bridge", photoSrc: "/scenes/captain/bridge.png" },
       {
         id: "loading-dock",
-        title: "The Loading Dock",
+        title: "Loading Dock",
         photoSrc: "/scenes/captain/loading-dock.png",
       },
     ],
@@ -66,7 +66,7 @@ export const narrators: Narrator[] = [
         title: "Promenade Deck",
         photoSrc: "/scenes/first-class/promenade-deck.png",
       },
-      { id: "deck", title: "The Boat Deck", photoSrc: "/scenes/first-class/deck.png" },
+      { id: "deck", title: "Boat Deck", photoSrc: "/scenes/first-class/deck.png" },
       {
         id: "first-class-dining-saloon",
         title: "Dining Saloon",

@@ -90,8 +90,8 @@ export default function NarratorExperience({
       </div>
 
       {/* Top-left: back to guides + current scene title */}
-      <div className="pointer-events-none absolute left-4 top-4 sm:left-6 sm:top-6">
-        <div className="pointer-events-auto inline-flex flex-col items-start gap-2 rounded-md border border-brass/40 bg-card/85 px-4 py-3 shadow-lg backdrop-blur-sm">
+      <div className="pointer-events-none absolute left-3 top-3 sm:left-6 sm:top-6">
+        <div className="pointer-events-auto inline-flex flex-col items-start gap-1.5 rounded-md border border-brass/40 bg-card/85 px-3 py-2 shadow-lg backdrop-blur-sm lg:gap-2 lg:px-4 lg:py-3">
           <ButtonLink href="/explore" variant="ghost">
             ← Guides
           </ButtonLink>
@@ -99,35 +99,35 @@ export default function NarratorExperience({
             <p className="text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-brass">
               {narrator.role}
             </p>
-            <h1 className="font-display text-xl font-bold text-navy">
+            <h1 className="font-display text-lg font-bold text-navy lg:text-xl">
               {current.title}
             </h1>
           </div>
         </div>
       </div>
 
-      {/* Top-right: look-mode toggle (tilt to look ↔ drag). On iOS the first tap
-          also requests motion permission. */}
-      {gyroSupported && (
-        <div className="pointer-events-none absolute right-3 top-4 sm:right-5 sm:top-6">
+      {/* Right edge: look-mode toggle on top (tilt ↔ drag; on iOS the first tap
+          also requests motion permission), scene switcher below. Stacking them
+          means a long scene list never covers the toggle — the rail scrolls
+          within its own space instead. */}
+      <div className="pointer-events-none absolute bottom-3 right-3 top-3 flex flex-col items-end gap-3 sm:bottom-5 sm:right-5 sm:top-5">
+        {gyroSupported && (
           <button
             type="button"
             onClick={toggleLook}
             aria-pressed={lookMode === "gyro"}
-            className="pointer-events-auto rounded-full border border-brass/40 bg-card/90 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-navy shadow-md backdrop-blur-sm transition-colors hover:border-brass"
+            className="pointer-events-auto shrink-0 rounded-full border border-brass/40 bg-card/90 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-navy shadow-md backdrop-blur-sm transition-colors hover:border-brass"
           >
             {lookMode === "gyro" ? "🖐 Drag view" : "🧭 Phone view"}
           </button>
+        )}
+        <div className="flex min-h-0 flex-1 items-start">
+          <SceneRail
+            scenes={narrator.scenes}
+            currentId={currentId}
+            onSelect={setCurrentId}
+          />
         </div>
-      )}
-
-      {/* Right edge: vertical scene switcher */}
-      <div className="pointer-events-none absolute right-3 top-1/2 flex max-h-[70vh] -translate-y-1/2 sm:right-5">
-        <SceneRail
-          scenes={narrator.scenes}
-          currentId={currentId}
-          onSelect={setCurrentId}
-        />
       </div>
 
       {/* Bottom-left: narrator */}
