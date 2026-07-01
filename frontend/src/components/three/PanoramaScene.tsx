@@ -2,10 +2,18 @@
 
 import { Suspense, useMemo } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
-import { OrbitControls, PerspectiveCamera, useTexture } from "@react-three/drei";
+import {
+  OrbitControls,
+  PerspectiveCamera,
+  DeviceOrientationControls,
+  useTexture,
+} from "@react-three/drei";
 import * as THREE from "three";
 
 const deg = THREE.MathUtils.degToRad;
+
+/** How the visitor looks around: drag (pointer) or gyro (device orientation). */
+export type LookMode = "drag" | "gyro";
 
 export type PanoramaSource = {
   title: string;
@@ -26,7 +34,13 @@ export type PanoramaSource = {
  * The 3D tree only renders client-side (R3F's <Canvas> doesn't render children
  * during SSR), so browser-only calls (document, WebGL) are safe here.
  */
-export default function PanoramaScene({ scene }: { scene: PanoramaSource }) {
+export default function PanoramaScene({
+  scene,
+  mode = "drag",
+}: {
+  scene: PanoramaSource;
+  mode?: LookMode;
+}) {
   const hFovDeg = scene.hFovDeg ?? 360;
   const vFovDeg = scene.vFovDeg ?? 180;
 
@@ -47,7 +61,7 @@ export default function PanoramaScene({ scene }: { scene: PanoramaSource }) {
           />
         )}
       </Suspense>
-      <LookControls hFovDeg={hFovDeg} vFovDeg={vFovDeg} />
+      <LookControls hFovDeg={hFovDeg} vFovDeg={vFovDeg} mode={mode} />
     </Canvas>
   );
 }
@@ -126,9 +140,11 @@ function PhotoMesh({
 function LookControls({
   hFovDeg,
   vFovDeg,
+  mode,
 }: {
   hFovDeg: number;
   vFovDeg: number;
+  mode: LookMode;
 }) {
   const { size } = useThree();
   const aspect = size.width / Math.max(1, size.height);
@@ -158,18 +174,25 @@ function LookControls({
         position={[0, 0, 0.1]}
         fov={THREE.MathUtils.radToDeg(vFov)}
       />
-      <OrbitControls
-        makeDefault
-        enableZoom={false}
-        enablePan={false}
-        enableDamping
-        dampingFactor={0.1}
-        rotateSpeed={-0.4}
-        minAzimuthAngle={fullH ? -Infinity : -azLimit}
-        maxAzimuthAngle={fullH ? Infinity : azLimit}
-        minPolarAngle={fullV ? 0.01 : Math.PI / 2 - polLimit}
-        maxPolarAngle={fullV ? Math.PI - 0.01 : Math.PI / 2 + polLimit}
-      />
+      {mode === "gyro" ? (
+        // Tilt the phone to look around. three-stdlib handles the iOS
+        // permission prompt + screen-orientation math. Only mounted after the
+        // user has enabled motion, so permission is already granted.
+        <DeviceOrientationControls makeDefault />
+      ) : (
+        <OrbitControls
+          makeDefault
+          enableZoom={false}
+          enablePan={false}
+          enableDamping
+          dampingFactor={0.1}
+          rotateSpeed={-0.4}
+          minAzimuthAngle={fullH ? -Infinity : -azLimit}
+          maxAzimuthAngle={fullH ? Infinity : azLimit}
+          minPolarAngle={fullV ? 0.01 : Math.PI / 2 - polLimit}
+          maxPolarAngle={fullV ? Math.PI - 0.01 : Math.PI / 2 + polLimit}
+        />
+      )}
     </>
   );
 }
