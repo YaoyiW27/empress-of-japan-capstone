@@ -3,16 +3,28 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTexture } from "@react-three/drei";
-import PanoramaScene from "@/components/three/PanoramaScene";
+import PanoramaScene, { type LookMode } from "@/components/three/PanoramaScene";
 import NarratorOverlay from "@/components/NarratorOverlay";
 import SceneRail from "@/components/SceneRail";
 import { ButtonLink } from "@/components/ui/Button";
 import type { Narrator } from "@/lib/narrators";
 
+/** iOS 13+ exposes requestPermission on the DeviceOrientationEvent constructor. */
+type DeviceOrientationEventStatic = {
+  requestPermission?: () => Promise<"granted" | "denied" | "default">;
+};
+
+function getDeviceOrientationEvent(): DeviceOrientationEventStatic | undefined {
+  return (
+    window as unknown as { DeviceOrientationEvent?: DeviceOrientationEventStatic }
+  ).DeviceOrientationEvent;
+}
+
 /**
  * A narrator's storyline: one persistent panorama viewer whose scene swaps in
- * place (no remount), with the narrator present and a thumbnail rail to move
- * between that narrator's scenes freely.
+ * place (no remount), with the narrator present and a rail to move between that
+ * narrator's scenes freely. On mobile you can look around by tilting the phone
+ * (gyroscope); drag-to-look works everywhere as a fallback.
  */
 export default function NarratorExperience({
   narrator,
@@ -30,15 +42,51 @@ export default function NarratorExperience({
     narrator.scenes.find((scene) => scene.id === currentId) ??
     narrator.scenes[0];
 
+  // Device-orientation support + default look mode, computed once. Reading
+  // window here is safe: the route wraps this component in <Suspense> (for
+  // useSearchParams), so it renders on the client.
+  const [gyroSupported] = useState(
+    () => typeof window !== "undefined" && Boolean(getDeviceOrientationEvent()),
+  );
+  const [lookMode, setLookMode] = useState<LookMode>(() => {
+    if (typeof window === "undefined") return "drag";
+    const doe = getDeviceOrientationEvent();
+    if (!doe) return "drag";
+    // iOS needs a permission tap (handled in toggleLook) → start in drag.
+    // Touch devices without that requirement (Android) default to gyro.
+    const needsPermission = typeof doe.requestPermission === "function";
+    const isTouch = window.matchMedia?.("(pointer: coarse)").matches ?? false;
+    return isTouch && !needsPermission ? "gyro" : "drag";
+  });
+
   // Warm the texture cache so switching scenes is instant (no reload flash).
   useEffect(() => {
     useTexture.preload(narrator.scenes.map((scene) => scene.photoSrc));
   }, [narrator]);
 
+  async function toggleLook() {
+    if (lookMode === "gyro") {
+      setLookMode("drag");
+      return;
+    }
+    const doe = getDeviceOrientationEvent();
+    // iOS: requestPermission MUST run synchronously inside this click gesture.
+    if (doe && typeof doe.requestPermission === "function") {
+      try {
+        const res = await doe.requestPermission();
+        setLookMode(res === "granted" ? "gyro" : "drag");
+      } catch {
+        setLookMode("drag");
+      }
+    } else {
+      setLookMode("gyro");
+    }
+  }
+
   return (
     <main className="relative h-dvh w-full overflow-hidden bg-navy">
       <div className="absolute inset-0">
-        <PanoramaScene scene={current} />
+        <PanoramaScene scene={current} mode={lookMode} />
       </div>
 
       {/* Top-left: back to guides + current scene title */}
@@ -58,8 +106,23 @@ export default function NarratorExperience({
         </div>
       </div>
 
+      {/* Top-right: look-mode toggle (tilt to look ↔ drag). On iOS the first tap
+          also requests motion permission. */}
+      {gyroSupported && (
+        <div className="pointer-events-none absolute right-3 top-4 sm:right-5 sm:top-6">
+          <button
+            type="button"
+            onClick={toggleLook}
+            aria-pressed={lookMode === "gyro"}
+            className="pointer-events-auto rounded-full border border-brass/40 bg-card/90 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-navy shadow-md backdrop-blur-sm transition-colors hover:border-brass"
+          >
+            {lookMode === "gyro" ? "🖐 Drag view" : "🧭 Phone view"}
+          </button>
+        </div>
+      )}
+
       {/* Right edge: vertical scene switcher */}
-      <div className="pointer-events-none absolute right-3 top-1/2 flex max-h-[82vh] -translate-y-1/2 sm:right-5">
+      <div className="pointer-events-none absolute right-3 top-1/2 flex max-h-[70vh] -translate-y-1/2 sm:right-5">
         <SceneRail
           scenes={narrator.scenes}
           currentId={currentId}
