@@ -169,25 +169,192 @@ runtime role. Attach both policy outputs to that role in #42.
 
 ---
 
-## Backend ECS logs
+## Backend deployment runbook (issue #57)
 
-The backend writes container stdout/stderr to `/ecs/empress-backend` in
-CloudWatch Logs. Terraform sets an explicit **14-day** sandbox retention period
-through `backend_log_retention_days`, preventing logs from accumulating
-indefinitely. Increase the variable to a supported CloudWatch retention value
-for a longer demo or production-like audit window.
+Use this section to answer three operator questions: **Is the backend up? Where
+are its logs? How do we roll it back?** Commands assume the `empress` AWS CLI
+profile and `us-west-2` region configured above.
 
-## Run RDS migrations
+### Find the backend URL
 
-After the backend has been deployed, run the `migrate-backend` GitHub Actions
-workflow manually and confirm the migration input. It copies the task definition
-currently used by the ECS service, changes its command to
-`alembic upgrade head`, and starts it as a one-off Fargate task.
+Terraform exposes the current ALB hostname without revealing credentials:
 
-The task uses the deployed service's VPC subnets, security group, IAM roles, and
-Secrets Manager injection. Database credentials never pass through GitHub or a
-developer laptop. Check the workflow summary and the `migration` stream under
-`/ecs/empress-backend` if the task exits unsuccessfully.
+```bash
+cd infra/terraform
+AWS_PROFILE=empress terraform output -raw backend_alb_dns_name
+```
+
+The sandbox ALB currently serves HTTP, so its health URL is
+`http://<backend_alb_dns_name>/health`. Verify it directly:
+
+```bash
+curl --fail --show-error "http://$(AWS_PROFILE=empress terraform output -raw backend_alb_dns_name)/health"
+```
+
+A healthy response is `{"status":"ok"}`. The two Vercel frontends use HTTPS,
+so browser integration also requires an HTTPS backend hostname and matching
+`CORS_ORIGINS`; do not point an HTTPS page at this HTTP hostname because the
+browser will block mixed content.
+
+### Deploy and check ECS health
+
+Application releases use the GitHub Actions
+[`deploy-backend`](../.github/workflows/deploy-backend.yml) workflow. Run it on
+`main`; it builds and scans an immutable image, renders the latest
+Terraform-owned task definition, deploys it, restores the autoscaling floor,
+waits for ECS stability, and calls `/health`.
+
+Check the live service from the CLI:
+
+```bash
+AWS_PROFILE=empress aws ecs describe-services \
+  --region us-west-2 \
+  --cluster empress-app \
+  --services empress-backend \
+  --query 'services[0].{status:status,desired:desiredCount,running:runningCount,pending:pendingCount,taskDefinition:taskDefinition,deployments:deployments[*].{status:status,rollout:rolloutState,taskDefinition:taskDefinition,running:runningCount,failed:failedTasks}}'
+```
+
+Healthy steady state means `status = ACTIVE`, `running = desired`, `pending =
+0`, and the primary deployment is `COMPLETED`. If not, inspect recent service
+events before retrying or changing desired count:
+
+```bash
+AWS_PROFILE=empress aws ecs describe-services \
+  --region us-west-2 \
+  --cluster empress-app \
+  --services empress-backend \
+  --query 'services[0].events[0:10].[createdAt,message]' \
+  --output table
+```
+
+### Read CloudWatch logs and traces
+
+Backend and OTel Collector stdout/stderr share `/ecs/empress-backend`, with
+`api/` and `otel/` stream prefixes. Terraform keeps these logs for **14 days**
+through `backend_log_retention_days`.
+
+```bash
+# Follow all new backend/collector events.
+AWS_PROFILE=empress aws logs tail /ecs/empress-backend \
+  --region us-west-2 --since 30m --follow
+
+# Find the newest streams when one task is failing.
+AWS_PROFILE=empress aws logs describe-log-streams \
+  --region us-west-2 \
+  --log-group-name /ecs/empress-backend \
+  --order-by LastEventTime --descending --max-items 20
+```
+
+Collector startup is healthy when its new stream says `Everything is ready`
+and shows no exporter authentication errors. For request-level diagnosis, open
+Honeycomb environment `test`, dataset `empress-backend`, and filter on
+`service.name = empress-backend`. CloudWatch remains the source for ECS runtime
+logs and AWS metrics; Honeycomb connects spans for one request.
+
+### Confirm runtime IAM access
+
+The application task role owns Bedrock, SQS, Polly, Transcribe, S3 voice-cache,
+and KMS permissions. The execution role owns ECR/log delivery plus Secrets
+Manager reads used to inject the RDS and Honeycomb values before startup.
+
+```bash
+AWS_PROFILE=empress aws iam list-attached-role-policies \
+  --role-name empress-backend-task \
+  --query 'AttachedPolicies[].PolicyName' --output table
+
+AWS_PROFILE=empress aws iam list-attached-role-policies \
+  --role-name empress-backend-execution \
+  --query 'AttachedPolicies[].PolicyName' --output table
+
+AWS_PROFILE=empress aws iam list-role-policies \
+  --role-name empress-backend-execution --output table
+```
+
+Expected task-role policies include the Claude and Titan Bedrock policies,
+`empress-sqs-jobs-send`, and `empress-backend-voice-runtime`. Expected execution
+access includes the managed ECS execution policy, the RDS secret-read policy,
+and the inline Honeycomb secret-read policy. Never test access by copying a
+secret or AWS credential to a laptop or GitHub Actions variable.
+
+### Run and verify RDS migrations
+
+Run the GitHub Actions
+[`migrate-backend`](../.github/workflows/migrate-backend.yml) workflow manually
+on `main` and confirm its migration input. It copies the task definition used by
+the service, changes its command to `alembic upgrade head`, and starts a one-off
+Fargate task inside the same VPC and security group.
+
+The workflow must finish successfully before code that requires a new schema is
+deployed. If it fails, inspect the workflow summary and the newest `migration/`
+stream under `/ecs/empress-backend`; database credentials remain injected from
+Secrets Manager and never pass through GitHub or a developer laptop.
+
+### Roll back a bad backend image
+
+First identify the current and recent active task definitions:
+
+```bash
+AWS_PROFILE=empress aws ecs describe-services \
+  --region us-west-2 --cluster empress-app --services empress-backend \
+  --query 'services[0].taskDefinition' --output text
+
+AWS_PROFILE=empress aws ecs list-task-definitions \
+  --region us-west-2 --family-prefix empress-backend \
+  --status ACTIVE --sort DESC --max-items 10
+```
+
+Inspect the candidate revision and its backend image before selecting it. Then
+point the service at that known-good revision and wait for stability:
+
+```bash
+AWS_PROFILE=empress aws ecs update-service \
+  --region us-west-2 \
+  --cluster empress-app \
+  --service empress-backend \
+  --task-definition empress-backend:<known-good-revision> \
+  --force-new-deployment
+
+AWS_PROFILE=empress aws ecs wait services-stable \
+  --region us-west-2 --cluster empress-app --services empress-backend
+```
+
+Re-run `/health`, check the newest `api/` and `otel/` streams, and record the
+rolled-back revision in the incident/PR. Do not deregister revisions during the
+incident. A later `deploy-backend` run will deploy from the latest active family
+revision, so fix or deregister the bad revision only after the service is safe.
+
+### Inspect SQS and the DLQ
+
+Queue URLs are Terraform outputs and contain no credentials:
+
+```bash
+cd infra/terraform
+JOBS_QUEUE_URL=$(AWS_PROFILE=empress terraform output -raw sqs_jobs_queue_url)
+JOBS_DLQ_URL=$(AWS_PROFILE=empress aws ssm get-parameter \
+  --region us-west-2 --name /empress/sqs/jobs_dlq_url \
+  --query 'Parameter.Value' --output text)
+
+AWS_PROFILE=empress aws sqs get-queue-attributes \
+  --region us-west-2 --queue-url "$JOBS_QUEUE_URL" \
+  --attribute-names ApproximateNumberOfMessages \
+    ApproximateNumberOfMessagesNotVisible
+
+AWS_PROFILE=empress aws sqs get-queue-attributes \
+  --region us-west-2 --queue-url "$JOBS_DLQ_URL" \
+  --attribute-names ApproximateNumberOfMessages ApproximateNumberOfMessagesNotVisible
+```
+
+Messages in the DLQ are evidence, not rubbish: inspect the worker failure and
+payload privacy before starting a redrive. The automated worker service and
+formal redrive procedure are tracked separately in issues #61 and #62.
+
+### Check budget alerts and cost spikes
+
+In AWS, open Billing and Cost Management → Budgets →
+`empress-monthly-cost`; then use Cost Explorer with daily granularity grouped by
+Service. Confirm that each teammate accepted the
+`empress-budget-alerts` SNS subscription. The full thresholds and known sandbox
+limitations are documented in [Cost tracking](#cost-tracking--1000month-budget-issue-20).
 
 ---
 
