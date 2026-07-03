@@ -3,9 +3,12 @@
 Run locally with:
     uvicorn app.main:app --reload
 """
+import asyncio
 import hmac
+import json
+from collections.abc import AsyncIterator
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from langgraph.checkpoint.memory import MemorySaver
@@ -21,6 +24,17 @@ from app.config import Settings, get_settings
 from app.db import engine
 from app.jobs import IngestJob, SqsJobQueue
 from app.telemetry import configure_telemetry
+from app.voice import (
+    NARRATOR_VOICES,
+    VOICE_MAX_RECORDING_SECONDS,
+    AmazonTranscribeAdapter,
+    PollyS3VoiceSynthesizer,
+    Transcriber,
+    VoiceConfigurationError,
+    VoiceSynthesisError,
+    VoiceSynthesizer,
+    chunk_seconds,
+)
 
 tracer = trace.get_tracer(__name__)
 
@@ -50,6 +64,17 @@ class EnqueueJobResponse(BaseModel):
 class EnqueueIngestJobRequest(BaseModel):
     include_csv: bool = False
     include_external: bool = True
+
+
+class VoiceSynthesizeRequest(BaseModel):
+    narrator_id: str
+    text: str
+
+
+class VoiceSynthesizeResponse(BaseModel):
+    audio_url: str
+    cached: bool
+    expires_in: int
 
 
 def _resolve_persona(persona_id: str | None, scene: str | None) -> str:
@@ -102,7 +127,30 @@ def _build_ingest_job(req: EnqueueIngestJobRequest, settings: Settings) -> Inges
     )
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def _build_voice_synthesizer(settings: Settings) -> VoiceSynthesizer:
+    return PollyS3VoiceSynthesizer(
+        bucket=settings.voice_cache_bucket,
+        prefix=settings.voice_cache_prefix,
+        engine=settings.polly_engine,
+        language_code=settings.transcribe_language_code,
+        expires_in=settings.voice_audio_url_ttl_seconds,
+        region=settings.aws_region,
+    )
+
+
+def _build_transcriber(settings: Settings) -> Transcriber:
+    return AmazonTranscribeAdapter(
+        language_code=settings.transcribe_language_code,
+        region=settings.aws_region,
+    )
+
+
+def create_app(
+    settings: Settings | None = None,
+    *,
+    voice_synthesizer: VoiceSynthesizer | None = None,
+    transcriber: Transcriber | None = None,
+) -> FastAPI:
     settings = settings or get_settings()
     app = FastAPI(title=settings.app_name)
     configure_telemetry(app, settings)
@@ -134,6 +182,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if settings.enable_session_memory
         else None
     )
+    synth = voice_synthesizer or _build_voice_synthesizer(settings)
+    speech_transcriber = transcriber or _build_transcriber(settings)
 
     @app.get("/health")
     def health() -> dict[str, str]:
@@ -221,6 +271,121 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         envelope = queue.send_ingest(_build_ingest_job(req, settings))
         return EnqueueJobResponse(job_id=envelope.job_id)
+
+    @app.post("/voice/synthesize", response_model=VoiceSynthesizeResponse)
+    def synthesize_voice(req: VoiceSynthesizeRequest) -> VoiceSynthesizeResponse:
+        """Synthesize narrator text through Polly and return a short-lived S3 URL."""
+
+        if req.narrator_id not in NARRATOR_VOICES:
+            raise HTTPException(status_code=404, detail=f"unknown narrator_id: {req.narrator_id!r}")
+        text = req.text.strip()
+        if not text:
+            raise HTTPException(status_code=400, detail="text must not be empty")
+        if len(text) > settings.voice_max_text_length:
+            raise HTTPException(
+                status_code=400,
+                detail=f"text exceeds VOICE_MAX_TEXT_LENGTH ({settings.voice_max_text_length})",
+            )
+        with tracer.start_as_current_span("voice.synthesize") as span:
+            span.set_attribute("voice.narrator_id", req.narrator_id)
+            try:
+                result = synth.synthesize(narrator_id=req.narrator_id, text=text)
+            except VoiceConfigurationError as exc:
+                raise HTTPException(status_code=503, detail=str(exc)) from exc
+            except VoiceSynthesisError as exc:
+                raise HTTPException(status_code=502, detail=str(exc)) from exc
+            span.set_attribute("voice.cache_hit", result.cached)
+        return VoiceSynthesizeResponse(
+            audio_url=result.audio_url,
+            cached=result.cached,
+            expires_in=result.expires_in,
+        )
+
+    @app.websocket("/voice/transcribe")
+    async def transcribe_voice(websocket: WebSocket) -> None:
+        """Stream short PCM microphone chunks to Amazon Transcribe."""
+
+        await websocket.accept()
+        queue: asyncio.Queue[bytes | None] = asyncio.Queue()
+
+        async def audio_chunks() -> AsyncIterator[bytes]:
+            while True:
+                chunk = await queue.get()
+                if chunk is None:
+                    break
+                yield chunk
+
+        async def receive_audio() -> None:
+            total_seconds = 0.0
+            try:
+                while True:
+                    message = await websocket.receive()
+                    if message.get("type") == "websocket.disconnect":
+                        break
+
+                    data = message.get("bytes")
+                    if data is not None:
+                        if not data:
+                            await websocket.send_json(
+                                {"type": "error", "detail": "audio chunk must not be empty"}
+                            )
+                            await websocket.close(code=status.WS_1003_UNSUPPORTED_DATA)
+                            break
+                        total_seconds += chunk_seconds(data)
+                        if total_seconds > VOICE_MAX_RECORDING_SECONDS:
+                            await websocket.send_json(
+                                {
+                                    "type": "error",
+                                    "detail": (
+                                        "recording exceeded "
+                                        f"{VOICE_MAX_RECORDING_SECONDS} seconds"
+                                    ),
+                                }
+                            )
+                            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+                            break
+                        await queue.put(data)
+                        continue
+
+                    text = message.get("text")
+                    if text is not None:
+                        try:
+                            payload = json.loads(text)
+                        except json.JSONDecodeError:
+                            payload = text
+                        if payload == "end" or (
+                            isinstance(payload, dict) and payload.get("event") == "end"
+                        ):
+                            break
+                        await websocket.send_json(
+                            {
+                                "type": "error",
+                                "detail": "send binary PCM audio chunks or an end event",
+                            }
+                        )
+                        await websocket.close(code=status.WS_1003_UNSUPPORTED_DATA)
+                        break
+            except WebSocketDisconnect:
+                pass
+            finally:
+                await queue.put(None)
+
+        receiver = asyncio.create_task(receive_audio())
+        try:
+            async for message in speech_transcriber.transcribe(audio_chunks()):
+                await websocket.send_json(message.payload())
+        except WebSocketDisconnect:
+            pass
+        except Exception:
+            if websocket.client_state.name != "DISCONNECTED":
+                await websocket.send_json(
+                    {"type": "error", "detail": "voice transcription failed"}
+                )
+                await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
+        finally:
+            if not receiver.done():
+                receiver.cancel()
+            await asyncio.gather(receiver, return_exceptions=True)
 
     return app
 
