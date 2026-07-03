@@ -22,9 +22,9 @@ VOICE_BYTES_PER_SAMPLE = 2
 VOICE_MAX_RECORDING_SECONDS = 15
 
 NARRATOR_VOICES: dict[str, str] = {
-    "captain_sinclair": "Matthew",
-    "eleanor_whitmore": "Joanna",
-    "ming_chen": "Kevin",
+    "captain_sinclair": "Brian",
+    "eleanor_whitmore": "Amy",
+    "ming_chen": "Arthur",
 }
 
 
