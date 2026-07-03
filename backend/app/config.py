@@ -74,6 +74,16 @@ class Settings(BaseSettings):
     # via the PERSONA_DIR env var for Docker container deployments (#56).
     persona_dir: Path = Path(__file__).resolve().parents[2] / "data" / "ai" / "personas"
 
+    # --- Voice interaction ---------------------------------------------------
+    # AWS credentials are never configured here. In AWS, Polly/Transcribe/S3
+    # access comes from the ECS task role provisioned by infra/terraform.
+    voice_cache_bucket: str | None = None
+    voice_cache_prefix: str = "polly-cache/"
+    polly_engine: str = "neural"
+    transcribe_language_code: str = "en-US"
+    voice_audio_url_ttl_seconds: int = 900
+    voice_max_text_length: int = 1000
+
     # --- Observability -------------------------------------------------------
     # Disabled by default so local tests and deployed tasks keep working before
     # the Honeycomb API key is provisioned in Secrets Manager.
