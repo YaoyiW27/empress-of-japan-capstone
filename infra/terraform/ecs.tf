@@ -255,7 +255,7 @@ resource "aws_ecs_task_definition" "backend" {
       secrets = var.honeycomb_api_key_secret_arn == null ? [] : [
         {
           name      = "HONEYCOMB_API_KEY"
-          valueFrom = var.honeycomb_api_key_secret_arn
+          valueFrom = "${var.honeycomb_api_key_secret_arn}:api_key::"
         }
       ]
 

@@ -272,7 +272,7 @@ variable "backend_honeycomb_dataset" {
 }
 
 variable "honeycomb_api_key_secret_arn" {
-  description = "Optional Secrets Manager ARN whose entire secret value is the Honeycomb ingest API key (plain string, not JSON)."
+  description = "Optional Secrets Manager ARN for a JSON secret whose api_key field contains the Honeycomb ingest API key."
   type        = string
   default     = null
 }
