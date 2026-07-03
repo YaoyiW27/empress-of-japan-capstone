@@ -15,6 +15,7 @@ from typing import Protocol
 
 import boto3
 from botocore.exceptions import ClientError
+from botocore.config import Config
 
 CACHE_VERSION = "v1"
 VOICE_SAMPLE_RATE_HZ = 16_000
@@ -123,7 +124,11 @@ class PollyS3VoiceSynthesizer:
         if not self.bucket:
             raise VoiceConfigurationError("VOICE_CACHE_BUCKET is not configured")
         if self.s3 is None:
-            self.s3 = boto3.client("s3", region_name=self.region)
+            self.s3 = boto3.client(
+                "s3",
+                region_name=self.region,
+                config=Config(signature_version="s3v4"),
+            )
         if self.polly is None:
             self.polly = boto3.client("polly", region_name=self.region)
 
