@@ -135,6 +135,29 @@ python -m app.jobs.worker --once
 Messages are deleted only after a successful pipeline run. Failures are left on
 the queue for SQS retry and DLQ handling.
 
+## Voice endpoints
+
+The voice flow keeps AWS credentials server-side. The browser sends microphone
+audio/text to FastAPI; the backend uses the ECS task role for Amazon Transcribe,
+Amazon Polly, and the private S3 audio cache from issue #96.
+
+```bash
+# synthesize narrator text into a short-lived private S3 playback URL
+curl -X POST http://localhost:8000/voice/synthesize \
+  -H "Content-Type: application/json" \
+  -d '{"narrator_id":"captain_sinclair","text":"Welcome aboard."}'
+```
+
+- `POST /voice/synthesize` accepts `{ "narrator_id", "text" }` and returns
+  `{ "audio_url", "cached", "expires_in" }`.
+- `WebSocket /voice/transcribe` accepts 16 kHz 16-bit PCM binary chunks and
+  returns transcript messages with partial/final state. Send text `end` or
+  `{"event":"end"}` to finish the stream.
+- Configure `VOICE_CACHE_BUCKET`, `VOICE_CACHE_PREFIX`, `POLLY_ENGINE`,
+  `TRANSCRIBE_LANGUAGE_CODE`, `VOICE_AUDIO_URL_TTL_SECONDS`, and
+  `VOICE_MAX_TEXT_LENGTH`. Reuse `AWS_REGION`; do not add AWS access keys to
+  committed files or frontend config.
+
 ## Local database (Postgres + pgvector)
 
 A local dev database, with the knowledge base schema applied automatically on
