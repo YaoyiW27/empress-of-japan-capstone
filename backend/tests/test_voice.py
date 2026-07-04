@@ -97,7 +97,7 @@ def test_synthesize_endpoint_uses_server_voice_mapping_only() -> None:
         json={
             "narrator_id": "ming_chen",
             "text": "Can you hear the engines?",
-            "voice_id": "Joanna",
+            "voice_id": "Amy",
             "engine": "standard",
         },
     )
@@ -188,7 +188,7 @@ def test_polly_cache_miss_synthesizes_and_uploads_mp3() -> None:
             "Engine": "neural",
             "OutputFormat": "mp3",
             "Text": "Tea is at four.",
-            "VoiceId": "Joanna",
+            "VoiceId": "Amy",
         }
     ]
     assert s3.puts[0]["Bucket"] == "voice-cache"
