@@ -17,6 +17,7 @@ from app.config import get_settings
 from app.ingest.embed import FakeEmbedder
 from app.ingest.pipeline import ingest_external, ingest_vmm
 from app.ingest.sources import read_vmm_rows
+from app.retrieval import RetrievalService
 
 _BACKEND = Path(__file__).resolve().parents[1]
 CSV = _BACKEND.parent / "data" / "export_empress of japan.csv"
@@ -114,3 +115,150 @@ def test_external_ingest_lands_in_retrieval_view(engine, tmp_path):
             )
         ).first()
     assert row is not None and row.license == "CC BY-SA 4.0"
+
+
+def _vector_literal(vector: list[float]) -> str:
+    return "[" + ",".join(f"{x:.9g}" for x in vector) + "]"
+
+
+def _insert_doc_with_chunk(
+    conn,
+    *,
+    title: str,
+    object_identifier: str,
+    content: str,
+    content_hash: str,
+    embedding: str,
+    ship: str,
+    material_type: str,
+    sensitivity: str = "public",
+    in_scope: bool = True,
+) -> None:
+    document_id = conn.execute(
+        text(
+            """
+            INSERT INTO documents (
+                source_type,
+                title,
+                object_identifier,
+                public_url,
+                content_hash,
+                ship,
+                era,
+                material_type,
+                sensitivity,
+                in_scope
+            )
+            VALUES (
+                'vmm_catalogue',
+                :title,
+                :object_identifier,
+                :public_url,
+                :content_hash,
+                CAST(:ship AS ship_enum),
+                'na',
+                :material_type,
+                CAST(:sensitivity AS sensitivity_enum),
+                :in_scope
+            )
+            RETURNING id
+            """
+        ),
+        {
+            "title": title,
+            "object_identifier": object_identifier,
+            "public_url": f"https://vmmcollections.com/Detail/objects/{object_identifier}",
+            "content_hash": content_hash,
+            "ship": ship,
+            "material_type": material_type,
+            "sensitivity": sensitivity,
+            "in_scope": in_scope,
+        },
+    ).scalar_one()
+    conn.execute(
+        text(
+            """
+            INSERT INTO chunks (
+                document_id,
+                chunk_index,
+                source_field,
+                content,
+                embedding,
+                embedding_model
+            )
+            VALUES (
+                :document_id,
+                0,
+                'composed',
+                :content,
+                CAST(:embedding AS vector),
+                'fake-embed-v1-1024d'
+            )
+            """
+        ),
+        {"document_id": document_id, "content": content, "embedding": embedding},
+    )
+
+
+def test_retrieval_uses_view_privacy_gate_and_filters(engine):
+    embedder = FakeEmbedder()
+    [query_embedding] = embedder.embed(["retrieval privacy query"])
+    vector = _vector_literal(query_embedding)
+
+    with engine.begin() as c:
+        c.execute(text("DELETE FROM documents"))
+        _insert_doc_with_chunk(
+            c,
+            title="Public menu",
+            object_identifier="RET-1",
+            content="Public menu content.",
+            content_hash="ret-public-menu",
+            embedding=vector,
+            ship="ship_ii",
+            material_type="menu",
+        )
+        _insert_doc_with_chunk(
+            c,
+            title="Public model",
+            object_identifier="RET-2",
+            content="Public model content.",
+            content_hash="ret-public-model",
+            embedding=vector,
+            ship="ship_i",
+            material_type="model",
+        )
+        _insert_doc_with_chunk(
+            c,
+            title="Out of scope",
+            object_identifier="RET-3",
+            content="Out-of-scope content should not appear.",
+            content_hash="ret-out-of-scope",
+            embedding=vector,
+            ship="other",
+            material_type="menu",
+            in_scope=False,
+        )
+        _insert_doc_with_chunk(
+            c,
+            title="Gated passenger list",
+            object_identifier="RET-4",
+            content="Passenger archival content should not appear.",
+            content_hash="ret-passenger",
+            embedding=vector,
+            ship="ship_ii",
+            material_type="passenger_list",
+            sensitivity="passenger_archival",
+        )
+
+    service = RetrievalService(embedder)
+    with Session(engine) as s:
+        all_results = service.retrieve(s, "retrieval privacy query", top_k=10)
+        menu_results = service.retrieve(
+            s, "retrieval privacy query", top_k=10, material_type="menu"
+        )
+        ship_i_results = service.retrieve(s, "retrieval privacy query", top_k=10, ship="ship_i")
+
+    all_titles = {r.metadata["title"] for r in all_results.results}
+    assert all_titles == {"Public menu", "Public model"}
+    assert {r.metadata["title"] for r in menu_results.results} == {"Public menu"}
+    assert {r.metadata["title"] for r in ship_i_results.results} == {"Public model"}
