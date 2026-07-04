@@ -48,10 +48,12 @@ export default function NarratorOverlay({
   const [response, setResponse] = useState(narrator.bio);
   const [isListening, setIsListening] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const isMountedRef = useRef(true);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-
+  
   useEffect(() => {
     return () => {
+      isMountedRef.current = false;
       audioRef.current?.pause();
     };
   }, []);
@@ -61,37 +63,6 @@ export default function NarratorOverlay({
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
   }
-
-  /*
-  function speak(text: string) {
-    if (!("speechSynthesis" in window)) return;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
-
-    try {
-      const result = await sendChatMessage({
-        personaId: narrator.id,
-        scene: scene.id,
-        message,
-        history,
-      });
-
-      setHistory([
-        ...history,
-        { role: "user", content: message },
-        { role: "assistant", content: result.response },
-      ]);
-
-      setResponse(result.response);
-      speak(result.response);
-    } catch (error) {
-      console.error(error);
-      setResponse("Sorry, I could not reach the narrator service.");
-    } finally {
-      setIsLoading(false);
-    }
-  }
-  }*/
 
   async function speak(text: string) {
 
@@ -103,10 +74,12 @@ export default function NarratorOverlay({
         narratorId: narrator.id,
         text,
       });
+      if (!isMountedRef.current) return;
       const audio = new Audio(audio_url);
       audioRef.current = audio;
       await audio.play();
     } catch (error) {
+      if (!isMountedRef.current) return;
       // Backend/Polly unavailable (not configured, network error, etc.) —
       // fall back to the browser's built-in TTS so the narrator still speaks.
       console.error("Polly synthesis failed, falling back to browser TTS", error);
