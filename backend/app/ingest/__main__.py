@@ -20,6 +20,10 @@ from app.ingest.pipeline import IngestStats, ingest_external, ingest_vmm
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="app.ingest", description="Ingest into pgvector")
     parser.add_argument("--csv", help="Path to the VMM catalogue CSV")
+    parser.add_argument(
+        "--classified",
+        help="Optional classified workbook used to enrich VMM ship/era/material mappings",
+    )
     parser.add_argument("--external", help="Path to an external-source JSON manifest")
     parser.add_argument(
         "--embedder",
@@ -53,6 +57,7 @@ def main(argv: list[str] | None = None) -> int:
                 session,
                 args.csv,
                 embedder,
+                classified_path=args.classified,
                 extra_blocklist_path=args.blocklist or settings.donor_blocklist_path,
                 stats=stats,
             )
