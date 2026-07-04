@@ -2,14 +2,23 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
+
 from app.ingest.chunk import compose_vmm_chunk, window_chunks
+from app.ingest.classified import load_classified_index
 from app.ingest.embed import FakeEmbedder
 from app.ingest.mappings import derive_material_type, map_vessel_to_ship_era
 from app.ingest.normalize import normalize_vmm_row
 from app.ingest.parse import strip_markup
 from app.ingest.privacy import DonorRedactor, apply_privacy
-from app.ingest.sources import read_external_manifest
+from app.ingest.sources import read_external_manifest, read_vmm_rows
 from app.models import EMBEDDING_DIM, Era, Sensitivity, Ship, SourceType
+
+_ROOT = Path(__file__).resolve().parents[2]
+_CSV = _ROOT / "data" / "export_empress of japan.csv"
+_CLASSIFIED = _ROOT / "data" / "Empress_of_Japan_records_classified.xlsx"
 
 
 def test_strip_markup():
@@ -51,6 +60,41 @@ def test_normalize_does_not_read_donor_or_sensitive_columns():
     # Donor/valuation values must not appear anywhere on the normalized doc.
     blob = repr(doc.__dict__)
     assert "Jane Donor" not in blob and "5000" not in blob and "appraised" not in blob
+
+
+def test_classified_enrichment_overrides_heuristics():
+    row = {
+        "Titles": "Dinner menu for Empress of Scotland",
+        "Object identifier": "EOJ-CLASSIFIED-1",
+        "Vessel represented": "",
+        "Description": "A dinner menu.",
+        "Object type": "",
+        "Category": "",
+    }
+    classified_row = {
+        "Ship classification": "Empress of Japan (II)",
+        "Material type": "Menu",
+        "Name on item (era)": "Empress of Scotland era (1942–1957)",
+        "Match basis": "Single-vessel (exact)",
+        "Title (readable)": "Dinner menu for Empress of Scotland",
+    }
+    doc = normalize_vmm_row(row, classified_row=classified_row)
+    assert doc.ship == Ship.ship_ii
+    assert doc.era == Era.empress_of_scotland
+    assert doc.material_type == "menu"
+    assert doc.metadata["classified_match_basis"] == "Single-vessel (exact)"
+
+
+@pytest.mark.skipif(
+    not _CSV.exists() or not _CLASSIFIED.exists(),
+    reason="local VMM source files are not present",
+)
+def test_classified_workbook_matches_csv_object_ids():
+    csv_ids = {r["Object identifier"] for r in read_vmm_rows(_CSV)}
+    classified = load_classified_index(_CLASSIFIED)
+    assert len(csv_ids) == 285
+    assert set(classified) == csv_ids
+    assert len(classified) == 285
 
 
 def test_donor_redactor():
@@ -130,3 +174,17 @@ def test_external_manifest_requires_license(tmp_path):
         raise AssertionError("expected a missing-license error")
     except ValueError as e:
         assert "license" in str(e)
+
+
+def test_external_manifest_requires_source_url_and_author_for_inline_text(tmp_path):
+    manifest = tmp_path / "ext.json"
+    manifest.write_text('[{"title": "T", "text": "x", "license": "CC BY 4.0"}]', encoding="utf-8")
+    with pytest.raises(ValueError, match="author_publisher"):
+        list(read_external_manifest(manifest))
+
+    manifest.write_text(
+        '[{"title": "T", "text": "x", "license": "CC BY 4.0", "author_publisher": "A"}]',
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="source_url"):
+        list(read_external_manifest(manifest))
