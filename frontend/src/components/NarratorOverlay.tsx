@@ -1,9 +1,10 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Narrator, Scene } from "@/lib/narrators";
 import { sendChatMessage, type ChatHistoryTurn } from "@/lib/chat";
+import { synthesizeNarratorVoice } from "@/lib/voice";
 
 type SpeechRecognitionConstructor = new () => SpeechRecognition;
 
@@ -47,11 +48,43 @@ export default function NarratorOverlay({
   const [response, setResponse] = useState(narrator.bio);
   const [isListening, setIsListening] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const isMountedRef = useRef(true);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      audioRef.current?.pause();
+    };
+  }, []);
 
-  function speak(text: string) {
+  function speakWithBrowserFallback(text: string) {
     if (!("speechSynthesis" in window)) return;
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+  }
+
+  async function speak(text: string) {
+
+    audioRef.current?.pause();
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+
+    try {
+      const { audio_url } = await synthesizeNarratorVoice({
+        narratorId: narrator.id,
+        text,
+      });
+      if (!isMountedRef.current) return;
+      const audio = new Audio(audio_url);
+      audioRef.current = audio;
+      await audio.play();
+    } catch (error) {
+      if (!isMountedRef.current) return;
+      // Backend/Polly unavailable (not configured, network error, etc.) —
+      // fall back to the browser's built-in TTS so the narrator still speaks.
+      console.error("Polly synthesis failed, falling back to browser TTS", error);
+      speakWithBrowserFallback(text);
+    }
   }
 
   async function submitMessage(message: string) {
@@ -73,7 +106,7 @@ export default function NarratorOverlay({
       ]);
 
       setResponse(result.response);
-      speak(result.response);
+      void speak(result.response);
     } catch (error) {
       console.error(error);
       setResponse("Sorry, I could not reach the narrator service.");
@@ -81,7 +114,7 @@ export default function NarratorOverlay({
       setIsLoading(false);
     }
   }
-
+  
   function startListening() {
     const Recognition =
       window.SpeechRecognition ?? window.webkitSpeechRecognition;
