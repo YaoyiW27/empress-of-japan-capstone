@@ -177,24 +177,25 @@ profile and `us-west-2` region configured above.
 
 ### Find the backend URL
 
-Terraform exposes the current ALB hostname without revealing credentials:
+Terraform exposes the CloudFront HTTPS/WSS endpoint without revealing
+credentials:
 
 ```bash
 cd infra/terraform
-AWS_PROFILE=empress terraform output -raw backend_alb_dns_name
+AWS_PROFILE=empress terraform output -raw backend_public_api_base_url
 ```
 
-The sandbox ALB currently serves HTTP, so its health URL is
-`http://<backend_alb_dns_name>/health`. Verify it directly:
+Verify the browser-facing endpoint directly:
 
 ```bash
-curl --fail --show-error "http://$(AWS_PROFILE=empress terraform output -raw backend_alb_dns_name)/health"
+curl --fail --show-error "$(AWS_PROFILE=empress terraform output -raw backend_public_api_base_url)/health"
 ```
 
-A healthy response is `{"status":"ok"}`. The two Vercel frontends use HTTPS,
-so browser integration also requires an HTTPS backend hostname and matching
-`CORS_ORIGINS`; do not point an HTTPS page at this HTTP hostname because the
-browser will block mixed content.
+A healthy response is `{"status":"ok"}`. CloudFront supplies its default
+`cloudfront.net` certificate because the team has no separate custom-domain
+budget. The ALB remains an HTTP origin but accepts inbound traffic only from the
+AWS-managed CloudFront origin prefix list. The ECS task definition allows only
+the two approved Vercel origins through `CORS_ORIGINS`.
 
 ### Deploy and check ECS health
 
@@ -250,6 +251,33 @@ and shows no exporter authentication errors. For request-level diagnosis, open
 Honeycomb environment `test`, dataset `empress-backend`, and filter on
 `service.name = empress-backend`. CloudWatch remains the source for ECS runtime
 logs and AWS metrics; Honeycomb connects spans for one request.
+
+CloudWatch alarms notify the existing `empress-budget-alerts` SNS subscribers
+for sustained backend latency, target 5xx responses, unhealthy targets, jobs
+queue backlog, and any visible DLQ message. Each teammate must have confirmed
+the SNS email subscription to receive both alarm and recovery notifications.
+
+### Validate target-tracking autoscaling
+
+The service targets 60% average CPU, scales between 2 and 6 tasks, waits two
+minutes before another scale-out, and waits five minutes before scale-in. Use a
+non-sensitive endpoint and stop the test if error rate or cost looks abnormal:
+
+```bash
+PUBLIC_API_BASE_URL=$(AWS_PROFILE=empress terraform output -raw backend_public_api_base_url)
+
+# In terminal 1, watch desired/running task count and deployment events.
+watch -n 15 "AWS_PROFILE=empress aws ecs describe-services \
+  --region us-west-2 --cluster empress-app --services empress-backend \
+  --query 'services[0].{desired:desiredCount,running:runningCount,pending:pendingCount}'"
+
+# In terminal 2, if `hey` is installed, apply bounded load for at most 8 minutes.
+hey -z 8m -c 100 "$PUBLIC_API_BASE_URL/health"
+```
+
+Capture the ECS desired-count change, the target-tracking alarm/activity, and
+the later return to the two-task floor. Do not run a load test immediately
+before a class or stakeholder demo.
 
 ### Confirm runtime IAM access
 
