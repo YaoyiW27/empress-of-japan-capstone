@@ -65,6 +65,29 @@ variable "backend_task_memory" {
   default     = 1024
 }
 
+variable "worker_task_cpu" {
+  description = "Fargate CPU units for the async ingest worker task."
+  type        = number
+  default     = 512
+}
+
+variable "worker_task_memory" {
+  description = "Fargate memory in MiB for the async ingest worker task."
+  type        = number
+  default     = 1024
+}
+
+variable "worker_desired_count" {
+  description = "Worker tasks activated by the deploy workflow after a real image is available."
+  type        = number
+  default     = 1
+
+  validation {
+    condition     = var.worker_desired_count == 1
+    error_message = "Keep one worker in the bounded sandbox until queue-based autoscaling is tested."
+  }
+}
+
 variable "backend_bootstrap_image_tag" {
   description = "Initial immutable ECR image tag used by the Terraform task definition. The deploy workflow registers later commit-SHA revisions."
   type        = string

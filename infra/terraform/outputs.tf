@@ -116,6 +116,11 @@ output "ecs_cluster_arn" {
   value       = aws_ecs_cluster.app.arn
 }
 
+output "worker_ecs_service_name" {
+  description = "ECS service running the async ingest worker."
+  value       = aws_ecs_service.worker.name
+}
+
 output "backend_execution_role_arn" {
   description = "ECS task execution role ARN for ECR, CloudWatch Logs, and secret injection."
   value       = aws_iam_role.backend_execution.arn
