@@ -280,3 +280,42 @@ resource "aws_cloudwatch_metric_alarm" "backend_unhealthy_targets" {
     TargetGroup  = aws_lb_target_group.backend.arn_suffix
   }
 }
+
+resource "aws_cloudwatch_metric_alarm" "jobs_queue_backlog" {
+  alarm_name          = "empress-jobs-queue-backlog"
+  alarm_description   = "Visible async jobs reached ${var.jobs_queue_alarm_threshold}; inspect worker health and queue age."
+  namespace           = "AWS/SQS"
+  metric_name         = "ApproximateNumberOfMessagesVisible"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  threshold           = var.jobs_queue_alarm_threshold
+  evaluation_periods  = 2
+  datapoints_to_alarm = 2
+  period              = 60
+  statistic           = "Maximum"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.backend_alarm_actions
+  ok_actions          = local.backend_alarm_actions
+
+  dimensions = {
+    QueueName = aws_sqs_queue.jobs.name
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "jobs_dlq_visible" {
+  alarm_name          = "empress-jobs-dlq-visible"
+  alarm_description   = "At least one failed async job reached the DLQ; inspect it before redrive."
+  namespace           = "AWS/SQS"
+  metric_name         = "ApproximateNumberOfMessagesVisible"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  threshold           = 1
+  evaluation_periods  = 1
+  period              = 60
+  statistic           = "Maximum"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.backend_alarm_actions
+  ok_actions          = local.backend_alarm_actions
+
+  dimensions = {
+    QueueName = aws_sqs_queue.jobs_dlq.name
+  }
+}

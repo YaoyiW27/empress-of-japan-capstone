@@ -311,6 +311,12 @@ variable "backend_alarm_latency_seconds" {
   default     = 2
 }
 
+variable "jobs_queue_alarm_threshold" {
+  description = "Visible async jobs that trigger a queue-backlog alarm."
+  type        = number
+  default     = 10
+}
+
 # --- Cost tracking (issue #20, see budgets.tf) ---
 
 variable "alert_emails" {
