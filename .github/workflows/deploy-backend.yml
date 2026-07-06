@@ -185,12 +185,12 @@ jobs:
 
       - name: Verify public health endpoint
         run: |
-          ALB_DNS=$(aws elbv2 describe-load-balancers \
-            --names empress-backend \
-            --query 'LoadBalancers[0].DNSName' \
+          PUBLIC_API_BASE_URL=$(aws ssm get-parameter \
+            --name /empress/backend/public_api_base_url \
+            --query 'Parameter.Value' \
             --output text)
           curl --fail --show-error \
             --retry 10 \
             --retry-delay 6 \
             --retry-all-errors \
-            "http://$ALB_DNS/health"
+            "$PUBLIC_API_BASE_URL/health"
