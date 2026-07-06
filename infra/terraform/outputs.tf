@@ -126,6 +126,11 @@ output "backend_task_role_arn" {
   value       = aws_iam_role.backend_task.arn
 }
 
+output "worker_task_role_arn" {
+  description = "Worker task role ARN for Titan embeddings and SQS consumption."
+  value       = aws_iam_role.worker_task.arn
+}
+
 output "backend_log_group_name" {
   description = "CloudWatch log group for backend container logs."
   value       = aws_cloudwatch_log_group.backend.name

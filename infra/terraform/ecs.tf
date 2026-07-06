@@ -84,12 +84,38 @@ resource "aws_iam_role_policy_attachment" "backend_task_sqs_send" {
   policy_arn = aws_iam_policy.sqs_jobs_send.arn
 }
 
+# The worker has a separate task role so the API cannot consume jobs and the
+# worker cannot publish them. It only needs SQS consumption and Titan embeds.
+resource "aws_iam_role" "worker_task" {
+  name               = "empress-worker-task"
+  assume_role_policy = data.aws_iam_policy_document.ecs_tasks_assume.json
+}
+
+resource "aws_iam_role_policy_attachment" "worker_task_sqs_consume" {
+  role       = aws_iam_role.worker_task.name
+  policy_arn = aws_iam_policy.sqs_jobs_consume.arn
+}
+
+resource "aws_iam_role_policy_attachment" "worker_task_titan" {
+  role       = aws_iam_role.worker_task.name
+  policy_arn = aws_iam_policy.bedrock_titan_embed_invoke.arn
+}
+
 resource "aws_cloudwatch_log_group" "backend" {
   name              = "/ecs/empress-backend"
   retention_in_days = var.backend_log_retention_days
 
   tags = {
     Name = "empress-backend"
+  }
+}
+
+resource "aws_cloudwatch_log_group" "worker" {
+  name              = "/ecs/empress-worker"
+  retention_in_days = var.backend_log_retention_days
+
+  tags = {
+    Name = "empress-worker"
   }
 }
 
