@@ -76,6 +76,11 @@ output "sqs_jobs_consume_policy_arn" {
   value       = aws_iam_policy.sqs_jobs_consume.arn
 }
 
+output "ingest_admin_secret_arn" {
+  description = "Secrets Manager ARN containing the admin token for enqueueing ingest jobs."
+  value       = aws_secretsmanager_secret.ingest_admin.arn
+}
+
 output "bedrock_titan_embed_policy_arn" {
   description = "ARN of the bedrock:InvokeModel policy for Titan Embed V2. Attach to the Fargate task role in #42."
   value       = aws_iam_policy.bedrock_titan_embed_invoke.arn

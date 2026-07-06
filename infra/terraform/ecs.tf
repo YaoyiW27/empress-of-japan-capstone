@@ -62,6 +62,40 @@ resource "aws_iam_role_policy" "backend_execution_honeycomb_secret_read" {
   })
 }
 
+resource "random_password" "ingest_admin" {
+  length  = 48
+  special = false
+}
+
+resource "aws_secretsmanager_secret" "ingest_admin" {
+  name        = "/empress/backend/ingest_admin_token"
+  description = "Admin token for enqueueing server-controlled ingest jobs."
+}
+
+resource "aws_secretsmanager_secret_version" "ingest_admin" {
+  secret_id = aws_secretsmanager_secret.ingest_admin.id
+  secret_string = jsonencode({
+    token = random_password.ingest_admin.result
+  })
+}
+
+resource "aws_iam_role_policy" "backend_execution_ingest_admin_secret_read" {
+  name = "empress-backend-ingest-admin-secret-read"
+  role = aws_iam_role.backend_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "ReadIngestAdminToken"
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = aws_secretsmanager_secret.ingest_admin.arn
+      }
+    ]
+  })
+}
+
 # Credentials exposed to the FastAPI process itself. Keep application actions
 # here and execution-time infrastructure actions on backend_execution above.
 resource "aws_iam_role" "backend_task" {
@@ -217,6 +251,8 @@ resource "aws_ecs_task_definition" "backend" {
         { name = "ENABLE_SESSION_MEMORY", value = "false" },
         { name = "PERSONA_DIR", value = "/app/data/ai/personas" },
         { name = "CORS_ORIGINS", value = jsonencode(var.backend_cors_origins) },
+        { name = "JOBS_QUEUE_URL", value = aws_sqs_queue.jobs.url },
+        { name = "INGEST_JOB_EXTERNAL_PATH", value = "external_sources.json" },
         { name = "VOICE_CACHE_BUCKET", value = aws_s3_bucket.voice_cache.bucket },
         { name = "VOICE_CACHE_PREFIX", value = var.voice_cache_prefix },
         { name = "POLLY_ENGINE", value = var.voice_polly_engine },
@@ -249,6 +285,10 @@ resource "aws_ecs_task_definition" "backend" {
         {
           name      = "DB_PASSWORD"
           valueFrom = "${aws_db_instance.knowledge_base.master_user_secret[0].secret_arn}:password::"
+        },
+        {
+          name      = "INGEST_ADMIN_TOKEN"
+          valueFrom = "${aws_secretsmanager_secret.ingest_admin.arn}:token::"
         },
       ]
 
@@ -327,6 +367,7 @@ resource "aws_ecs_task_definition" "backend" {
     aws_iam_role_policy_attachment.backend_execution_managed,
     aws_iam_role_policy_attachment.backend_execution_rds_secrets,
     aws_iam_role_policy.backend_execution_honeycomb_secret_read,
+    aws_iam_role_policy.backend_execution_ingest_admin_secret_read,
   ]
 }
 
