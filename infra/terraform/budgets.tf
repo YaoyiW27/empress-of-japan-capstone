@@ -30,6 +30,24 @@ data "aws_iam_policy_document" "budget_sns" {
       identifiers = ["budgets.amazonaws.com"]
     }
   }
+
+  statement {
+    sid       = "AllowCloudWatchAlarmsPublish"
+    effect    = "Allow"
+    actions   = ["SNS:Publish"]
+    resources = [aws_sns_topic.budget_alerts.arn]
+
+    principals {
+      type        = "Service"
+      identifiers = ["cloudwatch.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "AWS:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+  }
 }
 
 resource "aws_sns_topic_policy" "budget_alerts" {
