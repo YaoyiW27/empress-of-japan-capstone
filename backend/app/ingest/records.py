@@ -65,5 +65,5 @@ class IngestDoc:
         if self.object_identifier:
             return f"oid:{self.object_identifier}"
         if self.source_url:
-            return f"url:{self.source_url}"
+            return f"url:{self.source_url}:title:{self.title}"
         return f"hash:{self.content_hash}"

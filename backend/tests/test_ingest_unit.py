@@ -14,6 +14,7 @@ from app.ingest.normalize import normalize_vmm_row
 from app.ingest.parse import strip_markup
 from app.ingest.privacy import DonorRedactor, apply_privacy
 from app.ingest.sources import read_external_manifest, read_vmm_rows
+from app.ingest.upsert import _find_existing
 from app.models import EMBEDDING_DIM, Era, Sensitivity, Ship, SourceType
 
 _ROOT = Path(__file__).resolve().parents[2]
@@ -164,6 +165,52 @@ def test_external_manifest_inline_and_license(tmp_path):
     docs = list(read_external_manifest(manifest, wikipedia_fetcher=lambda t: f"Article about {t}."))
     assert docs[0].embed_fields["body"] == "Article about Empress of Japan (1929)."
     assert "en.wikipedia.org/wiki/Empress_of_Japan_(1929)" in docs[0].source_url
+
+
+def test_external_manifest_same_url_entries_keep_distinct_identity(tmp_path):
+    manifest = tmp_path / "ext.json"
+    manifest.write_text(
+        "["
+        '{"title": "Era one", "text": "Body one.", "license": "CC BY 4.0",'
+        ' "author_publisher": "Author", "source_url": "https://example.test/source"},'
+        '{"title": "Era two", "text": "Body two.", "license": "CC BY 4.0",'
+        ' "author_publisher": "Author", "source_url": "https://example.test/source"}'
+        "]",
+        encoding="utf-8",
+    )
+
+    first, second = list(read_external_manifest(manifest))
+
+    assert first.source_url == second.source_url
+    assert first.dedupe_key() != second.dedupe_key()
+
+
+def test_external_upsert_lookup_uses_title_with_source_url(tmp_path):
+    manifest = tmp_path / "ext.json"
+    manifest.write_text(
+        '[{"title": "Era one", "text": "Body one.", "license": "CC BY 4.0",'
+        ' "author_publisher": "Author", "source_url": "https://example.test/source"}]',
+        encoding="utf-8",
+    )
+    [doc] = list(read_external_manifest(manifest))
+
+    class ScalarResult:
+        def first(self):
+            return None
+
+    class FakeSession:
+        statement = None
+
+        def scalars(self, statement):
+            self.statement = statement
+            return ScalarResult()
+
+    session = FakeSession()
+
+    assert _find_existing(session, doc) is None
+    compiled = str(session.statement)
+    assert "documents.source_url" in compiled
+    assert "documents.title" in compiled
 
 
 def test_external_manifest_requires_license(tmp_path):
