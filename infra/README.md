@@ -386,6 +386,46 @@ limitations are documented in [Cost tracking](#cost-tracking--1000month-budget-i
 
 ---
 
+## Deployment environment decision (issue #63)
+
+**Decision, July 2026: keep one AWS `sandbox` backend through the capstone
+showcase.** Do not duplicate ECS, ALB/CloudFront, RDS, Secrets Manager, queues,
+or observability into `dev` and `demo` yet. The team has one $1,000 AWS sandbox
+allocation and no separate domain/hosting budget; a second always-on stack adds
+cost and operational surface before usage demonstrates a need.
+
+The two Vercel URLs are clients of this one backend, not separate AWS
+environments:
+
+- `empress-of-japan-capstone.vercel.app` is the production/demo frontend.
+- `empress-gyro-test.vercel.app` is a temporary mobile/gyro integration client;
+  merge the responsive behavior into the primary project rather than creating a
+  second backend.
+
+Stability comes from workflow, not duplicated infrastructure:
+
+- feature branches use local tests and Vercel previews;
+- only merged `main` backend changes run `deploy-backend`;
+- stop risky merges before scheduled stakeholder demos;
+- use immutable ECR tags and the rollback procedure above;
+- use CloudWatch alarms and Honeycomb traces to verify each deployment.
+
+Revisit a `dev`/`demo` split only when at least one trigger is true:
+
+1. routine development repeatedly disrupts scheduled museum/class demos;
+2. integration tests require destructive or incompatible database data;
+3. simultaneous releases need independent rollback windows;
+4. the stakeholder provides a stable domain/hosting requirement and the budget
+   can support duplicated compute, data, and observability.
+
+If a split becomes necessary, parameterize an `app_env` module and isolate ECS
+services, SSM/Secrets paths, logs, and queues by environment. Prefer separate
+Postgres schemas/databases on the existing RDS instance first; provision a
+second RDS instance only when data isolation or measured load justifies its
+cost. Keep shared Terraform modules rather than copying resource blocks.
+
+---
+
 ## Knowledge-base RDS (issue #25)
 
 Terraform provisions the shared/deployed Postgres database for the RAG knowledge
