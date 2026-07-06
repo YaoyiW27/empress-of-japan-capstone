@@ -13,6 +13,9 @@ data "aws_cloudfront_origin_request_policy" "all_viewer" {
   name = "Managed-AllViewer"
 }
 
+# WAF is deferred for this bounded, credit-funded sandbox deployment. The ALB
+# accepts only CloudFront origin traffic, and application rate limiting is #89.
+#trivy:ignore:AVD-AWS-0011
 resource "aws_cloudfront_distribution" "backend_api" {
   enabled         = true
   is_ipv6_enabled = true

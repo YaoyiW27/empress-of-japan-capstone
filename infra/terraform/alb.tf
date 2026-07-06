@@ -4,6 +4,9 @@
 # does not own a deployment domain. The ALB remains an HTTP origin and its
 # security group accepts traffic only from AWS's CloudFront origin prefix list.
 
+# The ALB must be internet-facing for CloudFront to use it as a custom origin.
+# Direct public access is blocked by the CloudFront origin-facing prefix list.
+#trivy:ignore:AVD-AWS-0053
 resource "aws_lb" "backend" {
   name               = "empress-backend"
   internal           = false
@@ -43,6 +46,8 @@ resource "aws_lb_target_group" "backend" {
 
 # Origin listener. Direct internet clients are blocked by the ALB security group;
 # CloudFront redirects viewers to HTTPS before forwarding here.
+# Origin TLS requires a custom domain and ACM certificate; viewer traffic is TLS.
+#trivy:ignore:AVD-AWS-0054
 resource "aws_lb_listener" "backend_http" {
   load_balancer_arn = aws_lb.backend.arn
   port              = 80
