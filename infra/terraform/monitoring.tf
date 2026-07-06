@@ -216,3 +216,67 @@ resource "aws_cloudwatch_dashboard" "backend_observability" {
     ]
   })
 }
+
+locals {
+  backend_alarm_actions = [aws_sns_topic.budget_alerts.arn]
+}
+
+resource "aws_cloudwatch_metric_alarm" "backend_target_5xx" {
+  alarm_name          = "empress-backend-target-5xx"
+  alarm_description   = "Backend targets returned at least ${var.backend_alarm_5xx_threshold} 5xx responses in five minutes."
+  namespace           = "AWS/ApplicationELB"
+  metric_name         = "HTTPCode_Target_5XX_Count"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  threshold           = var.backend_alarm_5xx_threshold
+  evaluation_periods  = 1
+  period              = 300
+  statistic           = "Sum"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.backend_alarm_actions
+  ok_actions          = local.backend_alarm_actions
+
+  dimensions = {
+    LoadBalancer = aws_lb.backend.arn_suffix
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "backend_latency" {
+  alarm_name          = "empress-backend-sustained-latency"
+  alarm_description   = "Average backend response time exceeded ${var.backend_alarm_latency_seconds} seconds for three minutes."
+  namespace           = "AWS/ApplicationELB"
+  metric_name         = "TargetResponseTime"
+  comparison_operator = "GreaterThanThreshold"
+  threshold           = var.backend_alarm_latency_seconds
+  evaluation_periods  = 3
+  datapoints_to_alarm = 3
+  period              = 60
+  statistic           = "Average"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.backend_alarm_actions
+  ok_actions          = local.backend_alarm_actions
+
+  dimensions = {
+    LoadBalancer = aws_lb.backend.arn_suffix
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "backend_unhealthy_targets" {
+  alarm_name          = "empress-backend-unhealthy-targets"
+  alarm_description   = "At least one backend target remained unhealthy for two minutes."
+  namespace           = "AWS/ApplicationELB"
+  metric_name         = "UnHealthyHostCount"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  threshold           = 1
+  evaluation_periods  = 2
+  datapoints_to_alarm = 2
+  period              = 60
+  statistic           = "Average"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.backend_alarm_actions
+  ok_actions          = local.backend_alarm_actions
+
+  dimensions = {
+    LoadBalancer = aws_lb.backend.arn_suffix
+    TargetGroup  = aws_lb_target_group.backend.arn_suffix
+  }
+}

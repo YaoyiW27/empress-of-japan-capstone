@@ -299,6 +299,18 @@ variable "otel_collector_image" {
   default     = "otel/opentelemetry-collector-contrib:0.104.0"
 }
 
+variable "backend_alarm_5xx_threshold" {
+  description = "Target 5xx responses within five minutes that trigger the backend error alarm."
+  type        = number
+  default     = 5
+}
+
+variable "backend_alarm_latency_seconds" {
+  description = "Average ALB target response time that triggers the sustained-latency alarm."
+  type        = number
+  default     = 2
+}
+
 # --- Cost tracking (issue #20, see budgets.tf) ---
 
 variable "alert_emails" {
