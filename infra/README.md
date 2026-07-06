@@ -257,6 +257,77 @@ for sustained backend latency, target 5xx responses, unhealthy targets, jobs
 queue backlog, and any visible DLQ message. Each teammate must have confirmed
 the SNS email subscription to receive both alarm and recovery notifications.
 
+### Validate the async ingest worker
+
+The deploy workflow updates both `empress-backend` and `empress-worker` from the
+same immutable image. The worker has no public listener; healthy steady state is
+one running task and no pending task:
+
+```bash
+AWS_PROFILE=empress aws ecs describe-services \
+  --region us-west-2 \
+  --cluster empress-app \
+  --services empress-worker \
+  --query 'services[0].{status:status,desired:desiredCount,running:runningCount,pending:pendingCount,taskDefinition:taskDefinition,events:events[0:5].[createdAt,message]}'
+```
+
+Follow worker and collector startup before enqueueing a job:
+
+```bash
+AWS_PROFILE=empress aws logs tail /ecs/empress-worker \
+  --region us-west-2 --since 30m --follow
+```
+
+The ingest endpoint is an operator-only API. Retrieve its generated token into
+the current shell without printing it, enqueue only the repository-controlled
+external source, and then unset it:
+
+```bash
+ADMIN_TOKEN=$(AWS_PROFILE=empress aws secretsmanager get-secret-value \
+  --region us-west-2 \
+  --secret-id /empress/backend/ingest_admin_token \
+  --query SecretString --output text | jq -r '.token')
+PUBLIC_API_BASE_URL=$(AWS_PROFILE=empress aws ssm get-parameter \
+  --region us-west-2 \
+  --name /empress/backend/public_api_base_url \
+  --query 'Parameter.Value' --output text)
+
+curl --fail --show-error \
+  -X POST "$PUBLIC_API_BASE_URL/ingest/jobs" \
+  -H "Content-Type: application/json" \
+  -H "X-Admin-Token: $ADMIN_TOKEN" \
+  -d '{"include_external":true}'
+
+unset ADMIN_TOKEN
+```
+
+The API should return HTTP `202` with a `job_id`. A successful end-to-end run
+then has all of these signals:
+
+1. `/ecs/empress-worker` logs `processing job_id=...` followed by
+   `completed job_id=...`.
+2. The jobs queue returns to zero visible and zero in-flight messages:
+
+   ```bash
+   JOBS_QUEUE_URL=$(AWS_PROFILE=empress aws ssm get-parameter \
+     --region us-west-2 \
+     --name /empress/sqs/jobs_queue_url \
+     --query 'Parameter.Value' --output text)
+   AWS_PROFILE=empress aws sqs get-queue-attributes \
+     --region us-west-2 \
+     --queue-url "$JOBS_QUEUE_URL" \
+     --attribute-names ApproximateNumberOfMessages ApproximateNumberOfMessagesNotVisible
+   ```
+
+3. The DLQ remains at zero visible messages.
+4. Honeycomb environment `test` shows `service.name = empress-worker` with
+   `jobs.worker.receive`, `jobs.worker.process`, and `jobs.worker.delete` spans.
+   The process span should have `job.status = completed`, and its trace should
+   continue the context injected by the API producer.
+
+Do not put the ingest admin token in either Vercel project or a committed file.
+It is for an operator smoke test, not a browser feature.
+
 ### Validate target-tracking autoscaling
 
 The service targets 60% average CPU, scales between 2 and 6 tasks, waits two
