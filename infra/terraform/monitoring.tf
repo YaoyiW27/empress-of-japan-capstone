@@ -16,7 +16,7 @@ resource "aws_cloudwatch_dashboard" "backend_observability" {
         width  = 24
         height = 2
         properties = {
-          markdown = "# Empress backend observability\nFargate service health, ALB traffic, async queue depth, and recent backend logs for the sandbox deployment."
+          markdown = "# Empress backend observability\nAPI and worker health, ALB traffic, async queue depth, and recent runtime logs for the sandbox deployment."
         }
       },
       {
@@ -26,7 +26,7 @@ resource "aws_cloudwatch_dashboard" "backend_observability" {
         width  = 12
         height = 6
         properties = {
-          title   = "ECS backend CPU and memory"
+          title   = "ECS API and worker CPU/memory"
           region  = var.region
           view    = "timeSeries"
           stacked = false
@@ -40,6 +40,9 @@ resource "aws_cloudwatch_dashboard" "backend_observability" {
               aws_ecs_cluster.app.name,
               "ServiceName",
               aws_ecs_service.backend.name,
+              {
+                label = "API CPU"
+              },
             ],
             [
               ".",
@@ -48,6 +51,31 @@ resource "aws_cloudwatch_dashboard" "backend_observability" {
               ".",
               ".",
               ".",
+              {
+                label = "API memory"
+              },
+            ],
+            [
+              "AWS/ECS",
+              "CPUUtilization",
+              "ClusterName",
+              aws_ecs_cluster.app.name,
+              "ServiceName",
+              aws_ecs_service.worker.name,
+              {
+                label = "worker CPU"
+              },
+            ],
+            [
+              ".",
+              "MemoryUtilization",
+              ".",
+              ".",
+              ".",
+              ".",
+              {
+                label = "worker memory"
+              },
             ],
           ]
         }
@@ -211,6 +239,19 @@ resource "aws_cloudwatch_dashboard" "backend_observability" {
           region = var.region
           view   = "table"
           query  = "SOURCE '${aws_cloudwatch_log_group.backend.name}' | fields @timestamp, @message | sort @timestamp desc | limit 20"
+        }
+      },
+      {
+        type   = "log"
+        x      = 12
+        y      = 20
+        width  = 12
+        height = 6
+        properties = {
+          title  = "Recent worker logs"
+          region = var.region
+          view   = "table"
+          query  = "SOURCE '${aws_cloudwatch_log_group.worker.name}' | fields @timestamp, @message | sort @timestamp desc | limit 20"
         }
       },
     ]
