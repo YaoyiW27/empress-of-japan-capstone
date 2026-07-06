@@ -115,6 +115,22 @@ variable "backend_autoscaling_cpu_target_percent" {
   }
 }
 
+variable "backend_cors_origins" {
+  description = "Exact browser origins allowed to call the deployed backend. Keep this list explicit; never use a wildcard for the public API."
+  type        = list(string)
+  default = [
+    "https://empress-of-japan-capstone.vercel.app",
+    "https://empress-gyro-test.vercel.app",
+  ]
+
+  validation {
+    condition = alltrue([
+      for origin in var.backend_cors_origins : startswith(origin, "https://") && !endswith(origin, "/")
+    ])
+    error_message = "Backend CORS origins must be exact HTTPS origins without a trailing slash."
+  }
+}
+
 # --- Knowledge base RDS (issue #25, see rds.tf) ---
 
 variable "kb_db_name" {

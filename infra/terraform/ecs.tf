@@ -190,6 +190,7 @@ resource "aws_ecs_task_definition" "backend" {
         { name = "BEDROCK_EMBEDDING_MODEL", value = var.bedrock_embedding_model_id },
         { name = "ENABLE_SESSION_MEMORY", value = "false" },
         { name = "PERSONA_DIR", value = "/app/data/ai/personas" },
+        { name = "CORS_ORIGINS", value = jsonencode(var.backend_cors_origins) },
         { name = "VOICE_CACHE_BUCKET", value = aws_s3_bucket.voice_cache.bucket },
         { name = "VOICE_CACHE_PREFIX", value = var.voice_cache_prefix },
         { name = "POLLY_ENGINE", value = var.voice_polly_engine },

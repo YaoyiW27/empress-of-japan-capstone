@@ -101,6 +101,11 @@ output "backend_alb_dns_name" {
   value       = aws_lb.backend.dns_name
 }
 
+output "backend_public_api_base_url" {
+  description = "CloudFront HTTPS base URL for browser and WebSocket clients."
+  value       = "https://${aws_cloudfront_distribution.backend_api.domain_name}"
+}
+
 output "backend_target_group_arn" {
   description = "Target group ARN used by the backend ECS service."
   value       = aws_lb_target_group.backend.arn
