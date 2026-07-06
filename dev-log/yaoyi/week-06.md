@@ -50,10 +50,16 @@ the ECS task definition. The code read `DATABASE_URL`, but ECS supplies
 construct the SQLAlchemy URL without logging credentials.
 
 For issues #63, #41, and #109, I kept the related infrastructure work on one
-branch but asked Codex to split it into ten focused commits. I reviewed the
+branch but asked Codex to split it into focused commits. I reviewed the
 Terraform plan for destructive replacements, restored narrowly scoped Trivy
 exceptions with written rationale, and waited for Gitleaks, Trivy, and the CI
 Terraform plan to pass on PR #114.
+
+I then continued #41 on the same branch by tracing the existing Python worker
+against the missing AWS runtime. We separated the worker's IAM permissions,
+created its ECS task/service and OTel sidecar, connected the API producer to SQS
+through a generated admin token, updated the shared image deployment workflow,
+and wrote a post-merge smoke-test procedure.
 
 ## 4. Useful Output
 - PR #106 makes ECS read `${secret_arn}:api_key::` instead of injecting the
@@ -71,7 +77,11 @@ Terraform plan to pass on PR #114.
   visible jobs, and the DLQ, using the existing SNS notification topic.
 - The runbook includes a bounded autoscaling test and records the one-sandbox
   recommendation and future environment-split triggers.
-- PR #114 has ten small commits; Gitleaks, Trivy, and Terraform plan all pass.
+- The async ingest worker now has a dedicated ECS service, task role, log group,
+  dashboard metrics, and Honeycomb service name. The API and worker deploy from
+  the same immutable image but keep separate runtime permissions.
+- PR #114 uses small, reviewable commits; Gitleaks, Trivy, and Terraform plan
+  all pass.
 
 ## 5. Human Review / Changes
 - I kept the Honeycomb secret in AWS Secrets Manager and did not commit or paste
@@ -88,8 +98,9 @@ Terraform plan to pass on PR #114.
   limiting tracked in issue #89. This avoids silently adding recurring AWS cost.
 - I did not close issues #41 or #109 from code alone. Issue #109 still needs the
   merged Terraform apply plus Vercel HTTPS/CORS and WebSocket verification.
-  Issue #41 still needs the bounded autoscaling test and worker trace validation.
-  Issue #63 can close when the documented recommendation merges.
+  Issue #41 now includes the worker deployment code but still needs its
+  post-merge job/log/trace smoke test and the bounded autoscaling test. Issue
+  #63 can close when the documented recommendation merges.
 - I preserved the separation between Vercel and AWS: Vercel hosts the two web
   clients, AWS runs the API and managed services, and CloudFront is the secure
   public edge for the AWS backend.
