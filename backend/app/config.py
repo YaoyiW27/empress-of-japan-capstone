@@ -10,6 +10,9 @@ from pathlib import Path
 from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.engine import URL, make_url
+
+LOCAL_DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/empress"
 
 
 class Settings(BaseSettings):
@@ -24,9 +27,14 @@ class Settings(BaseSettings):
     log_level: str = "info"
 
     cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
-    # Local dev default mirrors backend/docker-compose.yml. Override via the
-    # DATABASE_URL env var (RDS endpoint from a secret in deployed environments).
-    database_url: str = "postgresql://postgres:postgres@localhost:5432/empress"
+    # Local/test callers can still provide a full URL. Deployed ECS tasks inject
+    # the five DB_* values below from Secrets Manager instead.
+    database_url: str | None = None
+    db_host: str | None = None
+    db_port: int | None = None
+    db_name: str | None = None
+    db_user: str | None = None
+    db_password: str | None = None
 
     # --- Ingest / embeddings -------------------------------------------------
     # "bedrock" (AWS Titan V2, real) or "fake" (deterministic local, no creds).
@@ -95,9 +103,47 @@ class Settings(BaseSettings):
     honeycomb_dataset: str = "empress-backend-sandbox"
 
     @property
-    def sqlalchemy_url(self) -> str:
-        """Normalise the URL onto the psycopg (v3) driver SQLAlchemy expects."""
-        url = self.database_url
+    def sqlalchemy_url(self) -> URL:
+        """Return the SQLAlchemy database URL without logging or rendering secrets."""
+        if self.database_url:
+            return make_url(self._normalise_driver(self.database_url))
+
+        if self._has_db_parts:
+            missing = [
+                name
+                for name, value in {
+                    "DB_HOST": self.db_host,
+                    "DB_PORT": self.db_port,
+                    "DB_NAME": self.db_name,
+                    "DB_USER": self.db_user,
+                    "DB_PASSWORD": self.db_password,
+                }.items()
+                if value in (None, "")
+            ]
+            if missing:
+                missing_names = ", ".join(missing)
+                raise ValueError(f"Missing required database settings: {missing_names}")
+            return URL.create(
+                drivername="postgresql+psycopg",
+                username=self.db_user,
+                password=self.db_password,
+                host=self.db_host,
+                port=self.db_port,
+                database=self.db_name,
+            )
+
+        return make_url(self._normalise_driver(LOCAL_DATABASE_URL))
+
+    @property
+    def _has_db_parts(self) -> bool:
+        return any(
+            value not in (None, "")
+            for value in (self.db_host, self.db_port, self.db_name, self.db_user, self.db_password)
+        )
+
+    @staticmethod
+    def _normalise_driver(url: str) -> str:
+        """Normalise Postgres URLs onto the psycopg (v3) driver SQLAlchemy expects."""
         if url.startswith("postgresql://"):
             return url.replace("postgresql://", "postgresql+psycopg://", 1)
         return url

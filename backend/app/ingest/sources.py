@@ -98,6 +98,11 @@ def build_external_doc(
     else:
         raise ValueError(f"external source {title!r} needs 'text' or 'wikipedia_title'")
 
+    if not author:
+        raise ValueError(f"external source {title!r} is missing author_publisher")
+    if not source_url:
+        raise ValueError(f"external source {title!r} is missing source_url")
+
     return IngestDoc(
         source_type=SourceType.external_historical,
         title=title,

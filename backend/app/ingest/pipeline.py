@@ -17,6 +17,7 @@ from opentelemetry import trace
 from sqlalchemy.orm import Session
 
 from app.ingest.chunk import chunk_external_doc, compose_vmm_chunk
+from app.ingest.classified import load_classified_index
 from app.ingest.embed import Embedder
 from app.ingest.normalize import normalize_vmm_row
 from app.ingest.privacy import DonorRedactor, apply_privacy
@@ -74,6 +75,7 @@ def ingest_vmm(
     csv_path: str | Path,
     embedder: Embedder,
     *,
+    classified_path: str | Path | None = None,
     extra_blocklist_path: str | None = None,
     stats: IngestStats | None = None,
 ) -> IngestStats:
@@ -83,6 +85,8 @@ def ingest_vmm(
         stats = stats or IngestStats()
         rows = read_vmm_rows(csv_path)
         span.set_attribute("ingest.rows_loaded", len(rows))
+        classified_by_id = load_classified_index(classified_path)
+        span.set_attribute("ingest.classified_rows_loaded", len(classified_by_id))
         redactor = DonorRedactor.from_donor_values(
             (r.get("Donated by", "") for r in rows), extra_blocklist_path
         )
@@ -96,7 +100,12 @@ def ingest_vmm(
                     row_span.set_attribute(
                         "ingest.object_identifier", row.get("Object identifier", "")
                     )
-                    doc = normalize_vmm_row(row, source_file=source_file)
+                    object_identifier = row.get("Object identifier", "")
+                    doc = normalize_vmm_row(
+                        row,
+                        source_file=source_file,
+                        classified_row=classified_by_id.get(object_identifier),
+                    )
                     stats.redactions += apply_privacy(doc, redactor)
                     compose_vmm_chunk(doc)
                     row_span.set_attribute("ingest.chunk_count", len(doc.chunks))

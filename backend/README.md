@@ -78,11 +78,16 @@ Turns source material into rows in `documents` + `chunks` (the six stages in
 # VMM catalogue CSV (the source CSV is local-only, never committed):
 python -m app.ingest --csv "../data/export_empress of japan.csv"
 
+# VMM catalogue with local classification enrichment (also local-only):
+python -m app.ingest --csv ../data/"export_empress of japan.csv" \
+                     --classified ../data/Empress_of_Japan_records_classified.xlsx
+
 # External historical sources from a manifest (e.g. Wikipedia):
 python -m app.ingest --external external_sources.json
 
 # Both, with the real embedder:
 python -m app.ingest --csv ../data/"export_empress of japan.csv" \
+                     --classified ../data/Empress_of_Japan_records_classified.xlsx \
                      --external external_sources.json --embedder bedrock
 ```
 
@@ -101,9 +106,10 @@ local blocklist file can be passed with `--blocklist`. Passenger-archival rows
 stay `voyage_date = NULL` and are excluded fail-closed by `retrievable_chunks`
 until the date-enrichment spike lands.
 
-**External sources** carry a required `license` + `author_publisher` (schema
-CHECK). `external_sources.json` is the committed manifest; each entry supplies
-either inline `text` or a `wikipedia_title` fetched at run time.
+**External sources** carry a required `license`, `author_publisher`, and
+`source_url`. `external_sources.json` is the committed manifest; each entry
+supplies either inline project-authored `text` or a `wikipedia_title` fetched at
+run time.
 
 Re-running is idempotent (unchanged rows skipped via `content_hash`; a model
 swap re-embeds). Each run logs counts/KPIs (rows in/out, redactions, per-ship

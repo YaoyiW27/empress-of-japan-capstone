@@ -1,7 +1,8 @@
 [
   {
-    "title": "Empress of Japan (II) / Empress of Scotland — Wikipedia",
-    "wikipedia_title": "Empress of Scotland (1930)",
+    "title": "RMS Empress of Japan (1929) — Wikipedia",
+    "wikipedia_title": "RMS Empress of Japan (1929)",
+    "source_url": "https://en.wikipedia.org/wiki/RMS_Empress_of_Japan_(1929)",
     "author_publisher": "Wikipedia contributors",
     "license": "CC BY-SA 4.0",
     "ship": "ship_ii",
@@ -10,6 +11,160 @@
     "metadata": {
       "origin": "wikipedia",
       "topic": "The ship launched as Empress of Japan (II), later Empress of Scotland, then Hanseatic"
+    }
+  },
+  {
+    "title": "RMS Empress of Japan (1930-1942) — project summary",
+    "text": "The second Canadian Pacific ship named RMS Empress of Japan was built by Fairfield Shipbuilding and Engineering Company at Govan for trans-Pacific service. Launched on 17 December 1929 and completed in June 1930, she served the Vancouver, Yokohama, Kobe, Shanghai, Hong Kong route during the 1930s. Her prewar identity is the project’s primary Empress of Japan (II) context for passenger lists, menus, plans, and shipboard interpretation.",
+    "source_url": "https://en.wikipedia.org/wiki/RMS_Empress_of_Japan_(1929)",
+    "author_publisher": "Empress of Japan Capstone team",
+    "license": "CC BY 4.0",
+    "ship": "ship_ii",
+    "era": "empress_of_japan",
+    "material_type": "historical_summary",
+    "in_scope": true,
+    "metadata": {
+      "origin": "project_summary",
+      "source_license_status": "facts summarized by project team from cited reference",
+      "topic": "Empress of Japan (II) prewar Pacific service"
+    }
+  },
+  {
+    "title": "RMS Empress of Scotland (1942-1957) — project summary",
+    "text": "In 1942 the same hull was renamed RMS Empress of Scotland. After wartime service, she was rebuilt between 1948 and 1950 for colder North Atlantic conditions, including a reworked passenger configuration. This identity explains why museum records for the Empress of Japan (II) also include Scotland-era material such as later menus and accommodation records tied to the same physical vessel.",
+    "source_url": "https://thegreatoceanliners.com/articles/empress-of-japan-ii/",
+    "author_publisher": "Empress of Japan Capstone team",
+    "license": "CC BY 4.0",
+    "ship": "ship_ii",
+    "era": "empress_of_scotland",
+    "material_type": "historical_summary",
+    "in_scope": true,
+    "metadata": {
+      "origin": "project_summary",
+      "source_license_status": "facts summarized by project team from cited reference",
+      "topic": "Empress of Scotland postwar refit and service"
+    }
+  },
+  {
+    "title": "TS Hanseatic (1958-1966) — project summary",
+    "text": "After Canadian Pacific sold the vessel in 1958, Hamburg-Atlantic Line rebuilt and renamed her TS Hanseatic. The ship served as a German liner and cruise ship until a 1966 engine-room fire in New York caused severe damage. She was towed to Hamburg, judged beyond economic repair, and sold for breaking up, closing the life of the hull launched as Empress of Japan.",
+    "source_url": "https://thegreatoceanliners.com/articles/empress-of-japan-ii/",
+    "author_publisher": "Empress of Japan Capstone team",
+    "license": "CC BY 4.0",
+    "ship": "ship_ii",
+    "era": "hanseatic",
+    "material_type": "historical_summary",
+    "in_scope": true,
+    "metadata": {
+      "origin": "project_summary",
+      "source_license_status": "facts summarized by project team from cited reference",
+      "topic": "Hanseatic rebuild, fire, and scrapping"
+    }
+  },
+  {
+    "title": "Empress of Japan 1934 baseball voyage — project summary",
+    "text": "One notable prewar voyage connected the Empress of Japan with the 1934 American baseball tour of Japan. Baseball players including Babe Ruth crossed the Pacific aboard the ship, with stops including Honolulu and Yokohama. This contextual source is useful for interpreting celebrity travel, passenger culture, and the ship’s place in trans-Pacific public imagination during the 1930s.",
+    "source_url": "https://wantedonthevoyage.blogspot.com/2022/03/pacific-empress-rms-empress-of-japan.html",
+    "author_publisher": "Empress of Japan Capstone team",
+    "license": "CC BY 4.0",
+    "ship": "ship_ii",
+    "era": "empress_of_japan",
+    "material_type": "historical_summary",
+    "in_scope": true,
+    "metadata": {
+      "origin": "project_summary",
+      "source_license_status": "facts summarized by project team from cited reference; source page not bulk-ingested",
+      "topic": "1934 baseball all-star voyage context"
+    }
+  },
+  {
+    "title": "CP Ships / Canadian Pacific shipping context — Wikipedia",
+    "wikipedia_title": "CP Ships",
+    "source_url": "https://en.wikipedia.org/wiki/CP_Ships",
+    "author_publisher": "Wikipedia contributors",
+    "license": "CC BY-SA 4.0",
+    "ship": "ship_ii",
+    "era": "na",
+    "material_type": "company_context",
+    "in_scope": true,
+    "metadata": {
+      "origin": "wikipedia",
+      "topic": "Canadian Pacific steamship system, trans-Pacific routes, and company context for Empress liners"
+    }
+  },
+  {
+    "title": "1934 Japan Tour / Babe Ruth voyage context — Wikipedia",
+    "wikipedia_title": "1934 Japan Tour",
+    "source_url": "https://en.wikipedia.org/wiki/1934_Japan_Tour",
+    "author_publisher": "Wikipedia contributors",
+    "license": "CC BY-SA 4.0",
+    "ship": "ship_ii",
+    "era": "empress_of_japan",
+    "material_type": "cultural_context",
+    "in_scope": true,
+    "metadata": {
+      "origin": "wikipedia",
+      "topic": "American baseball all-star tour connected to Babe Ruth's October 1934 crossing on Empress of Japan"
+    }
+  },
+  {
+    "title": "SS America / USS West Point Singapore convoy context — Wikipedia",
+    "wikipedia_title": "SS America (1939)",
+    "source_url": "https://en.wikipedia.org/wiki/SS_America_(1939)",
+    "author_publisher": "Wikipedia contributors",
+    "license": "CC BY-SA 4.0",
+    "ship": "ship_ii",
+    "era": "empress_of_japan",
+    "material_type": "wartime_context",
+    "in_scope": true,
+    "metadata": {
+      "origin": "wikipedia",
+      "topic": "Convoy BM 11 and Singapore evacuation context involving Empress of Japan"
+    }
+  },
+  {
+    "title": "SS Manhattan / USS Wakefield Convoy BM 11 context — Wikipedia",
+    "wikipedia_title": "SS Manhattan (1931)",
+    "source_url": "https://en.wikipedia.org/wiki/SS_Manhattan_(1931)",
+    "author_publisher": "Wikipedia contributors",
+    "license": "CC BY-SA 4.0",
+    "ship": "ship_ii",
+    "era": "empress_of_japan",
+    "material_type": "wartime_context",
+    "in_scope": true,
+    "metadata": {
+      "origin": "wikipedia",
+      "topic": "Wakefield and Empress of Japan in Convoy BM 11 / Keppel Harbour context"
+    }
+  },
+  {
+    "title": "RMS Empress of France / Duchess of Bedford convoy context — Wikipedia",
+    "wikipedia_title": "RMS Empress of France (1928)",
+    "source_url": "https://en.wikipedia.org/wiki/RMS_Empress_of_France_(1928)",
+    "author_publisher": "Wikipedia contributors",
+    "license": "CC BY-SA 4.0",
+    "ship": "ship_ii",
+    "era": "empress_of_japan",
+    "material_type": "wartime_context",
+    "in_scope": true,
+    "metadata": {
+      "origin": "wikipedia",
+      "topic": "Duchess of Bedford and Empress of Japan as sister convoy troopships during Singapore evacuation"
+    }
+  },
+  {
+    "title": "Hamburg Atlantic Line / Hanseatic owner context — Wikipedia",
+    "wikipedia_title": "Hamburg Atlantic Line",
+    "source_url": "https://en.wikipedia.org/wiki/Hamburg_Atlantic_Line",
+    "author_publisher": "Wikipedia contributors",
+    "license": "CC BY-SA 4.0",
+    "ship": "ship_ii",
+    "era": "hanseatic",
+    "material_type": "company_context",
+    "in_scope": true,
+    "metadata": {
+      "origin": "wikipedia",
+      "topic": "Hamburg Atlantic Line purchase, rebuilding, service, and loss of the first TS Hanseatic"
     }
   }
 ]

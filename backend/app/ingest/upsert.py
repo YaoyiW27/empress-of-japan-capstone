@@ -60,6 +60,7 @@ def _find_existing(session: Session, doc: IngestDoc) -> Document | None:
         elif doc.source_url:
             stmt = select(Document).where(
                 Document.source_url == doc.source_url,
+                Document.title == doc.title,
                 Document.source_type == SourceType.external_historical,
             )
         else:

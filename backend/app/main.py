@@ -7,8 +7,9 @@ import asyncio
 import hmac
 import json
 from collections.abc import AsyncIterator
+from typing import Annotated
 
-from fastapi import FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect, status
+from fastapi import Depends, FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from langgraph.checkpoint.memory import MemorySaver
@@ -16,13 +17,23 @@ from opentelemetry import trace
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 
 from app.agents.graph import build_graph
 from app.agents.llm import make_chat_model
 from app.agents.personas import load_personas, scene_to_personas
 from app.config import Settings, get_settings
-from app.db import engine
+from app.db import engine, get_db
+from app.ingest.embed import make_embedder
 from app.jobs import IngestJob, SqsJobQueue
+from app.models import Ship
+from app.retrieval import (
+    DEFAULT_TOP_K,
+    MAX_TOP_K,
+    RetrievalResponse,
+    RetrievalService,
+    Retriever,
+)
 from app.telemetry import configure_telemetry
 from app.voice import (
     NARRATOR_VOICES,
@@ -54,6 +65,13 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     persona_id: str
     response: str
+
+
+class RetrieveRequest(BaseModel):
+    query: str
+    top_k: int = DEFAULT_TOP_K
+    ship: Ship | None = None
+    material_type: str | None = None
 
 
 class EnqueueJobResponse(BaseModel):
@@ -150,6 +168,7 @@ def create_app(
     *,
     voice_synthesizer: VoiceSynthesizer | None = None,
     transcriber: Transcriber | None = None,
+    retriever: Retriever | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     app = FastAPI(title=settings.app_name)
@@ -184,6 +203,13 @@ def create_app(
     )
     synth = voice_synthesizer or _build_voice_synthesizer(settings)
     speech_transcriber = transcriber or _build_transcriber(settings)
+    retrieval_service = retriever or RetrievalService(
+        make_embedder(
+            settings.embedder,
+            model_id=settings.bedrock_embedding_model,
+            region=settings.aws_region,
+        )
+    )
 
     @app.get("/health")
     def health() -> dict[str, str]:
@@ -211,6 +237,26 @@ def create_app(
                 },
             )
         return JSONResponse(content={"status": "ok", "database": "reachable"})
+
+    @app.post("/retrieve", response_model=RetrievalResponse)
+    def retrieve(
+        req: RetrieveRequest, db: Annotated[Session, Depends(get_db)]
+    ) -> RetrievalResponse:
+        """Embed a query and return grounded chunks from the retrieval view."""
+
+        query = req.query.strip()
+        if not query:
+            raise HTTPException(status_code=400, detail="query must not be blank")
+        if req.top_k < 1 or req.top_k > MAX_TOP_K:
+            raise HTTPException(status_code=400, detail=f"top_k must be between 1 and {MAX_TOP_K}")
+        material_type = req.material_type.strip() if req.material_type else None
+        return retrieval_service.retrieve(
+            db,
+            query,
+            top_k=req.top_k,
+            ship=req.ship.value if req.ship else None,
+            material_type=material_type,
+        )
 
     @app.post("/chat", response_model=ChatResponse)
     def chat(req: ChatRequest) -> ChatResponse:
