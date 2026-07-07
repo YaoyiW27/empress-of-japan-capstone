@@ -76,6 +76,11 @@ output "sqs_jobs_consume_policy_arn" {
   value       = aws_iam_policy.sqs_jobs_consume.arn
 }
 
+output "ingest_admin_secret_arn" {
+  description = "Secrets Manager ARN containing the admin token for enqueueing ingest jobs."
+  value       = aws_secretsmanager_secret.ingest_admin.arn
+}
+
 output "bedrock_titan_embed_policy_arn" {
   description = "ARN of the bedrock:InvokeModel policy for Titan Embed V2. Attach to the Fargate task role in #42."
   value       = aws_iam_policy.bedrock_titan_embed_invoke.arn
@@ -101,6 +106,11 @@ output "backend_alb_dns_name" {
   value       = aws_lb.backend.dns_name
 }
 
+output "backend_public_api_base_url" {
+  description = "CloudFront HTTPS base URL for browser and WebSocket clients."
+  value       = "https://${aws_cloudfront_distribution.backend_api.domain_name}"
+}
+
 output "backend_target_group_arn" {
   description = "Target group ARN used by the backend ECS service."
   value       = aws_lb_target_group.backend.arn
@@ -111,6 +121,11 @@ output "ecs_cluster_arn" {
   value       = aws_ecs_cluster.app.arn
 }
 
+output "worker_ecs_service_name" {
+  description = "ECS service running the async ingest worker."
+  value       = aws_ecs_service.worker.name
+}
+
 output "backend_execution_role_arn" {
   description = "ECS task execution role ARN for ECR, CloudWatch Logs, and secret injection."
   value       = aws_iam_role.backend_execution.arn
@@ -119,6 +134,11 @@ output "backend_execution_role_arn" {
 output "backend_task_role_arn" {
   description = "Application task role ARN for Bedrock and SQS access."
   value       = aws_iam_role.backend_task.arn
+}
+
+output "worker_task_role_arn" {
+  description = "Worker task role ARN for Titan embeddings and SQS consumption."
+  value       = aws_iam_role.worker_task.arn
 }
 
 output "backend_log_group_name" {

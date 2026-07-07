@@ -25,6 +25,9 @@ env:
   ECS_SERVICE: empress-backend
   CONTAINER_NAME: backend
   ECS_MIN_CAPACITY_PARAMETER: /empress/ecs/backend_autoscaling_min_capacity
+  WORKER_SERVICE: empress-worker
+  WORKER_CONTAINER_NAME: worker
+  WORKER_DESIRED_COUNT_PARAMETER: /empress/ecs/worker_desired_count
 
 jobs:
   deploy:
@@ -48,6 +51,11 @@ jobs:
               --services "$ECS_SERVICE" \
               --query 'services[0].serviceName' \
               --output text 2>/dev/null || true)
+            WORKER_SERVICE_NAME=$(aws ecs describe-services \
+              --cluster "$ECS_CLUSTER" \
+              --services "$WORKER_SERVICE" \
+              --query 'services[0].serviceName' \
+              --output text 2>/dev/null || true)
             SCALING_TARGET_COUNT=$(aws application-autoscaling describe-scalable-targets \
               --service-namespace ecs \
               --resource-ids "service/$ECS_CLUSTER/$ECS_SERVICE" \
@@ -59,9 +67,12 @@ jobs:
               --repository-names "$ECR_REPOSITORY" >/dev/null 2>&1 &&
               aws ssm get-parameter \
                 --name "$ECS_MIN_CAPACITY_PARAMETER" >/dev/null 2>&1 &&
+              aws ssm get-parameter \
+                --name "$WORKER_DESIRED_COUNT_PARAMETER" >/dev/null 2>&1 &&
               [ "$SERVICE_NAME" = "$ECS_SERVICE" ] &&
+              [ "$WORKER_SERVICE_NAME" = "$WORKER_SERVICE" ] &&
               [ "$SCALING_TARGET_COUNT" = "1" ]; then
-              echo "ECR, ECS, and autoscaling infrastructure are ready."
+              echo "ECR, API, worker, and autoscaling infrastructure are ready."
               exit 0
             fi
 
@@ -143,10 +154,36 @@ jobs:
           cluster: ${{ env.ECS_CLUSTER }}
           wait-for-service-stability: false
 
-      - name: Scale service to steady-state floor
+      - name: Download latest worker task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition "$WORKER_SERVICE" \
+            --query taskDefinition > worker-task-definition.json
+
+      - name: Render worker task definition with new image
+        id: render-worker
+        uses: aws-actions/amazon-ecs-render-task-definition@v1.8.5
+        with:
+          task-definition: worker-task-definition.json
+          container-name: ${{ env.WORKER_CONTAINER_NAME }}
+          image: "${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}"
+
+      - name: Deploy worker task definition
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2.6.2
+        with:
+          task-definition: ${{ steps.render-worker.outputs.task-definition }}
+          service: ${{ env.WORKER_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: false
+
+      - name: Scale services to steady-state counts
         run: |
           MIN_CAPACITY=$(aws ssm get-parameter \
             --name "$ECS_MIN_CAPACITY_PARAMETER" \
+            --query 'Parameter.Value' \
+            --output text)
+          WORKER_DESIRED_COUNT=$(aws ssm get-parameter \
+            --name "$WORKER_DESIRED_COUNT_PARAMETER" \
             --query 'Parameter.Value' \
             --output text)
 
@@ -154,9 +191,13 @@ jobs:
             --cluster "$ECS_CLUSTER" \
             --service "$ECS_SERVICE" \
             --desired-count "$MIN_CAPACITY" >/dev/null
+          aws ecs update-service \
+            --cluster "$ECS_CLUSTER" \
+            --service "$WORKER_SERVICE" \
+            --desired-count "$WORKER_DESIRED_COUNT" >/dev/null
           aws ecs wait services-stable \
             --cluster "$ECS_CLUSTER" \
-            --services "$ECS_SERVICE"
+            --services "$ECS_SERVICE" "$WORKER_SERVICE"
 
       - name: Activate autoscaling floor
         run: |
@@ -185,12 +226,12 @@ jobs:
 
       - name: Verify public health endpoint
         run: |
-          ALB_DNS=$(aws elbv2 describe-load-balancers \
-            --names empress-backend \
-            --query 'LoadBalancers[0].DNSName' \
+          PUBLIC_API_BASE_URL=$(aws ssm get-parameter \
+            --name /empress/backend/public_api_base_url \
+            --query 'Parameter.Value' \
             --output text)
           curl --fail --show-error \
             --retry 10 \
             --retry-delay 6 \
             --retry-all-errors \
-            "http://$ALB_DNS/health"
+            "$PUBLIC_API_BASE_URL/health"

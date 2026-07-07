@@ -177,24 +177,25 @@ profile and `us-west-2` region configured above.
 
 ### Find the backend URL
 
-Terraform exposes the current ALB hostname without revealing credentials:
+Terraform exposes the CloudFront HTTPS/WSS endpoint without revealing
+credentials:
 
 ```bash
 cd infra/terraform
-AWS_PROFILE=empress terraform output -raw backend_alb_dns_name
+AWS_PROFILE=empress terraform output -raw backend_public_api_base_url
 ```
 
-The sandbox ALB currently serves HTTP, so its health URL is
-`http://<backend_alb_dns_name>/health`. Verify it directly:
+Verify the browser-facing endpoint directly:
 
 ```bash
-curl --fail --show-error "http://$(AWS_PROFILE=empress terraform output -raw backend_alb_dns_name)/health"
+curl --fail --show-error "$(AWS_PROFILE=empress terraform output -raw backend_public_api_base_url)/health"
 ```
 
-A healthy response is `{"status":"ok"}`. The two Vercel frontends use HTTPS,
-so browser integration also requires an HTTPS backend hostname and matching
-`CORS_ORIGINS`; do not point an HTTPS page at this HTTP hostname because the
-browser will block mixed content.
+A healthy response is `{"status":"ok"}`. CloudFront supplies its default
+`cloudfront.net` certificate because the team has no separate custom-domain
+budget. The ALB remains an HTTP origin but accepts inbound traffic only from the
+AWS-managed CloudFront origin prefix list. The ECS task definition allows only
+the two approved Vercel origins through `CORS_ORIGINS`.
 
 ### Deploy and check ECS health
 
@@ -250,6 +251,104 @@ and shows no exporter authentication errors. For request-level diagnosis, open
 Honeycomb environment `test`, dataset `empress-backend`, and filter on
 `service.name = empress-backend`. CloudWatch remains the source for ECS runtime
 logs and AWS metrics; Honeycomb connects spans for one request.
+
+CloudWatch alarms notify the existing `empress-budget-alerts` SNS subscribers
+for sustained backend latency, target 5xx responses, unhealthy targets, jobs
+queue backlog, and any visible DLQ message. Each teammate must have confirmed
+the SNS email subscription to receive both alarm and recovery notifications.
+
+### Validate the async ingest worker
+
+The deploy workflow updates both `empress-backend` and `empress-worker` from the
+same immutable image. The worker has no public listener; healthy steady state is
+one running task and no pending task:
+
+```bash
+AWS_PROFILE=empress aws ecs describe-services \
+  --region us-west-2 \
+  --cluster empress-app \
+  --services empress-worker \
+  --query 'services[0].{status:status,desired:desiredCount,running:runningCount,pending:pendingCount,taskDefinition:taskDefinition,events:events[0:5].[createdAt,message]}'
+```
+
+Follow worker and collector startup before enqueueing a job:
+
+```bash
+AWS_PROFILE=empress aws logs tail /ecs/empress-worker \
+  --region us-west-2 --since 30m --follow
+```
+
+The ingest endpoint is an operator-only API. Retrieve its generated token into
+the current shell without printing it, enqueue only the repository-controlled
+external source, and then unset it:
+
+```bash
+ADMIN_TOKEN=$(AWS_PROFILE=empress aws secretsmanager get-secret-value \
+  --region us-west-2 \
+  --secret-id /empress/backend/ingest_admin_token \
+  --query SecretString --output text | jq -r '.token')
+PUBLIC_API_BASE_URL=$(AWS_PROFILE=empress aws ssm get-parameter \
+  --region us-west-2 \
+  --name /empress/backend/public_api_base_url \
+  --query 'Parameter.Value' --output text)
+
+curl --fail --show-error \
+  -X POST "$PUBLIC_API_BASE_URL/ingest/jobs" \
+  -H "Content-Type: application/json" \
+  -H "X-Admin-Token: $ADMIN_TOKEN" \
+  -d '{"include_external":true}'
+
+unset ADMIN_TOKEN
+```
+
+The API should return HTTP `202` with a `job_id`. A successful end-to-end run
+then has all of these signals:
+
+1. `/ecs/empress-worker` logs `processing job_id=...` followed by
+   `completed job_id=...`.
+2. The jobs queue returns to zero visible and zero in-flight messages:
+
+   ```bash
+   JOBS_QUEUE_URL=$(AWS_PROFILE=empress aws ssm get-parameter \
+     --region us-west-2 \
+     --name /empress/sqs/jobs_queue_url \
+     --query 'Parameter.Value' --output text)
+   AWS_PROFILE=empress aws sqs get-queue-attributes \
+     --region us-west-2 \
+     --queue-url "$JOBS_QUEUE_URL" \
+     --attribute-names ApproximateNumberOfMessages ApproximateNumberOfMessagesNotVisible
+   ```
+
+3. The DLQ remains at zero visible messages.
+4. Honeycomb environment `test` shows `service.name = empress-worker` with
+   `jobs.worker.receive`, `jobs.worker.process`, and `jobs.worker.delete` spans.
+   The process span should have `job.status = completed`, and its trace should
+   continue the context injected by the API producer.
+
+Do not put the ingest admin token in either Vercel project or a committed file.
+It is for an operator smoke test, not a browser feature.
+
+### Validate target-tracking autoscaling
+
+The service targets 60% average CPU, scales between 2 and 6 tasks, waits two
+minutes before another scale-out, and waits five minutes before scale-in. Use a
+non-sensitive endpoint and stop the test if error rate or cost looks abnormal:
+
+```bash
+PUBLIC_API_BASE_URL=$(AWS_PROFILE=empress terraform output -raw backend_public_api_base_url)
+
+# In terminal 1, watch desired/running task count and deployment events.
+watch -n 15 "AWS_PROFILE=empress aws ecs describe-services \
+  --region us-west-2 --cluster empress-app --services empress-backend \
+  --query 'services[0].{desired:desiredCount,running:runningCount,pending:pendingCount}'"
+
+# In terminal 2, if `hey` is installed, apply bounded load for at most 8 minutes.
+hey -z 8m -c 100 "$PUBLIC_API_BASE_URL/health"
+```
+
+Capture the ECS desired-count change, the target-tracking alarm/activity, and
+the later return to the two-task floor. Do not run a load test immediately
+before a class or stakeholder demo.
 
 ### Confirm runtime IAM access
 
@@ -355,6 +454,46 @@ In AWS, open Billing and Cost Management → Budgets →
 Service. Confirm that each teammate accepted the
 `empress-budget-alerts` SNS subscription. The full thresholds and known sandbox
 limitations are documented in [Cost tracking](#cost-tracking--1000month-budget-issue-20).
+
+---
+
+## Deployment environment decision (issue #63)
+
+**Decision, July 2026: keep one AWS `sandbox` backend through the capstone
+showcase.** Do not duplicate ECS, ALB/CloudFront, RDS, Secrets Manager, queues,
+or observability into `dev` and `demo` yet. The team has one $1,000 AWS sandbox
+allocation and no separate domain/hosting budget; a second always-on stack adds
+cost and operational surface before usage demonstrates a need.
+
+The two Vercel URLs are clients of this one backend, not separate AWS
+environments:
+
+- `empress-of-japan-capstone.vercel.app` is the production/demo frontend.
+- `empress-gyro-test.vercel.app` is a temporary mobile/gyro integration client;
+  merge the responsive behavior into the primary project rather than creating a
+  second backend.
+
+Stability comes from workflow, not duplicated infrastructure:
+
+- feature branches use local tests and Vercel previews;
+- only merged `main` backend changes run `deploy-backend`;
+- stop risky merges before scheduled stakeholder demos;
+- use immutable ECR tags and the rollback procedure above;
+- use CloudWatch alarms and Honeycomb traces to verify each deployment.
+
+Revisit a `dev`/`demo` split only when at least one trigger is true:
+
+1. routine development repeatedly disrupts scheduled museum/class demos;
+2. integration tests require destructive or incompatible database data;
+3. simultaneous releases need independent rollback windows;
+4. the stakeholder provides a stable domain/hosting requirement and the budget
+   can support duplicated compute, data, and observability.
+
+If a split becomes necessary, parameterize an `app_env` module and isolate ECS
+services, SSM/Secrets paths, logs, and queues by environment. Prefer separate
+Postgres schemas/databases on the existing RDS instance first; provision a
+second RDS instance only when data isolation or measured load justifies its
+cost. Keep shared Terraform modules rather than copying resource blocks.
 
 ---
 

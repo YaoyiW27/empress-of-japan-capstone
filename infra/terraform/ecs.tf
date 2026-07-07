@@ -62,6 +62,40 @@ resource "aws_iam_role_policy" "backend_execution_honeycomb_secret_read" {
   })
 }
 
+resource "random_password" "ingest_admin" {
+  length  = 48
+  special = false
+}
+
+resource "aws_secretsmanager_secret" "ingest_admin" {
+  name        = "/empress/backend/ingest_admin_token"
+  description = "Admin token for enqueueing server-controlled ingest jobs."
+}
+
+resource "aws_secretsmanager_secret_version" "ingest_admin" {
+  secret_id = aws_secretsmanager_secret.ingest_admin.id
+  secret_string = jsonencode({
+    token = random_password.ingest_admin.result
+  })
+}
+
+resource "aws_iam_role_policy" "backend_execution_ingest_admin_secret_read" {
+  name = "empress-backend-ingest-admin-secret-read"
+  role = aws_iam_role.backend_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "ReadIngestAdminToken"
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = aws_secretsmanager_secret.ingest_admin.arn
+      }
+    ]
+  })
+}
+
 # Credentials exposed to the FastAPI process itself. Keep application actions
 # here and execution-time infrastructure actions on backend_execution above.
 resource "aws_iam_role" "backend_task" {
@@ -84,12 +118,38 @@ resource "aws_iam_role_policy_attachment" "backend_task_sqs_send" {
   policy_arn = aws_iam_policy.sqs_jobs_send.arn
 }
 
+# The worker has a separate task role so the API cannot consume jobs and the
+# worker cannot publish them. It only needs SQS consumption and Titan embeds.
+resource "aws_iam_role" "worker_task" {
+  name               = "empress-worker-task"
+  assume_role_policy = data.aws_iam_policy_document.ecs_tasks_assume.json
+}
+
+resource "aws_iam_role_policy_attachment" "worker_task_sqs_consume" {
+  role       = aws_iam_role.worker_task.name
+  policy_arn = aws_iam_policy.sqs_jobs_consume.arn
+}
+
+resource "aws_iam_role_policy_attachment" "worker_task_titan" {
+  role       = aws_iam_role.worker_task.name
+  policy_arn = aws_iam_policy.bedrock_titan_embed_invoke.arn
+}
+
 resource "aws_cloudwatch_log_group" "backend" {
   name              = "/ecs/empress-backend"
   retention_in_days = var.backend_log_retention_days
 
   tags = {
     Name = "empress-backend"
+  }
+}
+
+resource "aws_cloudwatch_log_group" "worker" {
+  name              = "/ecs/empress-worker"
+  retention_in_days = var.backend_log_retention_days
+
+  tags = {
+    Name = "empress-worker"
   }
 }
 
@@ -190,6 +250,9 @@ resource "aws_ecs_task_definition" "backend" {
         { name = "BEDROCK_EMBEDDING_MODEL", value = var.bedrock_embedding_model_id },
         { name = "ENABLE_SESSION_MEMORY", value = "false" },
         { name = "PERSONA_DIR", value = "/app/data/ai/personas" },
+        { name = "CORS_ORIGINS", value = jsonencode(var.backend_cors_origins) },
+        { name = "JOBS_QUEUE_URL", value = aws_sqs_queue.jobs.url },
+        { name = "INGEST_JOB_EXTERNAL_PATH", value = "external_sources.json" },
         { name = "VOICE_CACHE_BUCKET", value = aws_s3_bucket.voice_cache.bucket },
         { name = "VOICE_CACHE_PREFIX", value = var.voice_cache_prefix },
         { name = "POLLY_ENGINE", value = var.voice_polly_engine },
@@ -222,6 +285,10 @@ resource "aws_ecs_task_definition" "backend" {
         {
           name      = "DB_PASSWORD"
           valueFrom = "${aws_db_instance.knowledge_base.master_user_secret[0].secret_arn}:password::"
+        },
+        {
+          name      = "INGEST_ADMIN_TOKEN"
+          valueFrom = "${aws_secretsmanager_secret.ingest_admin.arn}:token::"
         },
       ]
 
@@ -300,6 +367,7 @@ resource "aws_ecs_task_definition" "backend" {
     aws_iam_role_policy_attachment.backend_execution_managed,
     aws_iam_role_policy_attachment.backend_execution_rds_secrets,
     aws_iam_role_policy.backend_execution_honeycomb_secret_read,
+    aws_iam_role_policy.backend_execution_ingest_admin_secret_read,
   ]
 }
 
@@ -344,6 +412,152 @@ resource "aws_ecs_service" "backend" {
   tags = {
     Name = "empress-backend"
   }
+}
+
+# The async ingest worker uses the backend image but runs the SQS consumer
+# entrypoint. It has no listener or public port and talks only to AWS APIs/RDS.
+resource "aws_ecs_task_definition" "worker" {
+  family                   = "empress-worker"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = tostring(var.worker_task_cpu)
+  memory                   = tostring(var.worker_task_memory)
+  execution_role_arn       = aws_iam_role.backend_execution.arn
+  task_role_arn            = aws_iam_role.worker_task.arn
+
+  container_definitions = jsonencode([
+    {
+      name      = "worker"
+      image     = "${aws_ecr_repository.backend.repository_url}:${var.backend_bootstrap_image_tag}"
+      essential = true
+      command   = ["python", "-m", "app.jobs.worker"]
+
+      environment = [
+        { name = "APP_ENV", value = "sandbox" },
+        { name = "LOG_LEVEL", value = "info" },
+        { name = "AWS_REGION", value = var.region },
+        { name = "EMBEDDER", value = "bedrock" },
+        { name = "BEDROCK_EMBEDDING_MODEL", value = var.bedrock_embedding_model_id },
+        { name = "JOBS_QUEUE_URL", value = aws_sqs_queue.jobs.url },
+        { name = "INGEST_JOB_EXTERNAL_PATH", value = "external_sources.json" },
+        { name = "OTEL_ENABLED", value = tostring(var.backend_otel_enabled) },
+        { name = "OTEL_SERVICE_NAME", value = "empress-worker" },
+        { name = "OTEL_EXPORTER_OTLP_ENDPOINT", value = var.backend_otel_exporter_otlp_endpoint },
+        { name = "HONEYCOMB_DATASET", value = var.backend_honeycomb_dataset },
+      ]
+
+      secrets = [
+        {
+          name      = "DB_HOST"
+          valueFrom = "${aws_secretsmanager_secret.knowledge_base_connection.arn}:host::"
+        },
+        {
+          name      = "DB_PORT"
+          valueFrom = "${aws_secretsmanager_secret.knowledge_base_connection.arn}:port::"
+        },
+        {
+          name      = "DB_NAME"
+          valueFrom = "${aws_secretsmanager_secret.knowledge_base_connection.arn}:dbname::"
+        },
+        {
+          name      = "DB_USER"
+          valueFrom = "${aws_db_instance.knowledge_base.master_user_secret[0].secret_arn}:username::"
+        },
+        {
+          name      = "DB_PASSWORD"
+          valueFrom = "${aws_db_instance.knowledge_base.master_user_secret[0].secret_arn}:password::"
+        },
+      ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.worker.name
+          awslogs-region        = var.region
+          awslogs-stream-prefix = "worker"
+        }
+      }
+    },
+    {
+      name      = "otel-collector"
+      image     = var.otel_collector_image
+      essential = var.backend_otel_enabled
+      command   = ["--config=env:OTEL_COLLECTOR_CONFIG"]
+
+      environment = [
+        { name = "OTEL_COLLECTOR_CONFIG", value = local.otel_collector_config },
+      ]
+
+      secrets = var.honeycomb_api_key_secret_arn == null ? [] : [
+        {
+          name      = "HONEYCOMB_API_KEY"
+          valueFrom = "${var.honeycomb_api_key_secret_arn}:api_key::"
+        }
+      ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.worker.name
+          awslogs-region        = var.region
+          awslogs-stream-prefix = "otel"
+        }
+      }
+    }
+  ])
+
+  runtime_platform {
+    operating_system_family = "LINUX"
+    cpu_architecture        = "X86_64"
+  }
+
+  tags = {
+    Name = "empress-worker"
+  }
+
+  depends_on = [
+    aws_iam_role_policy_attachment.backend_execution_managed,
+    aws_iam_role_policy_attachment.backend_execution_rds_secrets,
+    aws_iam_role_policy.backend_execution_honeycomb_secret_read,
+    aws_iam_role_policy_attachment.worker_task_sqs_consume,
+    aws_iam_role_policy_attachment.worker_task_titan,
+  ]
+}
+
+resource "aws_ecs_service" "worker" {
+  name            = "empress-worker"
+  cluster         = aws_ecs_cluster.app.id
+  task_definition = aws_ecs_task_definition.worker.arn
+  desired_count   = 0
+  launch_type     = "FARGATE"
+
+  platform_version = "LATEST"
+
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
+
+  network_configuration {
+    subnets          = aws_subnet.public[*].id
+    security_groups  = [aws_security_group.backend.id]
+    assign_public_ip = true
+  }
+
+  lifecycle {
+    ignore_changes = [task_definition, desired_count]
+  }
+
+  tags = {
+    Name = "empress-worker"
+  }
+}
+
+resource "aws_ssm_parameter" "worker_desired_count" {
+  name        = "/empress/ecs/worker_desired_count"
+  type        = "String"
+  value       = tostring(var.worker_desired_count)
+  description = "Worker task count activated after the application image is deployed."
 }
 
 # Register with a zero bootstrap floor so the first Terraform apply cannot
