@@ -48,6 +48,25 @@ data "aws_iam_policy_document" "budget_sns" {
       values   = [data.aws_caller_identity.current.account_id]
     }
   }
+
+  # Cost Anomaly Detection reuses this topic (issue #60, cost_anomaly.tf).
+  statement {
+    sid       = "AllowCostAnomalyPublish"
+    effect    = "Allow"
+    actions   = ["SNS:Publish"]
+    resources = [aws_sns_topic.budget_alerts.arn]
+
+    principals {
+      type        = "Service"
+      identifiers = ["costalerts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "AWS:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+  }
 }
 
 resource "aws_sns_topic_policy" "budget_alerts" {

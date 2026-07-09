@@ -146,6 +146,54 @@ All knobs are variables (`variables.tf`) with defaults; edit and open a PR —
 Thresholds are percentages of `monthly_budget_limit`, so raising the limit
 rescales the dollar trigger points automatically.
 
+### Catch unexpected spend spikes (issue #60)
+
+The budget above watches *total* spend against fixed thresholds. **Cost Anomaly
+Detection** (`cost_anomaly.tf`) catches the more useful signal — a single
+service spiking above its learned baseline — and alerts the same
+`empress-budget-alerts` SNS topic. It is a free service.
+
+| Piece | Resource | What it does |
+|---|---|---|
+| Monitor | `aws_ce_anomaly_monitor.services` | Learns a per-`SERVICE` spend baseline |
+| Subscription | `aws_ce_anomaly_subscription.spend` | Alerts when an anomaly's total impact ≥ `cost_anomaly_alert_threshold_usd` (default `$15`) |
+
+> ℹ️ Anomaly detection needs ~10 days of history to build baselines, so it stays
+> quiet on a fresh account — expected, not a misconfiguration. Tune sensitivity
+> with `cost_anomaly_alert_threshold_usd` in `variables.tf`. Console view:
+> Cost Management → **Cost Anomaly Detection**.
+
+### Inspect AI / runtime cost
+
+Cost Explorer (Cost Management → **Cost Explorer**, *Granularity = Daily*,
+*Group by = Service*) is the fastest way to see where money goes. The drivers to
+watch for this stack:
+
+| Driver | Shows up as | Notes |
+|---|---|---|
+| Bedrock (chat + embeddings) | *Amazon Bedrock* | Usage-based; scales with conversation volume + ingest re-embeds. The main AI cost. |
+| Fargate (API + worker) | *Amazon Elastic Container Service* | Runs continuously; driven by desired counts + task size |
+| RDS | *Amazon Relational Database Service* | Billed whenever the instance is running — **keep it stopped when unused** |
+| ALB / CloudFront | *EC2-Other* / *Amazon CloudFront* | Mostly fixed |
+| CloudWatch Logs | *AmazonCloudWatch* | Grows with log retention/volume |
+| SQS | *Amazon Simple Queue Service* | Negligible at demo scale |
+| Voice | *Amazon Polly*, *Amazon Transcribe*, *S3* | Per-request; Polly cache limits repeat synthesis |
+
+Per-conversation cost assumptions (visitor session volume, tokens per turn) come
+from the operating-cost brief in `docs/visitor-ai-operating-cost-brief.pdf`
+(issue #55) — use those numbers rather than inventing new ones here.
+
+### Before a demo or stakeholder pilot — cost checklist
+
+- [ ] Budget status is green: Billing → **Budgets** → `empress-monthly-cost`.
+- [ ] No open anomaly in **Cost Anomaly Detection**, and everyone confirmed the
+  `empress-budget-alerts` SNS subscription.
+- [ ] **RDS is started only if the demo needs RAG/ingest** — and stopped again
+  afterward (`aws rds stop-db-instance --db-instance-identifier empress-knowledge-base`).
+- [ ] Fargate desired counts / autoscaling floor are at steady-state, not left
+  scaled up from load testing.
+- [ ] CloudWatch log retention hasn't been bumped to something expensive.
+
 ---
 
 ## Bedrock model access

@@ -370,3 +370,11 @@ variable "forecasted_thresholds" {
   type        = list(number)
   default     = [50, 80]
 }
+
+# --- Cost anomaly detection (issue #60, see cost_anomaly.tf) ---
+
+variable "cost_anomaly_alert_threshold_usd" {
+  description = "Minimum total anomalous spend (USD) that triggers a Cost Anomaly Detection alert. Small for the sandbox so a single service spiking is caught early."
+  type        = number
+  default     = 15
+}
