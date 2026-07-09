@@ -443,9 +443,85 @@ AWS_PROFILE=empress aws sqs get-queue-attributes \
   --attribute-names ApproximateNumberOfMessages ApproximateNumberOfMessagesNotVisible
 ```
 
-Messages in the DLQ are evidence, not rubbish: inspect the worker failure and
-payload privacy before starting a redrive. The automated worker service and
-formal redrive procedure are tracked separately in issues #61 and #62.
+Messages in the DLQ are evidence, not rubbish. Inspect the worker failure and
+check payload privacy **before** starting a redrive. Never paste raw message
+bodies or donor/private source data into logs, issue comments, or screenshots
+(see the privacy rules in CLAUDE.md).
+
+### When the DLQ alarm fires
+
+The `empress-jobs-dlq-visible` CloudWatch alarm fires the moment
+`ApproximateNumberOfMessagesVisible` on `empress-jobs-dlq` reaches 1 and
+notifies the `empress-budget-alerts` SNS topic (the shared alert channel — make
+sure you accepted its subscription). Work the queue down to zero visible
+messages; the alarm returns to OK on its own once the DLQ is empty.
+
+### Read a DLQ message without consuming it
+
+Peek at the oldest messages with a zero visibility timeout so they stay
+available for a later redrive:
+
+```bash
+AWS_PROFILE=empress aws sqs receive-message \
+  --region us-west-2 --queue-url "$JOBS_DLQ_URL" \
+  --max-number-of-messages 10 --visibility-timeout 0 \
+  --message-attribute-names All --attribute-names All
+```
+
+Cross-reference the `job_id` in the body with the worker logs to find the
+failure (search by id, not by dumping payloads):
+
+```bash
+AWS_PROFILE=empress aws logs filter-log-events \
+  --region us-west-2 --log-group-name /ecs/empress-worker \
+  --filter-pattern '"<job_id>"' --query 'events[*].message' --output text
+```
+
+### Decide: redrive, discard, or file a bug
+
+- **Redrive** when the failure was transient or environmental and is now fixed —
+  e.g. RDS was stopped/unreachable, a dependency timed out, or a deploy was
+  mid-rollout. The payload is valid; it just needs to run again.
+- **Discard** (delete from the DLQ) when the message is not safe or not useful
+  to reprocess — malformed payload, a job superseded by a later run, or anything
+  whose reprocessing would violate the privacy rules. Record why in the
+  incident/PR before deleting.
+- **File a backend bug** when the failure is a code/logic defect that will just
+  fail again on redrive. Capture the `job_id`, the log excerpt, and the failure
+  class (never the raw payload) in a `track:backend` issue before redriving.
+
+### Redrive messages back to the main queue
+
+Use the SQS message-move task to move messages from the DLQ back onto
+`empress-jobs`. The `empress-jobs-dlq` redrive-allow policy is scoped `byQueue`
+to the main queue, so that is the only permitted destination:
+
+```bash
+JOBS_DLQ_ARN=$(AWS_PROFILE=empress aws sqs get-queue-attributes \
+  --region us-west-2 --queue-url "$JOBS_DLQ_URL" \
+  --attribute-names QueueArn --query 'Attributes.QueueArn' --output text)
+
+# Start the move (DLQ -> its configured source queue, empress-jobs)
+AWS_PROFILE=empress aws sqs start-message-move-task \
+  --region us-west-2 --source-arn "$JOBS_DLQ_ARN"
+
+# Watch progress (or capture the TaskHandle to cancel with cancel-message-move-task)
+AWS_PROFILE=empress aws sqs list-message-move-tasks \
+  --region us-west-2 --source-arn "$JOBS_DLQ_ARN" --max-results 1
+```
+
+Only one move task runs per source queue at a time. To redrive a single message
+instead of the whole DLQ, delete the others first, or receive the target message
+and re-send it to `$JOBS_QUEUE_URL`, then start the move.
+
+### Avoid duplicate processing on redrive
+
+Redriving re-runs the job, so confirm a partially-successful original run won't
+double-write. The ingest pipeline is **idempotent** by `content_hash` (unchanged
+rows are skipped; only a model swap re-embeds — see `data/ingest-pipeline.md`),
+so redriving an ingest job is safe. For any future non-idempotent job type,
+confirm the handler dedupes (or the payload carries an idempotency key) **before**
+redriving; otherwise discard it and enqueue a fresh job instead.
 
 ### Check budget alerts and cost spikes
 
