@@ -53,7 +53,7 @@ export default function NarratorOverlay({
   
   useEffect(() => {
     return () => {
-      isMountedRef.current = false;
+      isMountedRef.current = true;
       audioRef.current?.pause();
     };
   }, []);
