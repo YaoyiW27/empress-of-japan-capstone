@@ -22,14 +22,14 @@ adding a cost guardrail ahead of the showcase:
   for the pre-demo checklist (PR #131).
 
 ## 2. AI Tools Used
-I used Codex as an implementation, debugging, and operations partner. It helped
-me reproduce a subtle Alembic crash locally, trace an IAM permission gap across
-Terraform and a live deployed error, draft the DLQ and cost runbooks in
+I used Claude Code as an implementation, debugging, and operations partner. It
+helped me reproduce a subtle Alembic crash locally, trace an IAM permission gap
+across Terraform and a live deployed error, draft the DLQ and cost runbooks in
 `infra/README.md`, and validate the Cost Anomaly Detection Terraform with a
 real targeted plan before opening the PR.
 
 ## 3. Prompts / Agent Workflow
-For issue #128, I asked Codex to help me understand why `alembic current` failed
+For issue #128, I asked Claude Code to help me understand why `alembic current` failed
 against RDS but not obviously locally. We traced `backend/alembic/env.py` and
 found it routed the database URL through `set_main_option`, which hands the
 string to Alembic's `ConfigParser`. `BasicInterpolation` reads the `%` in a
@@ -41,7 +41,7 @@ object straight to `create_engine` (online) and to render it for
 the new path builds the engine with the password intact and that
 `alembic current` still connects to the local DB.
 
-For issue #124, I gave Codex the live 502 ("failed to check voice cache") and
+For issue #124, I gave Claude Code the live 502 ("failed to check voice cache") and
 asked it to compare the deployed IAM policy with the code path. The
 `backend_voice_runtime` policy granted only object-level `s3:GetObject` and
 `s3:PutObject`. On a cache miss, S3 `HeadObject` returns 403 instead of 404
@@ -50,7 +50,7 @@ a hard failure. Locally a broader SSO role hid this. I added a bucket-scoped
 `s3:ListBucket` statement (no prefix condition, since HeadObject sends no
 prefix) to `infra/terraform/voice.tf`.
 
-For issue #62, I asked Codex to draft the DLQ runbook, then edited it down to
+For issue #62, I asked Claude Code to draft the DLQ runbook, then edited it down to
 what an operator actually needs: what the `empress-jobs-dlq-visible` alarm means
 and where it notifies, how to read a DLQ message without consuming it, the
 redrive/discard/file-a-bug decision, how to redrive back to `empress-jobs` via
