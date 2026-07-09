@@ -141,6 +141,17 @@ data "aws_iam_policy_document" "backend_voice_runtime" {
     resources = ["${aws_s3_bucket.voice_cache.arn}/${var.voice_cache_prefix}*"]
   }
 
+  # HeadObject on a cache miss returns 403 (not 404) unless the caller can list
+  # the bucket, which the cache-check treats as a hard failure (issue #109).
+  # No s3:prefix condition: HeadObject sends no prefix, so a condition would
+  # keep returning 403 and defeat the fix. Bucket is a dedicated private cache.
+  statement {
+    sid       = "ListVoiceCache"
+    effect    = "Allow"
+    actions   = ["s3:ListBucket"]
+    resources = [aws_s3_bucket.voice_cache.arn]
+  }
+
   statement {
     sid    = "UseVoiceCacheKey"
     effect = "Allow"
