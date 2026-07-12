@@ -11,6 +11,7 @@
 # The defaults in variables.tf already target the team + $1000 budget, so you
 # normally don't need to override these. Examples:
 # monthly_budget_limit  = 1000
+# anthropic_marketplace_budget_limit = 200
 # budget_thresholds     = [20, 50, 80]   # ACTUAL-spend alerts (%)
 # forecasted_thresholds = [50, 80]       # FORECASTED-spend early warnings (%)
 # alert_emails          = ["wang.yaoyi@northeastern.edu"]
