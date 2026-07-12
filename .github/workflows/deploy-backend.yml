@@ -156,15 +156,34 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Migrations need a live DB. RDS is kept stopped to save the sandbox
-          # budget, so fail fast with guidance instead of timing out mid-deploy.
+          # Migrations need a live DB. RDS is often stopped to save sandbox cost,
+          # so start it automatically and wait until it's available.
+          DB_INSTANCE_IDENTIFIER=empress-knowledge-base
           DB_STATUS=$(aws rds describe-db-instances \
-            --db-instance-identifier empress-knowledge-base \
+            --db-instance-identifier "$DB_INSTANCE_IDENTIFIER" \
+            --query 'DBInstances[0].DBInstanceStatus' --output text)
+
+          if [ "$DB_STATUS" = "stopping" ]; then
+            echo "RDS $DB_INSTANCE_IDENTIFIER is stopping; waiting for it to stop before starting..."
+            aws rds wait db-instance-stopped --db-instance-identifier "$DB_INSTANCE_IDENTIFIER"
+            DB_STATUS="stopped"
+          fi
+
+          if [ "$DB_STATUS" = "stopped" ]; then
+            echo "Starting RDS $DB_INSTANCE_IDENTIFIER..."
+            aws rds start-db-instance --db-instance-identifier "$DB_INSTANCE_IDENTIFIER" >/dev/null
+          fi
+
+          if [ "$DB_STATUS" != "available" ]; then
+            echo "Waiting for RDS $DB_INSTANCE_IDENTIFIER to become available (current status: $DB_STATUS)..."
+            aws rds wait db-instance-available --db-instance-identifier "$DB_INSTANCE_IDENTIFIER"
+          fi
+
+          DB_STATUS=$(aws rds describe-db-instances \
+            --db-instance-identifier "$DB_INSTANCE_IDENTIFIER" \
             --query 'DBInstances[0].DBInstanceStatus' --output text)
           if [ "$DB_STATUS" != "available" ]; then
-            echo "RDS empress-knowledge-base is '$DB_STATUS', not 'available'." >&2
-            echo "Start it before deploying:" >&2
-            echo "  aws rds start-db-instance --db-instance-identifier empress-knowledge-base" >&2
+            echo "RDS $DB_INSTANCE_IDENTIFIER is '$DB_STATUS', not 'available'; aborting deploy." >&2
             exit 1
           fi
 
