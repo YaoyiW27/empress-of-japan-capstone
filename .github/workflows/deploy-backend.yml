@@ -148,8 +148,7 @@ jobs:
 
       # Apply DB migrations on the freshly built image BEFORE rolling the service
       # over, so new code never runs against an un-migrated schema. A failed
-      # migration aborts the deploy. Blocked by #128 (alembic env.py crashes on
-      # '%' in the DB password) until that fix lands.
+      # migration aborts the deploy.
       - name: Run database migrations
         env:
           RENDERED_TASKDEF: ${{ steps.render.outputs.task-definition }}
@@ -159,29 +158,63 @@ jobs:
           # Migrations need a live DB. RDS is often stopped to save sandbox cost,
           # so start it automatically and wait until it's available.
           DB_INSTANCE_IDENTIFIER=empress-knowledge-base
-          DB_STATUS=$(aws rds describe-db-instances \
-            --db-instance-identifier "$DB_INSTANCE_IDENTIFIER" \
-            --query 'DBInstances[0].DBInstanceStatus' --output text)
+          describe_db_status() {
+            aws rds describe-db-instances \
+              --db-instance-identifier "$DB_INSTANCE_IDENTIFIER" \
+              --query 'DBInstances[0].DBInstanceStatus' \
+              --output text
+          }
+
+          wait_for_db_status() {
+            local target_status="$1"
+            local timeout_seconds="$2"
+            local elapsed=0
+            local sleep_seconds=30
+            local status
+
+            while [ "$elapsed" -le "$timeout_seconds" ]; do
+              status=$(describe_db_status)
+              echo "RDS $DB_INSTANCE_IDENTIFIER status: $status"
+
+              if [ "$status" = "$target_status" ]; then
+                return 0
+              fi
+
+              case "$status" in
+                failed|incompatible-restore|incompatible-network|storage-full)
+                  echo "RDS $DB_INSTANCE_IDENTIFIER reached terminal status '$status' while waiting for '$target_status'." >&2
+                  return 1
+                  ;;
+              esac
+
+              sleep "$sleep_seconds"
+              elapsed=$((elapsed + sleep_seconds))
+            done
+
+            echo "Timed out after ${timeout_seconds}s waiting for RDS $DB_INSTANCE_IDENTIFIER to reach '$target_status'." >&2
+            return 1
+          }
+
+          DB_STATUS=$(describe_db_status)
 
           if [ "$DB_STATUS" = "stopping" ]; then
             echo "RDS $DB_INSTANCE_IDENTIFIER is stopping; waiting for it to stop before starting..."
-            aws rds wait db-instance-stopped --db-instance-identifier "$DB_INSTANCE_IDENTIFIER"
+            wait_for_db_status "stopped" 900
             DB_STATUS="stopped"
           fi
 
           if [ "$DB_STATUS" = "stopped" ]; then
             echo "Starting RDS $DB_INSTANCE_IDENTIFIER..."
             aws rds start-db-instance --db-instance-identifier "$DB_INSTANCE_IDENTIFIER" >/dev/null
+            DB_STATUS="starting"
           fi
 
           if [ "$DB_STATUS" != "available" ]; then
             echo "Waiting for RDS $DB_INSTANCE_IDENTIFIER to become available (current status: $DB_STATUS)..."
-            aws rds wait db-instance-available --db-instance-identifier "$DB_INSTANCE_IDENTIFIER"
+            wait_for_db_status "available" 1800
           fi
 
-          DB_STATUS=$(aws rds describe-db-instances \
-            --db-instance-identifier "$DB_INSTANCE_IDENTIFIER" \
-            --query 'DBInstances[0].DBInstanceStatus' --output text)
+          DB_STATUS=$(describe_db_status)
           if [ "$DB_STATUS" != "available" ]; then
             echo "RDS $DB_INSTANCE_IDENTIFIER is '$DB_STATUS', not 'available'; aborting deploy." >&2
             exit 1
@@ -190,10 +223,11 @@ jobs:
           # Register the rendered task definition (new image) so the one-off task
           # runs this build's migrations. Strip read-only fields describe-* adds
           # that register-task-definition rejects.
-          TASKDEF_ARN=$(jq 'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy,.deregisteredAt)' \
-            "$RENDERED_TASKDEF" \
-            | aws ecs register-task-definition --cli-input-json file:///dev/stdin \
-                --query 'taskDefinition.taskDefinitionArn' --output text)
+          jq 'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy,.deregisteredAt)' \
+            "$RENDERED_TASKDEF" > migration-task-definition.json
+          TASKDEF_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://migration-task-definition.json \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
 
           # Reuse the backend service's own subnets/security groups.
           NETCFG=$(aws ecs describe-services \
