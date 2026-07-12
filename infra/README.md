@@ -87,6 +87,7 @@ SCP denies `ce:UpdateCostAllocationTagsStatus` from this member account.
 | Piece | Resource | What it does |
 |---|---|---|
 | Budget | `aws_budgets_budget.monthly` | `$1000` MONTHLY COST budget, account-wide |
+| Anthropic budget | `aws_budgets_budget.anthropic_marketplace` | Filtered MONTHLY COST budget for Anthropic Marketplace charges |
 | Alerts | SNS topic `empress-budget-alerts` | Fans notifications out to the team by email |
 | Tagging | provider `default_tags` | Applies `Project = EmpressOfJapan` to Terraform-managed resources |
 
@@ -95,6 +96,9 @@ SCP denies `ce:UpdateCostAllocationTagsStatus` from this member account.
 - **ACTUAL** spend already incurred: **20% ($200), 50% ($500), 80% ($800)**.
 - **FORECASTED** month-end spend: **50%, 80%** (early warning before the money's
   spent).
+- The Anthropic Marketplace budget uses the same alert percentages against its
+  own default **$200/month** limit, so it warns at **$40, $100, and $160**
+  actual spend.
 
 > ℹ️ FORECASTED alerts stay dormant for the first few weeks: AWS needs enough
 > usage history to project month-end spend, so on a fresh account they simply
@@ -120,9 +124,10 @@ Alerts go to all four of us:
 
 ### View budget & costs in the console
 
-- **Budget status:** Billing and Cost Management → **Budgets** → `empress-monthly-cost`
-  (shows current vs. forecasted spend and which thresholds have fired). Output
-  `monthly_budget_name` echoes the name.
+- **Budget status:** Billing and Cost Management → **Budgets** →
+  `empress-monthly-cost` and `empress-anthropic-marketplace-cost` (shows current
+  vs. forecasted spend and which thresholds have fired). Outputs
+  `monthly_budget_name` and `anthropic_marketplace_budget_name` echo the names.
 - **Daily breakdown by service:** Cost Management → **Cost Explorer** → set
   *Granularity = Daily*, *Group by = Service*.
 - **By project:** same view, *Group by = Tag → `Project`*, after a management
@@ -139,12 +144,70 @@ All knobs are variables (`variables.tf`) with defaults; edit and open a PR —
 | Variable | Default | Controls |
 |---|---|---|
 | `monthly_budget_limit` | `1000` | Total monthly budget in USD |
+| `anthropic_marketplace_budget_limit` | `200` | Filtered monthly budget for Anthropic Marketplace charges |
 | `budget_thresholds` | `[20, 50, 80]` | ACTUAL-spend alert % |
 | `forecasted_thresholds` | `[50, 80]` | FORECASTED-spend alert % |
 | `alert_emails` | the 4 above | Who gets alerts (re-confirmation needed for new addresses) |
 
-Thresholds are percentages of `monthly_budget_limit`, so raising the limit
-rescales the dollar trigger points automatically.
+Thresholds are percentages of each budget's own limit, so raising either limit
+rescales that budget's dollar trigger points automatically.
+
+### Catch unexpected spend spikes (issue #60)
+
+The budget above watches *total* spend against fixed thresholds. **Cost Anomaly
+Detection** (`cost_anomaly.tf`) catches the more useful signal — a single
+service spiking above its learned baseline — and alerts the same
+`empress-budget-alerts` SNS topic. It is a free service.
+
+| Piece | Resource | What it does |
+|---|---|---|
+| Monitor | `aws_ce_anomaly_monitor.services` | Learns a per-`SERVICE` spend baseline |
+| Subscription | `aws_ce_anomaly_subscription.spend` | Alerts when an anomaly's total impact ≥ `cost_anomaly_alert_threshold_usd` (default `$15`) |
+
+> ℹ️ Anomaly detection needs ~10 days of history to build baselines, so it stays
+> quiet on a fresh account — expected, not a misconfiguration. Tune sensitivity
+> with `cost_anomaly_alert_threshold_usd` in `variables.tf`. Console view:
+> Cost Management → **Cost Anomaly Detection**.
+>
+> ⚠️ AWS Cost Anomaly Detection does **not** monitor third-party AWS Marketplace
+> products and services, including Anthropic Claude models used through Amazon
+> Bedrock. The filtered `empress-anthropic-marketplace-cost` budget covers that
+> gap by tracking charges where *Billing entity = AWS Marketplace* and *Legal
+> entity = Anthropic, PBC*. Keep both guardrails: anomaly detection is still
+> useful for native AWS services, while the Anthropic budget catches the main AI
+> marketplace cost risk. AWS documents this limitation in
+> [Detecting unusual spend with AWS Cost Anomaly Detection](https://docs.aws.amazon.com/cost-management/latest/userguide/manage-ad.html).
+
+### Inspect AI / runtime cost
+
+Cost Explorer (Cost Management → **Cost Explorer**, *Granularity = Daily*,
+*Group by = Service*) is the fastest way to see where money goes. The drivers to
+watch for this stack:
+
+| Driver | Shows up as | Notes |
+|---|---|---|
+| Bedrock (chat + embeddings) | *Amazon Bedrock* | Usage-based; scales with conversation volume + ingest re-embeds. The main AI cost. |
+| Fargate (API + worker) | *Amazon Elastic Container Service* | Runs continuously; driven by desired counts + task size |
+| RDS | *Amazon Relational Database Service* | Billed whenever the instance is running — **keep it stopped when unused** |
+| ALB / CloudFront | *EC2-Other* / *Amazon CloudFront* | Mostly fixed |
+| CloudWatch Logs | *AmazonCloudWatch* | Grows with log retention/volume |
+| SQS | *Amazon Simple Queue Service* | Negligible at demo scale |
+| Voice | *Amazon Polly*, *Amazon Transcribe*, *S3* | Per-request; Polly cache limits repeat synthesis |
+
+Per-conversation cost assumptions (visitor session volume, tokens per turn) come
+from the operating-cost brief in `docs/visitor-ai-operating-cost-brief.pdf`
+(issue #55) — use those numbers rather than inventing new ones here.
+
+### Before a demo or stakeholder pilot — cost checklist
+
+- [ ] Budget status is green: Billing → **Budgets** → `empress-monthly-cost`.
+- [ ] No open anomaly in **Cost Anomaly Detection**, and everyone confirmed the
+  `empress-budget-alerts` SNS subscription.
+- [ ] **RDS is started only if the demo needs RAG/ingest** — and stopped again
+  afterward (`aws rds stop-db-instance --db-instance-identifier empress-knowledge-base`).
+- [ ] Fargate desired counts / autoscaling floor are at steady-state, not left
+  scaled up from load testing.
+- [ ] CloudWatch log retention hasn't been bumped to something expensive.
 
 ---
 

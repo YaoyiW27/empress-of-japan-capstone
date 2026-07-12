@@ -48,6 +48,25 @@ data "aws_iam_policy_document" "budget_sns" {
       values   = [data.aws_caller_identity.current.account_id]
     }
   }
+
+  # Cost Anomaly Detection reuses this topic (issue #60, cost_anomaly.tf).
+  statement {
+    sid       = "AllowCostAnomalyPublish"
+    effect    = "Allow"
+    actions   = ["SNS:Publish"]
+    resources = [aws_sns_topic.budget_alerts.arn]
+
+    principals {
+      type        = "Service"
+      identifiers = ["costalerts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "AWS:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+  }
 }
 
 resource "aws_sns_topic_policy" "budget_alerts" {
@@ -66,7 +85,7 @@ resource "aws_sns_topic_subscription" "budget_emails" {
 }
 
 # ------------------------------------------------------------------
-# Monthly cost budget + notifications.
+# Monthly cost budgets + notifications.
 # ------------------------------------------------------------------
 # ACTUAL alerts fire on spend already incurred; FORECASTED alerts fire when AWS
 # projects month-end spend will cross the threshold — earlier warning.
@@ -95,6 +114,48 @@ resource "aws_budgets_budget" "monthly" {
   # Track GROSS usage against the $1,000 allocation. The sandbox is credit-funded,
   # so leaving credits/refunds in (the provider default) would net spend down
   # toward $0 and the alerts would never fire.
+  cost_types {
+    include_credit = false
+    include_refund = false
+  }
+
+  dynamic "notification" {
+    for_each = { for n in local.budget_notifications : n.key => n }
+    content {
+      notification_type         = notification.value.type
+      comparison_operator       = "GREATER_THAN"
+      threshold                 = notification.value.threshold
+      threshold_type            = "PERCENTAGE"
+      subscriber_sns_topic_arns = [aws_sns_topic.budget_alerts.arn]
+    }
+  }
+}
+
+# Cost Anomaly Detection does not monitor third-party AWS Marketplace charges,
+# including Anthropic Claude models surfaced through Amazon Bedrock. Keep the
+# account-wide budget above, then add this narrower budget so Claude spend still
+# triggers SNS alerts even when anomaly detection is blind to it.
+resource "aws_budgets_budget" "anthropic_marketplace" {
+  name         = "empress-anthropic-marketplace-cost"
+  budget_type  = "COST"
+  limit_amount = tostring(var.anthropic_marketplace_budget_limit)
+  limit_unit   = "USD"
+  time_unit    = "MONTHLY"
+
+  cost_filter {
+    name = "BillingEntity"
+    values = [
+      "AWS Marketplace",
+    ]
+  }
+
+  cost_filter {
+    name = "LegalEntityName"
+    values = [
+      "Anthropic, PBC",
+    ]
+  }
+
   cost_types {
     include_credit = false
     include_refund = false

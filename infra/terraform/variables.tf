@@ -359,14 +359,28 @@ variable "monthly_budget_limit" {
   default     = 1000
 }
 
+variable "anthropic_marketplace_budget_limit" {
+  description = "Monthly AWS Marketplace / Anthropic cost budget in USD. Covers Claude charges that Cost Anomaly Detection does not monitor."
+  type        = number
+  default     = 200
+}
+
 variable "budget_thresholds" {
-  description = "ACTUAL-spend alert thresholds, as a percentage of the monthly limit."
+  description = "ACTUAL-spend alert thresholds, as a percentage of each budget's monthly limit."
   type        = list(number)
   default     = [20, 50, 80]
 }
 
 variable "forecasted_thresholds" {
-  description = "FORECASTED-spend alert thresholds, as a percentage of the monthly limit (early warning before spend is incurred)."
+  description = "FORECASTED-spend alert thresholds, as a percentage of each budget's monthly limit (early warning before spend is incurred)."
   type        = list(number)
   default     = [50, 80]
+}
+
+# --- Cost anomaly detection (issue #60, see cost_anomaly.tf) ---
+
+variable "cost_anomaly_alert_threshold_usd" {
+  description = "Minimum total anomalous spend (USD) that triggers a Cost Anomaly Detection alert. Small for the sandbox so a single service spiking is caught early."
+  type        = number
+  default     = 15
 }

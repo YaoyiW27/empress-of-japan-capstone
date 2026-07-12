@@ -18,6 +18,11 @@ output "monthly_budget_name" {
   value       = aws_budgets_budget.monthly.name
 }
 
+output "anthropic_marketplace_budget_name" {
+  description = "Name of the filtered Anthropic Marketplace cost budget (find it under Billing > Budgets)."
+  value       = aws_budgets_budget.anthropic_marketplace.name
+}
+
 output "vpc_id" {
   description = "ID of the sandbox application VPC."
   value       = aws_vpc.app.id
