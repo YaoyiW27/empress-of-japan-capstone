@@ -141,6 +141,16 @@ output "worker_task_role_arn" {
   value       = aws_iam_role.worker_task.arn
 }
 
+output "ingest_sources_bucket_name" {
+  description = "Private bucket for operator-managed VMM ingest inputs."
+  value       = aws_s3_bucket.ingest_sources.bucket
+}
+
+output "worker_ingest_sources_read_policy_arn" {
+  description = "Least-privilege policy allowing the worker to read approved ingest objects."
+  value       = aws_iam_policy.worker_ingest_sources_read.arn
+}
+
 output "backend_log_group_name" {
   description = "CloudWatch log group for backend container logs."
   value       = aws_cloudwatch_log_group.backend.name

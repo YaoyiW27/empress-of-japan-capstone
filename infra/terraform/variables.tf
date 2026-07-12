@@ -212,6 +212,30 @@ variable "bedrock_embedding_model_id" {
   default     = "amazon.titan-embed-text-v2:0"
 }
 
+# --- Full ingest inputs (issue #136, see ingest.tf) ---
+
+variable "ingest_vmm_csv_key" {
+  description = "Exact private S3 key for the operator-uploaded VMM catalogue CSV."
+  type        = string
+  default     = "vmm/export_empress-of-japan.csv"
+
+  validation {
+    condition     = startswith(var.ingest_vmm_csv_key, "vmm/") && !endswith(var.ingest_vmm_csv_key, "/")
+    error_message = "The VMM CSV key must be a file below the vmm/ prefix."
+  }
+}
+
+variable "ingest_classified_workbook_key" {
+  description = "Exact private S3 key for the operator-uploaded classified workbook."
+  type        = string
+  default     = "vmm/Empress_of_Japan_records_classified.xlsx"
+
+  validation {
+    condition     = startswith(var.ingest_classified_workbook_key, "vmm/") && !endswith(var.ingest_classified_workbook_key, "/")
+    error_message = "The classified workbook key must be a file below the vmm/ prefix."
+  }
+}
+
 # --- Bedrock chat (issue #70, see bedrock.tf) ---
 
 variable "bedrock_chat_inference_profile_id" {
