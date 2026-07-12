@@ -198,6 +198,36 @@ Per-conversation cost assumptions (visitor session volume, tokens per turn) come
 from the operating-cost brief in `docs/visitor-ai-operating-cost-brief.pdf`
 (issue #55) — use those numbers rather than inventing new ones here.
 
+### Inspect API and AI usage limits (issue #89)
+
+The backend usage-limit policy lives in
+[`backend/README.md`](../backend/README.md#api-and-ai-usage-guardrails). Infra
+owns the deployed signals that tell us whether those limits are healthy during a
+demo. Use aggregate telemetry only; never export raw prompts, model responses,
+retrieved archival passages, visitor audio, donor data, or presigned S3 URLs.
+
+| Question | Signal | Where to inspect |
+|---|---|---|
+| Are clients retrying or looping? | request count by route/status/session or WAF client-IP bucket | CloudWatch ALB metrics/logs; Honeycomb route spans; CloudFront WAF if enabled |
+| Is Claude becoming slow or error-prone? | `llm.invoke` latency/error count by `llm.model_id` | Honeycomb dataset `empress-backend-sandbox` |
+| Which personas drive usage? | `agent.persona_id` count | Honeycomb |
+| Is retrieval returning enough grounding context? | `rag.result_count`, `rag.top_k` | Honeycomb |
+| Is Polly cache limiting repeat synthesis cost? | `voice.cache_hit` ratio and voice error count | Honeycomb + CloudWatch logs |
+| Are voice recordings too long? | Planned WebSocket policy-violation close counts / 15-second rejection spans or logs | Planned Honeycomb/CloudWatch signal; not emitted yet |
+| Is spend drifting from the estimate? | Bedrock, Polly, Transcribe, Fargate, RDS daily cost | Cost Explorer, budgets, anomaly alerts |
+
+Initial enforcement is intentionally split: the backend already validates
+`top_k`, voice text length, recording length, admin ingest access, and disabled
+session memory; request-rate and token-budget enforcement are follow-ups that
+can land in backend middleware, WAF/API Gateway, or another edge layer once
+traffic shape is known. Because CloudFront fronts the deployed API, backend/ALB
+per-IP limiting should not be treated as a real visitor-IP guardrail; use WAF
+rate-based rules if the team needs that control.
+
+The recording-duration row above is also a follow-up signal: the backend already
+closes overlong WebSocket recordings with policy-violation code `1008`, but it
+does not yet emit a dedicated log line, span, or metric for those rejections.
+
 ### Before a demo or stakeholder pilot — cost checklist
 
 - [ ] Budget status is green: Billing → **Budgets** → `empress-monthly-cost`.

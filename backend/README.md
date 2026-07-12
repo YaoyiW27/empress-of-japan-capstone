@@ -34,6 +34,96 @@ ruff format .
 pytest
 ```
 
+## API and AI Usage Guardrails
+
+These are the initial demo-safe limits for browser and future mobile clients.
+They are intentionally conservative until we have load-test data from the AWS
+deployment and should be tuned against the operating-cost assumptions from #55.
+Treat this section as the contract for #89: implementation can move between
+backend code, CloudFront/WAF/API Gateway, or client UX, but the user-visible
+limits should stay explicit.
+
+### Request limits
+
+| Surface | Initial limit | Enforced today | Notes |
+|---|---:|---|---|
+| `POST /chat` | 12 requests/minute per visitor session, 120/hour per public IP | Planned | Enough for a fast museum conversation without letting one browser loop spend the Bedrock budget. |
+| `POST /retrieve` | 30 requests/minute per public IP | Partly | `top_k` is capped at `20`; request-rate limiting is a follow-up. |
+| `POST /voice/synthesize` | 20 requests/minute per visitor session | Partly | `VOICE_MAX_TEXT_LENGTH` is enforced; Polly audio is cached by text/voice/engine. |
+| `WebSocket /voice/transcribe` | One active stream per browser tab; 15 seconds per recording | Partly | `VOICE_MAX_RECORDING_SECONDS = 15` is enforced; concurrent stream caps are a follow-up. |
+| `POST /ingest/jobs` | Operator-only, no public traffic | Yes | Requires `X-Admin-Token`; clients cannot provide arbitrary source paths or embedder choices. |
+
+Until an edge rate limiter exists, the frontend should avoid automatic retries
+for visitor chat/voice actions. Let visitors explicitly retry after a visible
+failure so one flaky network path does not multiply Bedrock, Transcribe, or
+Polly calls.
+
+CloudFront is the browser-facing hop in AWS, so backend/ALB per-IP limiting is
+not reliable by itself: the backend mostly sees CloudFront egress addresses. Use
+backend middleware for session/client-key limits, and use CloudFront WAF
+rate-based rules if true client-IP limits become necessary.
+
+### Bedrock chat limits
+
+- **Model:** deployed chat uses the configured Bedrock inference profile
+  `BEDROCK_CHAT_MODEL` (`us.anthropic.claude-sonnet-4-6` by default).
+- **Input budget:** keep browser-supplied history to the latest **8 turns**
+  or roughly **4,000 input tokens**, whichever is smaller. Server-side session
+  memory is disabled in AWS until a shared checkpointer lands, so clients own
+  history trimming.
+- **Output budget:** narrator responses target **800 characters** for spoken
+  playback and are hard-capped by `VOICE_MAX_TEXT_LENGTH` (default `1000`
+  characters) before they are returned or sent to Polly.
+- **Retry target (planned):** the current chat path does not yet configure
+  explicit Bedrock retries. The target policy is to retry only throttling or
+  transient 5xx/network failures, with bounded exponential backoff and at most
+  **2 retries**. Do not retry validation errors, missing persona/scene errors,
+  or safety/unsupported-answer responses.
+- **Timeout target (planned):** the current chat path does not yet enforce a
+  30-second model timeout. Keep a single public-demo chat request under
+  **30 seconds** end to end, then surface a friendly retry affordance if
+  Bedrock or RDS exceeds that window.
+
+### Failure policy
+
+- Return `400` for invalid public input (`top_k`, blank queries, overlong voice
+  text) so clients can fix the request without retrying.
+- Return `501` for `session_id` memory while the deployed shared checkpointer is
+  unavailable; clients should send compact `history` instead.
+- Return `503` for missing runtime configuration or unavailable dependencies
+  where the operator needs to fix the deployment.
+- Target `502` for upstream managed-service failures after bounded retry. The
+  voice synthesis path maps known provider failures to `502`; chat still needs
+  explicit Bedrock exception mapping so upstream failures do not surface as
+  generic `500` responses.
+
+### Signals to inspect
+
+Safe telemetry may include counts, durations, model IDs, persona IDs, result
+counts, cache hits, status codes, and error classes. Do **not** export raw
+visitor prompts, model responses, retrieved passages, donor data, visitor audio,
+or presigned playback URLs.
+
+Required Honeycomb/CloudWatch views:
+
+- request count, latency, and error rate by route and status code;
+- `llm.invoke` count/error/latency by `llm.provider` and `llm.model_id`;
+- `agent.persona_id` distribution for visitor chat traffic;
+- `rag.retrieve` result count and `rag.top_k` distribution;
+- `voice.synthesize` count, error rate, and `voice.cache_hit` ratio;
+- Transcribe WebSocket close/error counts and recording-duration rejections;
+- Bedrock, Polly, Transcribe, Fargate, RDS, and CloudWatch cost by service.
+
+Follow-up implementation work:
+
+- backend middleware for session/client-key limits and CloudFront WAF for true
+  client-IP rate limits;
+- Bedrock client timeout/retry configuration, `502` exception mapping, and
+  explicit telemetry;
+- token counting/summarization for client-provided chat history;
+- an offline groundedness evaluator before exporting grounded/unsupported
+  answer counters (#119).
+
 ### Migrations (Alembic)
 
 `db/schema.sql` is the canonical DDL. The **initial** Alembic migration
