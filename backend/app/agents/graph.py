@@ -37,9 +37,12 @@ def truncate_response(text: str, max_length: int) -> str:
     if punctuation_index >= 0:
         return text[: punctuation_index + 1]
 
-    space_index = text.rfind(" ", 0, max_length)
-    if space_index > 0:
-        return text[:space_index].rstrip()
+    whitespace_index = max(
+        (index for index, char in enumerate(text[:max_length]) if char.isspace()),
+        default=-1,
+    )
+    if whitespace_index > 0:
+        return text[:whitespace_index].rstrip()
 
     return text[:max_length]
 
@@ -61,7 +64,7 @@ def _persona_node(
                 f"within {NARRATOR_SOFT_RESPONSE_LENGTH} characters."
             )
             response = truncate_response(
-                chat_model.invoke(voice_prompt, messages),
+                chat_model.invoke(voice_prompt, messages).strip(),
                 max_response_length,
             )
         # Return only deltas: the assistant turn is appended to history (via the

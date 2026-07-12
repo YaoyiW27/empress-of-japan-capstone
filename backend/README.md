@@ -9,7 +9,7 @@ Requires Python 3.12+. From `backend/`:
 ```bash
 cd backend
 python -m venv .venv
-source .venv/bin/activate     # MacOs/Linux; use source .venv/Scripts/activate on Windows
+source .venv/bin/activate     # macOS/Linux; on Windows use: Git Bash -> source .venv/Scripts/activate, PowerShell -> .venv\Scripts\Activate.ps1, CMD -> .venv\Scripts\activate.bat
 pip install -e ".[dev]"
 
 cp .env.example .env              # then edit if needed (.env is git-ignored)

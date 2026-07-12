@@ -70,8 +70,8 @@ def test_overlong_response_uses_other_punctuation_before_whitespace() -> None:
 
 
 def test_overlong_response_uses_whitespace_without_punctuation() -> None:
-    text = "alpha beta gamma delta"
-    assert truncate_response(text, 12) == "alpha beta"
+    text = "alpha\tbeta\ngamma delta"
+    assert truncate_response(text, 12) == "alpha\tbeta"
 
 
 def test_overlong_response_hard_truncates_without_boundary() -> None:
@@ -79,7 +79,7 @@ def test_overlong_response_hard_truncates_without_boundary() -> None:
 
 
 def test_graph_applies_soft_prompt_and_stores_truncated_response() -> None:
-    model = LongResponseChatModel("First sentence. Second sentence is too long.")
+    model = LongResponseChatModel("  First sentence. Second sentence is too long.  ")
     graph = build_graph(model, max_response_length=25)
 
     result = graph.invoke(
