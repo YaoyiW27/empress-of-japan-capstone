@@ -345,12 +345,14 @@ INGEST_BUCKET=$(AWS_PROFILE=empress terraform -chdir=infra/terraform \
 AWS_PROFILE=empress aws s3 cp \
   'data/export_empress of japan.csv' \
   "s3://$INGEST_BUCKET/vmm/export_empress-of-japan.csv" \
-  --region us-west-2 --sse AES256
+  --region us-west-2 \
+  --sse aws:kms --sse-kms-key-id alias/empress-ingest-sources
 
 AWS_PROFILE=empress aws s3 cp \
   data/Empress_of_Japan_records_classified.xlsx \
   "s3://$INGEST_BUCKET/vmm/Empress_of_Japan_records_classified.xlsx" \
-  --region us-west-2 --sse AES256
+  --region us-west-2 \
+  --sse aws:kms --sse-kms-key-id alias/empress-ingest-sources
 ```
 
 If either Terraform key variable is overridden, use that exact output key

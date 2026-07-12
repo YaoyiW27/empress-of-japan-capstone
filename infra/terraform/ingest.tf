@@ -3,6 +3,21 @@
 # does not put source data into Terraform state. Operators upload the approved
 # CSV and classified workbook out of band using the documented exact keys.
 
+resource "aws_kms_key" "ingest_sources" {
+  description             = "Encrypt private VMM ingest source files"
+  deletion_window_in_days = 7
+  enable_key_rotation     = true
+
+  tags = {
+    Name = "empress-ingest-sources"
+  }
+}
+
+resource "aws_kms_alias" "ingest_sources" {
+  name          = "alias/empress-ingest-sources"
+  target_key_id = aws_kms_key.ingest_sources.key_id
+}
+
 resource "aws_s3_bucket" "ingest_sources" {
   bucket = "empress-ingest-sources-${data.aws_caller_identity.current.account_id}-${var.region}"
 
@@ -33,8 +48,11 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "ingest_sources" {
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      kms_master_key_id = aws_kms_key.ingest_sources.arn
+      sse_algorithm     = "aws:kms"
     }
+
+    bucket_key_enabled = true
   }
 }
 
@@ -89,6 +107,28 @@ data "aws_iam_policy_document" "worker_ingest_sources_read" {
       "${aws_s3_bucket.ingest_sources.arn}/${var.ingest_vmm_csv_key}",
       "${aws_s3_bucket.ingest_sources.arn}/${var.ingest_classified_workbook_key}",
     ]
+  }
+
+  statement {
+    sid       = "DecryptApprovedIngestObjects"
+    effect    = "Allow"
+    actions   = ["kms:Decrypt"]
+    resources = [aws_kms_key.ingest_sources.arn]
+
+    condition {
+      test     = "StringEquals"
+      variable = "kms:ViaService"
+      values   = ["s3.${var.region}.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringLike"
+      variable = "kms:EncryptionContext:aws:s3:arn"
+      values = [
+        aws_s3_bucket.ingest_sources.arn,
+        "${aws_s3_bucket.ingest_sources.arn}/*",
+      ]
+    }
   }
 }
 
