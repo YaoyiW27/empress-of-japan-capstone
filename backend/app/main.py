@@ -190,14 +190,18 @@ def create_app(
         model_id=model_ids.get(settings.chat_model, ""),
         region=settings.aws_region,
     )
-    graph = build_graph(chat_model)
+    graph = build_graph(chat_model, max_response_length=settings.voice_max_text_length)
     # Server-side short-term memory: in-process per-session history, keyed by
     # session_id. The in-process MemorySaver is NOT shared across Fargate tasks
     # and is lost on restart, so it stays off by default — the supported deployed
     # path is the stateless client-provided `history`. Flip enable_session_memory
     # on once #34 swaps in a shared (Postgres) checkpointer. See PR #71 / #42.
     session_graph = (
-        build_graph(chat_model, checkpointer=MemorySaver())
+        build_graph(
+            chat_model,
+            checkpointer=MemorySaver(),
+            max_response_length=settings.voice_max_text_length,
+        )
         if settings.enable_session_memory
         else None
     )

@@ -3,10 +3,22 @@
 from fastapi.testclient import TestClient
 from langgraph.checkpoint.memory import MemorySaver
 
-from app.agents.graph import build_graph
+from app.agents.graph import build_graph, truncate_response
 from app.agents.llm import StubChatModel
 from app.agents.personas import load_personas, scene_to_personas
 from app.main import app
+
+
+class LongResponseChatModel:
+    model_id = "long-response-test"
+
+    def __init__(self, response: str) -> None:
+        self.response = response
+        self.system_prompt = ""
+
+    def invoke(self, system: str, messages: list[dict[str, str]]) -> str:
+        self.system_prompt = system
+        return self.response
 
 
 def test_personas_load_with_prompts() -> None:
@@ -36,6 +48,54 @@ def test_graph_dispatches_to_named_persona() -> None:
     )
     assert result["persona_id"] == "ming_chen"
     assert "How hot is the engine room?" in result["response"]
+
+
+def test_response_within_limit_is_unchanged() -> None:
+    assert truncate_response("A short response.", 1000) == "A short response."
+
+
+def test_overlong_response_truncates_at_latest_english_period() -> None:
+    text = "First sentence. Second sentence continues beyond the limit."
+    assert truncate_response(text, 30) == "First sentence."
+
+
+def test_overlong_response_truncates_at_latest_chinese_period() -> None:
+    text = "这是第一句。这是第二句并且会超过限制。"
+    assert truncate_response(text, 10) == "这是第一句。"
+
+
+def test_overlong_response_uses_other_punctuation_before_whitespace() -> None:
+    text = "alpha beta, gamma delta continues"
+    assert truncate_response(text, 20) == "alpha beta,"
+
+
+def test_overlong_response_uses_whitespace_without_punctuation() -> None:
+    text = "alpha\tbeta\ngamma delta"
+    assert truncate_response(text, 12) == "alpha\tbeta"
+
+
+def test_overlong_response_hard_truncates_without_boundary() -> None:
+    assert truncate_response("abcdefghijk", 5) == "abcde"
+
+
+def test_graph_applies_soft_prompt_and_stores_truncated_response() -> None:
+    model = LongResponseChatModel("  First sentence. Second sentence is too long.  ")
+    graph = build_graph(model, max_response_length=25)
+
+    result = graph.invoke(
+        {
+            "persona_id": "captain_sinclair",
+            "scene": None,
+            "messages": [{"role": "user", "content": "Tell me more."}],
+        }
+    )
+
+    assert "within 800 characters" in model.system_prompt
+    assert result["response"] == "First sentence."
+    assert result["messages"][-1] == {
+        "role": "assistant",
+        "content": result["response"],
+    }
 
 
 def test_session_memory_accumulates() -> None:

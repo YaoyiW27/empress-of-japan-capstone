@@ -9,7 +9,7 @@ Requires Python 3.12+. From `backend/`:
 ```bash
 cd backend
 python -m venv .venv
-source .venv/Scripts/activate     # Windows (Git Bash); use .venv/bin/activate on macOS/Linux
+source .venv/bin/activate     # macOS/Linux; on Windows use: Git Bash -> source .venv/Scripts/activate, PowerShell -> .venv\Scripts\Activate.ps1, CMD -> .venv\Scripts\activate.bat
 pip install -e ".[dev]"
 
 cp .env.example .env              # then edit if needed (.env is git-ignored)
@@ -163,6 +163,10 @@ curl -X POST http://localhost:8000/voice/synthesize \
   `TRANSCRIBE_LANGUAGE_CODE`, `VOICE_AUDIO_URL_TTL_SECONDS`, and
   `VOICE_MAX_TEXT_LENGTH`. Reuse `AWS_REGION`; do not add AWS access keys to
   committed files or frontend config.
+- Narrator prompts target responses of at most 800 characters for natural spoken
+  playback. If a model response still exceeds `VOICE_MAX_TEXT_LENGTH`, the agent
+  trims it at the latest punctuation mark (then whitespace, then the hard limit)
+  before returning or storing the response.
 
 ## Local database (Postgres + pgvector)
 
