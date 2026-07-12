@@ -231,3 +231,40 @@ def test_worker_process_span_continues_sqs_trace_context(monkeypatch) -> None:
     assert process_span.attributes["job.id"] == "job-123"
     assert process_span.attributes["job.status"] == "completed"
     assert process_span.attributes["ingest.rows_in"] == 2
+
+
+def test_worker_does_not_delete_message_when_ingest_fails(monkeypatch) -> None:
+    from app.jobs import worker
+
+    envelope = JobEnvelope(
+        job_id="job-123",
+        job=IngestJob(external="external_sources.json", embedder="fake"),
+    )
+
+    class FakeQueue:
+        queue_url = "queue-url"
+
+        def __init__(self) -> None:
+            self.deleted = False
+
+        def receive(self, **_kwargs) -> list[ReceivedJob]:
+            return [
+                ReceivedJob(
+                    envelope=envelope,
+                    receipt_handle="receipt-1",
+                    message_id="message-1",
+                    message_attributes={},
+                )
+            ]
+
+        def delete(self, _receipt_handle: str) -> None:
+            self.deleted = True
+
+    def fail_process(_envelope: JobEnvelope, _settings: Settings) -> IngestStats:
+        raise RuntimeError("database unavailable")
+
+    queue = FakeQueue()
+    monkeypatch.setattr(worker, "process_envelope", fail_process)
+
+    assert worker.poll_once(queue, Settings(sqs_wait_time_seconds=0)) == 1
+    assert queue.deleted is False
