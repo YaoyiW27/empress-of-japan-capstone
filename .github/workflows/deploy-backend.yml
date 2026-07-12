@@ -146,6 +146,64 @@ jobs:
           container-name: ${{ env.CONTAINER_NAME }}
           image: "${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}"
 
+      # Apply DB migrations on the freshly built image BEFORE rolling the service
+      # over, so new code never runs against an un-migrated schema. A failed
+      # migration aborts the deploy. Blocked by #128 (alembic env.py crashes on
+      # '%' in the DB password) until that fix lands.
+      - name: Run database migrations
+        env:
+          RENDERED_TASKDEF: ${{ steps.render.outputs.task-definition }}
+        run: |
+          set -euo pipefail
+
+          # Migrations need a live DB. RDS is kept stopped to save the sandbox
+          # budget, so fail fast with guidance instead of timing out mid-deploy.
+          DB_STATUS=$(aws rds describe-db-instances \
+            --db-instance-identifier empress-knowledge-base \
+            --query 'DBInstances[0].DBInstanceStatus' --output text)
+          if [ "$DB_STATUS" != "available" ]; then
+            echo "RDS empress-knowledge-base is '$DB_STATUS', not 'available'." >&2
+            echo "Start it before deploying:" >&2
+            echo "  aws rds start-db-instance --db-instance-identifier empress-knowledge-base" >&2
+            exit 1
+          fi
+
+          # Register the rendered task definition (new image) so the one-off task
+          # runs this build's migrations. Strip read-only fields describe-* adds
+          # that register-task-definition rejects.
+          TASKDEF_ARN=$(jq 'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy,.deregisteredAt)' \
+            "$RENDERED_TASKDEF" \
+            | aws ecs register-task-definition --cli-input-json file:///dev/stdin \
+                --query 'taskDefinition.taskDefinitionArn' --output text)
+
+          # Reuse the backend service's own subnets/security groups.
+          NETCFG=$(aws ecs describe-services \
+            --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE" \
+            --query 'services[0].networkConfiguration' --output json)
+
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "$ECS_CLUSTER" \
+            --task-definition "$TASKDEF_ARN" \
+            --launch-type FARGATE \
+            --network-configuration "$NETCFG" \
+            --overrides "{\"containerOverrides\":[{\"name\":\"$CONTAINER_NAME\",\"command\":[\"alembic\",\"upgrade\",\"head\"]}]}" \
+            --started-by "deploy-migrate-${GITHUB_SHA}" \
+            --query 'tasks[0].taskArn' --output text)
+          echo "Migration task: $TASK_ARN"
+
+          aws ecs wait tasks-stopped --cluster "$ECS_CLUSTER" --tasks "$TASK_ARN"
+
+          EXIT_CODE=$(aws ecs describe-tasks \
+            --cluster "$ECS_CLUSTER" --tasks "$TASK_ARN" \
+            --query "tasks[0].containers[?name=='${CONTAINER_NAME}'].exitCode | [0]" \
+            --output text)
+          echo "Migration container exit code: $EXIT_CODE"
+          if [ "$EXIT_CODE" != "0" ]; then
+            echo "Database migration failed; aborting deploy before the service rolls out." >&2
+            echo "Inspect logs in CloudWatch log group /ecs/empress-backend." >&2
+            exit 1
+          fi
+
       - name: Deploy task definition
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2.6.2
         with:
