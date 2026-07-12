@@ -13,12 +13,18 @@ Date: 2026-07-09 to 2026-07-11
   its SQS message when the database is unreachable.
 - Preserve row-level isolation for malformed sources while allowing datastore
   outages to trigger the existing SQS retry and DLQ behavior.
+- **Issue #136** — support the complete VMM CSV, classified workbook, and
+  external-source ingest in AWS while keeping source selection server-controlled.
+- Use private S3 only to deliver approved raw inputs to the ECS worker; continue
+  storing documents, metadata, and Titan embeddings in PostgreSQL/pgvector.
 
 ## 2. AI Tools Used
 Codex was used to inspect the agent and voice paths, implement the response
 length handling, add tests and documentation, and incorporate review feedback.
 It was also used to inspect Issue #126 and trace the ingest exception path from
 per-source processing through the SQS worker.
+For Issue #136, Codex traced the API payload, worker, ECS task definitions, IAM,
+and existing local ingest pipeline before implementing the AWS input flow.
 
 ## 3. Prompts / Agent Workflow
 - Added an 800-character soft target to persona prompts.
@@ -35,6 +41,16 @@ per-source processing through the SQS worker.
   not delete the SQS message.
 - Added regression coverage confirming that datastore outages propagate,
   malformed sources are still skipped, and failed jobs retain their message.
+- Extended the async job payload with the classified workbook and configured the
+  admin endpoint to enqueue one full VMM + classified + external job.
+- Added exact server-side allowlist validation so clients or forged queue
+  messages cannot select arbitrary paths, S3 buckets/keys, or embedders.
+- Added worker-side download of approved `s3://` inputs to ephemeral task
+  storage before the existing pipeline generates Titan V2 embeddings and writes
+  them to RDS/pgvector.
+- Added a private encrypted/versioned source bucket and least-privilege worker
+  IAM access limited to the two approved objects. Raw inputs are not baked into
+  the image or stored in Terraform state.
 
 ## 4. Useful Output
 - `backend/app/agents/graph.py` — prompt guidance and `truncate_response` logic.
@@ -53,6 +69,19 @@ per-source processing through the SQS worker.
   for the changed files. The broader run had 58 passed and 3 skipped; two
   unrelated chat tests could not refresh AWS SSO credentials in the local
   network environment.
+- `backend/app/jobs/payloads.py`, `worker.py`, and `main.py` — classified input,
+  server-controlled job construction, S3 materialization, and telemetry counts.
+- `infra/terraform/ingest.tf` and `ecs.tf` — private source bucket, exact-object
+  IAM policy, and API/worker environment configuration.
+- `backend/README.md` and `infra/README.md` — full-ingest setup, upload, enqueue,
+  idempotency, queue, and DLQ verification procedures.
+- Issue #136 verification: 33 targeted tests passed; changed Python files passed
+  Ruff and `git diff --check`. The full suite had 62 passed and 3 skipped; the
+  same two AWS SSO-dependent chat tests failed in the local network environment.
+  Terraform CLI was unavailable locally, so `terraform fmt/validate` and live
+  AWS ingest verification remain deployment steps.
+- Split the work into `f8299c4` (backend full-ingest job support) and `2c89786`
+  (private AWS ingest inputs and infrastructure documentation).
 
 ## 5. Human Review / Changes
 - Kept `/voice/synthesize` validation unchanged and fixed the response earlier in
@@ -62,6 +91,11 @@ per-source processing through the SQS worker.
 - Chose explicit datastore exception categories instead of failing every job
   that writes zero rows, so a batch containing only invalid content keeps its
   intended source-level error semantics.
+- Clarified after review that S3 is an input transport for the raw CSV/workbook,
+  not an embedding store. The final 1024-dimensional vectors still live in the
+  PostgreSQL pgvector columns.
+- Kept source uploads out of Terraform because managing private source contents
+  as Terraform objects would place their data or hashes in infrastructure state.
 
 ## 6. Reflection
 Prompt guidance improves normal model output, but a deterministic backend limit
@@ -74,3 +108,10 @@ the worker's retry/DLQ design only works when infrastructure failures reach the
 message-processing boundary. Error handling should therefore classify failures
 by recovery scope—source-local errors can be skipped, while shared datastore
 failures must fail the job.
+
+Issue #136 reinforced the distinction between source delivery and knowledge-base
+storage. A deployed worker needs durable, private access to raw files, while the
+processed knowledge and semantic vectors belong in PostgreSQL/pgvector. Using
+separate controls for those stages also makes least privilege clearer: the API
+can enqueue only configured sources, and the worker can read only the approved
+objects before writing to the database.
