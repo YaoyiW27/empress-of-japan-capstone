@@ -6,7 +6,11 @@ import argparse
 import logging
 import signal
 import sys
+import tempfile
+from pathlib import Path
+from urllib.parse import urlparse
 
+import boto3
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
 
@@ -23,9 +27,44 @@ log = logging.getLogger("jobs.worker")
 tracer = trace.get_tracer(__name__)
 
 
+def _validate_server_controlled_job(envelope: JobEnvelope, settings: Settings) -> None:
+    """Reject queue messages that differ from the server-side source allowlist."""
+
+    job = envelope.job
+    configured = {
+        "csv": settings.ingest_job_csv_path,
+        "classified": settings.ingest_job_classified_path,
+        "external": settings.ingest_job_external_path,
+        "blocklist": settings.donor_blocklist_path,
+    }
+    for field, allowed in configured.items():
+        supplied = getattr(job, field)
+        if supplied is not None and supplied != allowed:
+            raise ValueError(f"job {field} input is not server-approved")
+    if job.embedder is not None and job.embedder != settings.embedder:
+        raise ValueError("job embedder is not server-approved")
+
+
+def _materialize_source(source: str | None, directory: Path, label: str, s3_client) -> str | None:
+    """Download an approved S3 URI to ephemeral storage; keep local paths unchanged."""
+
+    if source is None:
+        return None
+    parsed = urlparse(source)
+    if parsed.scheme != "s3":
+        return source
+    if not parsed.netloc or not parsed.path.lstrip("/"):
+        raise ValueError(f"invalid S3 URI for {label}")
+    suffix = Path(parsed.path).suffix
+    destination = directory / f"{label}{suffix}"
+    s3_client.download_file(parsed.netloc, parsed.path.lstrip("/"), str(destination))
+    return str(destination)
+
+
 def process_envelope(envelope: JobEnvelope, settings: Settings) -> IngestStats:
     """Run one job message. Exceptions bubble so SQS can retry the message."""
 
+    _validate_server_controlled_job(envelope, settings)
     job = envelope.job
     embedder_name = job.embedder or settings.embedder
     embedder = make_embedder(
@@ -34,21 +73,36 @@ def process_envelope(envelope: JobEnvelope, settings: Settings) -> IngestStats:
         region=settings.aws_region,
     )
     stats = IngestStats()
-    session = SessionLocal()
-    try:
-        if job.csv:
-            ingest_vmm(
-                session,
-                job.csv,
-                embedder,
-                extra_blocklist_path=job.blocklist or settings.donor_blocklist_path,
-                stats=stats,
-            )
-        if job.external:
-            ingest_external(session, job.external, embedder, stats=stats)
-    finally:
-        session.close()
-    return stats
+    with tempfile.TemporaryDirectory(prefix="empress-ingest-") as temp_dir:
+        directory = Path(temp_dir)
+        s3_client = None
+        if any(
+            source and source.startswith("s3://")
+            for source in (job.csv, job.classified, job.external)
+        ):
+            s3_client = boto3.client("s3", region_name=settings.aws_region)
+        csv_path = _materialize_source(job.csv, directory, "vmm", s3_client)
+        classified_path = _materialize_source(
+            job.classified, directory, "classified", s3_client
+        )
+        external_path = _materialize_source(job.external, directory, "external", s3_client)
+
+        session = SessionLocal()
+        try:
+            if csv_path:
+                ingest_vmm(
+                    session,
+                    csv_path,
+                    embedder,
+                    classified_path=classified_path,
+                    extra_blocklist_path=job.blocklist or settings.donor_blocklist_path,
+                    stats=stats,
+                )
+            if external_path:
+                ingest_external(session, external_path, embedder, stats=stats)
+        finally:
+            session.close()
+        return stats
 
 
 def poll_once(queue: SqsJobQueue, settings: Settings) -> int:
@@ -81,8 +135,10 @@ def poll_once(queue: SqsJobQueue, settings: Settings) -> int:
                 process_span.set_attribute("job.id", envelope.job_id)
                 process_span.set_attribute("job.kind", job.kind)
                 process_span.set_attribute("job.has_csv", bool(job.csv))
+                process_span.set_attribute("job.has_classified", bool(job.classified))
                 process_span.set_attribute("job.has_external", bool(job.external))
                 process_span.set_attribute("job.embedder", job.embedder or settings.embedder)
+                process_span.set_attribute("embed.model_id", settings.bedrock_embedding_model)
                 try:
                     stats = process_envelope(envelope, settings)
                 except Exception as exc:
@@ -93,6 +149,9 @@ def poll_once(queue: SqsJobQueue, settings: Settings) -> int:
                     continue
                 process_span.set_attribute("job.status", "completed")
                 process_span.set_attribute("ingest.rows_in", stats.rows_in)
+                process_span.set_attribute("ingest.inserted", stats.inserted)
+                process_span.set_attribute("ingest.updated", stats.updated)
+                process_span.set_attribute("ingest.skipped", stats.skipped)
                 process_span.set_attribute("ingest.errors", stats.errors)
                 process_span.set_attribute("ingest.chunks_embedded", stats.chunks_embedded)
             with tracer.start_as_current_span("jobs.worker.delete") as delete_span:

@@ -1,5 +1,6 @@
 """Unit tests for async ingest job plumbing (no AWS required)."""
 
+import pytest
 from fastapi.testclient import TestClient
 from opentelemetry import context, trace
 from opentelemetry.sdk.trace import TracerProvider
@@ -73,6 +74,7 @@ def test_ingest_job_endpoint_enqueues(monkeypatch) -> None:
                 jobs_queue_url="https://sqs.example/jobs",
                 ingest_admin_token="secret",
                 ingest_job_csv_path="../data/export.csv",
+                ingest_job_classified_path="../data/classified.xlsx",
                 ingest_job_external_path="external_sources.json",
                 embedder="fake",
             )
@@ -85,9 +87,6 @@ def test_ingest_job_endpoint_enqueues(monkeypatch) -> None:
         json={
             "include_csv": True,
             "include_external": True,
-            "csv": "../../ignored.csv",
-            "external": "../../ignored.json",
-            "embedder": "bedrock",
         },
     )
 
@@ -96,6 +95,7 @@ def test_ingest_job_endpoint_enqueues(monkeypatch) -> None:
     assert sent == [
         IngestJob(
             csv="../data/export.csv",
+            classified="../data/classified.xlsx",
             external="external_sources.json",
             embedder="fake",
         )
@@ -115,6 +115,51 @@ def test_ingest_job_endpoint_requires_configured_csv_source() -> None:
 
     assert resp.status_code == 400
     assert resp.json()["detail"] == "CSV ingest source is not configured"
+
+
+def test_ingest_job_endpoint_requires_configured_classified_source() -> None:
+    client = TestClient(
+        create_app(
+            Settings(
+                jobs_queue_url="https://sqs.example/jobs",
+                ingest_admin_token="secret",
+                ingest_job_csv_path="s3://approved/vmm.csv",
+            )
+        )
+    )
+
+    resp = client.post(
+        "/ingest/jobs",
+        headers=ADMIN_HEADERS,
+        json={"include_csv": True, "include_external": False},
+    )
+
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "classified ingest source is not configured"
+
+
+def test_ingest_job_endpoint_rejects_client_source_and_embedder_overrides() -> None:
+    client = TestClient(
+        create_app(
+            Settings(
+                jobs_queue_url="https://sqs.example/jobs",
+                ingest_admin_token="secret",
+            )
+        )
+    )
+
+    resp = client.post(
+        "/ingest/jobs",
+        headers=ADMIN_HEADERS,
+        json={
+            "include_external": True,
+            "csv": "s3://attacker/input.csv",
+            "bucket": "attacker",
+            "embedder": "fake",
+        },
+    )
+
+    assert resp.status_code == 422
 
 
 def test_sqs_queue_round_trips_typed_ingest_message() -> None:
@@ -157,6 +202,86 @@ def test_sqs_queue_round_trips_typed_ingest_message() -> None:
     assert messages[0].message_id == "message-1"
     assert messages[0].message_attributes == client.message_attributes
     assert client.deleted == "receipt-1"
+
+
+def test_worker_downloads_only_approved_s3_inputs(monkeypatch) -> None:
+    from app.jobs import worker
+
+    settings = Settings(
+        embedder="bedrock",
+        ingest_job_csv_path="s3://approved-inputs/vmm/catalogue.csv",
+        ingest_job_classified_path="s3://approved-inputs/vmm/classified.xlsx",
+        ingest_job_external_path="external_sources.json",
+    )
+    envelope = JobEnvelope(
+        job=IngestJob(
+            csv=settings.ingest_job_csv_path,
+            classified=settings.ingest_job_classified_path,
+            external=settings.ingest_job_external_path,
+            embedder="bedrock",
+        )
+    )
+    downloads = []
+    ingest_calls = []
+
+    class FakeS3:
+        def download_file(self, bucket: str, key: str, destination: str) -> None:
+            downloads.append((bucket, key))
+            with open(destination, "wb") as downloaded:
+                downloaded.write(b"test")
+
+    class FakeSession:
+        def close(self) -> None:
+            pass
+
+    monkeypatch.setattr(worker.boto3, "client", lambda *_args, **_kwargs: FakeS3())
+    monkeypatch.setattr(worker, "make_embedder", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(worker, "SessionLocal", FakeSession)
+    monkeypatch.setattr(
+        worker,
+        "ingest_vmm",
+        lambda _session, csv, _embedder, **kwargs: ingest_calls.append(
+            ("vmm", csv, kwargs["classified_path"])
+        ),
+    )
+    monkeypatch.setattr(
+        worker,
+        "ingest_external",
+        lambda _session, external, _embedder, **_kwargs: ingest_calls.append(
+            ("external", external)
+        ),
+    )
+
+    worker.process_envelope(envelope, settings)
+
+    assert downloads == [
+        ("approved-inputs", "vmm/catalogue.csv"),
+        ("approved-inputs", "vmm/classified.xlsx"),
+    ]
+    assert ingest_calls[0][0] == "vmm"
+    assert ingest_calls[0][1].endswith("/vmm.csv")
+    assert ingest_calls[0][2].endswith("/classified.xlsx")
+    assert ingest_calls[1] == ("external", "external_sources.json")
+
+
+def test_worker_rejects_unapproved_queue_payload() -> None:
+    from app.jobs.worker import process_envelope
+
+    settings = Settings(
+        embedder="bedrock",
+        ingest_job_csv_path="s3://approved/vmm.csv",
+        ingest_job_classified_path="s3://approved/classified.xlsx",
+    )
+    envelope = JobEnvelope(
+        job=IngestJob(
+            csv="s3://attacker/vmm.csv",
+            classified="s3://attacker/classified.xlsx",
+            embedder="fake",
+        )
+    )
+
+    with pytest.raises(ValueError, match="not server-approved"):
+        process_envelope(envelope, settings)
 
 
 def test_worker_process_span_continues_sqs_trace_context(monkeypatch) -> None:
@@ -230,7 +355,12 @@ def test_worker_process_span_continues_sqs_trace_context(monkeypatch) -> None:
     assert delete_span.parent.span_id == upstream.span_id
     assert process_span.attributes["job.id"] == "job-123"
     assert process_span.attributes["job.status"] == "completed"
+    assert process_span.attributes["job.has_classified"] is False
+    assert process_span.attributes["embed.model_id"] == "amazon.titan-embed-text-v2:0"
     assert process_span.attributes["ingest.rows_in"] == 2
+    assert process_span.attributes["ingest.inserted"] == 0
+    assert process_span.attributes["ingest.updated"] == 0
+    assert process_span.attributes["ingest.skipped"] == 0
 
 
 def test_worker_does_not_delete_message_when_ingest_fails(monkeypatch) -> None:
