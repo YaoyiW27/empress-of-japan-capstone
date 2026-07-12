@@ -10,7 +10,7 @@ Internal team workflow conventions. Last updated May 26, 2026.
 |---|---|---|
 | **Kelly** (Ching-Hsin Hsu) | Frontend & 3D Pipeline | `frontend/`, R3F, Next.js shell, glTF pipeline, Hongyu coordination |
 | **Steven** (Suochun Fang) | UX & Voice Interaction | UX flows, agent personas, voice IO patterns, visitor research, curator dashboard usability |
-| **Alina** (Qingman Li) | Multi-Agent Backend | `backend/`, FastAPI + LangGraph, 8+ agent topology, RAG on Postgres + pgvector |
+| **Alina** (Qingman Li) | Multi-Agent Backend | `backend/`, FastAPI + LangGraph persona agents (Bedrock / Claude Sonnet 4-6), RAG on Postgres + pgvector |
 | **Yaoyi** (Yaoyi Wang) | DevOps, Cloud & Observability | `infra/`, AWS, Terraform, CI/CD, OTel → Honeycomb, CloudWatch, $1,000 budget |
 
 **Supporting:** Hao Wu (TA, weekly), Prof. Lino (weekly), Prof. Coady (milestones), Ashley Smith (VMM, biweekly), Hongyu (3D assets).
@@ -73,9 +73,9 @@ Prof. Coady's grading rubric evaluates **our process of using AI in development*
 - ...
 
 ## What worked
-- Used Claude to draft the LangGraph state machine for the Storyteller -> Curator
-  handoff. Needed two rounds of refinement but ended up cleaner than what I'd
-  have written from scratch.
+- Used Claude to draft the LangGraph dispatch node that routes on `persona_id` to
+  the right persona agent. Needed two rounds of refinement but ended up cleaner
+  than what I'd have written from scratch.
 
 ## What didn't
 - Tried Cursor's edit-selection on a complex pgvector query — it kept inventing
@@ -164,5 +164,5 @@ Each of us has one or two starter tasks. The goal of Week 1 is **everyone can ru
 ## Quick links
 
 - Project plan (full report) — `docs/project-plan.md` *(to be committed)*
-- Architecture — `docs/architecture.md` *(to be committed)*
+- Architecture — `docs/architecture.md`
 - TA's AWS team playbook (reference, not template) — https://github.com/wuhao2809/aws-team-playbook
