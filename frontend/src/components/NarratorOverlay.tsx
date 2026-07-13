@@ -5,6 +5,11 @@ import { useEffect, useRef, useState } from "react";
 import type { Narrator, Scene } from "@/lib/narrators";
 import { sendChatMessage, type ChatHistoryTurn } from "@/lib/chat";
 import { synthesizeNarratorVoice } from "@/lib/voice";
+import {
+  isTranscribeSupported,
+  startTranscription,
+  type TranscribeSession,
+} from "@/lib/transcribe";
 
 type SpeechRecognitionConstructor = new () => SpeechRecognition;
 
@@ -50,11 +55,16 @@ export default function NarratorOverlay({
   const [isLoading, setIsLoading] = useState(false);
   const isMountedRef = useRef(true);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  
+  const transcribeRef = useRef<TranscribeSession | null>(null);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
-      isMountedRef.current = true;
+      isMountedRef.current = false;
       audioRef.current?.pause();
+      transcribeRef.current?.stop();
+      recognitionRef.current?.stop();
     };
   }, []);
 
@@ -116,6 +126,38 @@ export default function NarratorOverlay({
   }
   
   function startListening() {
+    setTranscript("");
+
+    // Primary path: stream mic audio to the backend Amazon Transcribe endpoint.
+    // Works in any browser with getUserMedia + AudioWorklet (incl. Safari/Firefox).
+    if (isTranscribeSupported()) {
+      setIsListening(true);
+      transcribeRef.current = startTranscription({
+        onInterim: (text) => {
+          if (isMountedRef.current) setTranscript(text);
+        },
+        onResult: (text) => {
+          transcribeRef.current = null;
+          if (!isMountedRef.current) return;
+          setIsListening(false);
+          if (text) void submitMessage(text);
+        },
+        onError: (message) => {
+          transcribeRef.current = null;
+          if (!isMountedRef.current) return;
+          setIsListening(false);
+          setResponse(message);
+        },
+      });
+      return;
+    }
+
+    startWebSpeechListening();
+  }
+
+  // Fallback for browsers without mic streaming support: the Chrome-only Web
+  // Speech API, which recognizes on-device and auto-stops at end of speech.
+  function startWebSpeechListening() {
     const Recognition =
       window.SpeechRecognition ?? window.webkitSpeechRecognition;
 
@@ -134,14 +176,27 @@ export default function NarratorOverlay({
     };
 
     recognition.onerror = () => {
+      recognitionRef.current = null;
       setIsListening(false);
       setResponse("Sorry, I could not hear that clearly.");
     };
 
-    recognition.onend = () => setIsListening(false);
+    recognition.onend = () => {
+      recognitionRef.current = null;
+      setIsListening(false);
+    };
 
+    recognitionRef.current = recognition;
     setIsListening(true);
     recognition.start();
+  }
+
+  function stopListening() {
+    if (transcribeRef.current) {
+      transcribeRef.current.stop();
+      return;
+    }
+    recognitionRef.current?.stop();
   }
 
   return (
@@ -176,11 +231,11 @@ export default function NarratorOverlay({
 
           <button
             type="button"
-            onClick={startListening}
-            disabled={isListening || isLoading}
-            className="mt-3 inline-flex items-center gap-1.5 rounded-sm border border-brass/40 bg-ivory px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-navy-soft"
+            onClick={isListening ? stopListening : startListening}
+            disabled={isLoading}
+            className="mt-3 inline-flex items-center gap-1.5 rounded-sm border border-brass/40 bg-ivory px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-navy-soft disabled:opacity-60"
           >
-            🎤 {isListening ? "Listening..." : "Talk"}
+            🎤 {isListening ? "Listening… tap to send" : "Talk"}
           </button>
         </div>
       )}
