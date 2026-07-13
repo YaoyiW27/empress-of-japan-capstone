@@ -139,7 +139,7 @@ variable "backend_autoscaling_cpu_target_percent" {
 }
 
 variable "backend_cors_origins" {
-  description = "Exact browser origins allowed to call the deployed backend. Keep this list explicit; never use a wildcard for the public API."
+  description = "EXTRA browser origins allowed to call the deployed backend, on top of the AWS frontend CloudFront origins (wired in automatically from frontend.tf). Transitional: holds the legacy Vercel URLs during the Vercel->AWS cutover. Empty this list once Vercel is retired. Keep entries explicit; never use a wildcard for the public API."
   type        = list(string)
   default = [
     "https://empress-of-japan-capstone.vercel.app",
@@ -151,6 +151,20 @@ variable "backend_cors_origins" {
       for origin in var.backend_cors_origins : startswith(origin, "https://") && !endswith(origin, "/")
     ])
     error_message = "Backend CORS origins must be exact HTTPS origins without a trailing slash."
+  }
+}
+
+# --- Static frontend hosting (Vercel -> AWS migration, see frontend.tf) ---
+
+variable "frontend_sites" {
+  description = "Static frontend sites to host on S3 + CloudFront, keyed by short name. Each entry becomes its own private bucket and CloudFront distribution serving the same built assets. Defaults to a single production site; add another entry (e.g. gyro-test) to restore a second deployment."
+  type = map(object({
+    comment = string
+  }))
+  default = {
+    main = {
+      comment = "Empress of Japan production frontend (static export)"
+    }
   }
 }
 

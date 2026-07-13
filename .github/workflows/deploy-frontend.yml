@@ -1,0 +1,99 @@
+name: deploy-frontend
+
+# Build the static Next.js export and publish it to the AWS-hosted frontend
+# site(s): sync the built assets to S3, then invalidate CloudFront. Replaces the
+# retired Vercel deployments. Infra (buckets + distributions) is owned by
+# infra/terraform/frontend.tf and discovered at deploy time via SSM.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/deploy-frontend.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-frontend-sandbox
+  cancel-in-progress: false
+
+permissions:
+  id-token: write # OIDC -> AWS
+  contents: read
+
+env:
+  AWS_REGION: us-west-2
+
+jobs:
+  deploy:
+    name: Build and publish frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build static export
+        run: |
+          set -euo pipefail
+          # Browser requests target the backend CloudFront HTTPS URL (from #109),
+          # published to SSM by cloudfront.tf. Baked into the bundle at build time;
+          # lib/api.ts derives wss:// from it for WebSocket clients.
+          API_BASE=$(aws ssm get-parameter \
+            --name /empress/backend/public_api_base_url \
+            --query 'Parameter.Value' --output text)
+          echo "Building with NEXT_PUBLIC_API_BASE_URL=$API_BASE"
+          NEXT_PUBLIC_API_BASE_URL="$API_BASE" npm run build
+
+      - name: Publish to S3 and invalidate CloudFront
+        run: |
+          set -euo pipefail
+
+          SITES_JSON=$(aws ssm get-parameter \
+            --name /empress/frontend/sites \
+            --query 'Parameter.Value' --output text 2>/dev/null || true)
+          if [ -z "$SITES_JSON" ] || [ "$SITES_JSON" = "None" ]; then
+            echo "SSM parameter /empress/frontend/sites is missing." >&2
+            echo "Apply infra/terraform (frontend.tf) before deploying the frontend." >&2
+            exit 1
+          fi
+
+          for NAME in $(echo "$SITES_JSON" | jq -r 'keys[]'); do
+            BUCKET=$(echo "$SITES_JSON" | jq -r --arg k "$NAME" '.[$k].bucket')
+            DIST=$(echo "$SITES_JSON" | jq -r --arg k "$NAME" '.[$k].distribution_id')
+            echo "::group::Deploy site '$NAME' -> s3://$BUCKET (CloudFront $DIST)"
+
+            # HTML and top-level assets: prune removed files, always revalidate so
+            # a new deploy is picked up immediately (paired with the invalidation).
+            aws s3 sync out/ "s3://$BUCKET/" --delete \
+              --exclude "_next/*" \
+              --cache-control "public, max-age=0, must-revalidate"
+
+            # Hashed build assets under _next/ are immutable; cache them for a year.
+            aws s3 sync out/_next/ "s3://$BUCKET/_next/" --delete \
+              --cache-control "public, max-age=31536000, immutable"
+
+            aws cloudfront create-invalidation \
+              --distribution-id "$DIST" \
+              --paths "/*" >/dev/null
+
+            echo "Deployed '$NAME'."
+            echo "::endgroup::"
+          done
