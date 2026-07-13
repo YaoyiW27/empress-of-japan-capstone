@@ -40,8 +40,8 @@ SELECT
     license,
     embedding <=> CAST(:query_embedding AS vector) AS distance
 FROM retrievable_chunks
-WHERE (:ship IS NULL OR ship = CAST(:ship AS ship_enum))
-  AND (:material_type IS NULL OR material_type = :material_type)
+WHERE (CAST(:ship AS ship_enum) IS NULL OR ship = CAST(:ship AS ship_enum))
+  AND (CAST(:material_type AS text) IS NULL OR material_type = CAST(:material_type AS text))
 ORDER BY embedding <=> CAST(:query_embedding AS vector)
 LIMIT :top_k
 """
