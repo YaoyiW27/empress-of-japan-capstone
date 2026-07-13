@@ -41,6 +41,8 @@ def _validate_server_controlled_job(envelope: JobEnvelope, settings: Settings) -
         supplied = getattr(job, field)
         if supplied is not None and supplied != allowed:
             raise ValueError(f"job {field} input is not server-approved")
+    if job.csv is not None and job.classified != settings.ingest_job_classified_path:
+        raise ValueError("CSV ingest job requires the server-approved classified input")
     if job.embedder is not None and job.embedder != settings.embedder:
         raise ValueError("job embedder is not server-approved")
 

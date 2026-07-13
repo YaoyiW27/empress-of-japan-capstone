@@ -284,6 +284,30 @@ def test_worker_rejects_unapproved_queue_payload() -> None:
         process_envelope(envelope, settings)
 
 
+def test_worker_rejects_approved_csv_without_classified_input(monkeypatch) -> None:
+    from app.jobs import worker
+
+    settings = Settings(
+        embedder="bedrock",
+        ingest_job_csv_path="s3://approved/vmm.csv",
+        ingest_job_classified_path="s3://approved/classified.xlsx",
+    )
+    envelope = JobEnvelope(
+        job=IngestJob(
+            csv=settings.ingest_job_csv_path,
+            embedder="bedrock",
+        )
+    )
+    monkeypatch.setattr(
+        worker,
+        "make_embedder",
+        lambda *_args, **_kwargs: pytest.fail("validation must run before ingest setup"),
+    )
+
+    with pytest.raises(ValueError, match="requires the server-approved classified input"):
+        worker.process_envelope(envelope, settings)
+
+
 def test_worker_process_span_continues_sqs_trace_context(monkeypatch) -> None:
     from app.jobs import worker
 
