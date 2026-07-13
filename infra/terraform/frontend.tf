@@ -80,6 +80,11 @@ resource "aws_s3_bucket_ownership_controls" "frontend" {
   }
 }
 
+# These buckets hold only the public, openly-served static frontend build — no
+# sensitive data — so SSE-S3 (AES256) is deliberate: a customer-managed KMS key
+# (AVD-AWS-0132) adds cost and an OAC key-policy grant with no security benefit
+# for assets CloudFront serves to the world anyway.
+#trivy:ignore:AVD-AWS-0132
 resource "aws_s3_bucket_server_side_encryption_configuration" "frontend" {
   for_each = aws_s3_bucket.frontend
 
@@ -87,8 +92,6 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "frontend" {
 
   rule {
     apply_server_side_encryption_by_default {
-      # Public web assets carry no sensitive data; SSE-S3 keeps CloudFront reads
-      # key-management-free (no KMS grant needed for the OAC principal).
       sse_algorithm = "AES256"
     }
     bucket_key_enabled = true
