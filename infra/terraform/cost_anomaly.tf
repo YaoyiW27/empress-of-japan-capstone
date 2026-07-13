@@ -9,9 +9,18 @@
 # Cost Explorer / Cost Anomaly Detection are global services whose APIs resolve
 # to us-east-1, so the default us-west-2 provider needs no alias (same as
 # budgets.tf).
+#
+# DISABLED BY DEFAULT: the org Service Control Policy
+# (arn:aws:organizations::123896930307:policy/.../p-9n6l6a99) explicitly denies
+# ce:CreateAnomalyMonitor for our deploy role, so creating these resources fails
+# `terraform apply` with an AccessDeniedException. Gated behind
+# var.enable_cost_anomaly_detection (default false) so apply succeeds; flip it on
+# if the SCP is ever relaxed to allow Cost Explorer writes. The monthly budget
+# guardrail in budgets.tf keeps working regardless.
 
 # Watch spend per AWS service so one runaway service is caught on its own.
 resource "aws_ce_anomaly_monitor" "services" {
+  count             = var.enable_cost_anomaly_detection ? 1 : 0
   name              = "empress-service-spend"
   monitor_type      = "DIMENSIONAL"
   monitor_dimension = "SERVICE"
@@ -21,9 +30,10 @@ resource "aws_ce_anomaly_monitor" "services" {
 # threshold. IMMEDIATE frequency delivers via SNS (email digests would need
 # DAILY/WEEKLY); the topic already fans out to the team by email.
 resource "aws_ce_anomaly_subscription" "spend" {
+  count            = var.enable_cost_anomaly_detection ? 1 : 0
   name             = "empress-spend-anomalies"
   frequency        = "IMMEDIATE"
-  monitor_arn_list = [aws_ce_anomaly_monitor.services.arn]
+  monitor_arn_list = [aws_ce_anomaly_monitor.services[0].arn]
 
   subscriber {
     type    = "SNS"
