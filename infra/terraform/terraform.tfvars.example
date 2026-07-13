@@ -7,6 +7,11 @@
 # region       = "us-west-2"
 # canary_value = "bootstrap-verified-by-yaoyi"
 
+# Exact private S3 keys used for the full VMM ingest. Upload source files to
+# these keys after Terraform creates the ingest_sources bucket.
+# ingest_vmm_csv_key             = "vmm/export_empress-of-japan.csv"
+# ingest_classified_workbook_key = "vmm/Empress_of_Japan_records_classified.xlsx"
+
 # --- Cost tracking (issue #20) ---
 # The defaults in variables.tf already target the team + $1000 budget, so you
 # normally don't need to override these. Examples:

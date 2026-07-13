@@ -135,6 +135,11 @@ resource "aws_iam_role_policy_attachment" "worker_task_titan" {
   policy_arn = aws_iam_policy.bedrock_titan_embed_invoke.arn
 }
 
+resource "aws_iam_role_policy_attachment" "worker_task_ingest_sources" {
+  role       = aws_iam_role.worker_task.name
+  policy_arn = aws_iam_policy.worker_ingest_sources_read.arn
+}
+
 resource "aws_cloudwatch_log_group" "backend" {
   name              = "/ecs/empress-backend"
   retention_in_days = var.backend_log_retention_days
@@ -252,6 +257,8 @@ resource "aws_ecs_task_definition" "backend" {
         { name = "PERSONA_DIR", value = "/app/data/ai/personas" },
         { name = "CORS_ORIGINS", value = jsonencode(var.backend_cors_origins) },
         { name = "JOBS_QUEUE_URL", value = aws_sqs_queue.jobs.url },
+        { name = "INGEST_JOB_CSV_PATH", value = "s3://${aws_s3_bucket.ingest_sources.bucket}/${var.ingest_vmm_csv_key}" },
+        { name = "INGEST_JOB_CLASSIFIED_PATH", value = "s3://${aws_s3_bucket.ingest_sources.bucket}/${var.ingest_classified_workbook_key}" },
         { name = "INGEST_JOB_EXTERNAL_PATH", value = "external_sources.json" },
         { name = "VOICE_CACHE_BUCKET", value = aws_s3_bucket.voice_cache.bucket },
         { name = "VOICE_CACHE_PREFIX", value = var.voice_cache_prefix },
@@ -439,6 +446,8 @@ resource "aws_ecs_task_definition" "worker" {
         { name = "EMBEDDER", value = "bedrock" },
         { name = "BEDROCK_EMBEDDING_MODEL", value = var.bedrock_embedding_model_id },
         { name = "JOBS_QUEUE_URL", value = aws_sqs_queue.jobs.url },
+        { name = "INGEST_JOB_CSV_PATH", value = "s3://${aws_s3_bucket.ingest_sources.bucket}/${var.ingest_vmm_csv_key}" },
+        { name = "INGEST_JOB_CLASSIFIED_PATH", value = "s3://${aws_s3_bucket.ingest_sources.bucket}/${var.ingest_classified_workbook_key}" },
         { name = "INGEST_JOB_EXTERNAL_PATH", value = "external_sources.json" },
         { name = "OTEL_ENABLED", value = tostring(var.backend_otel_enabled) },
         { name = "OTEL_SERVICE_NAME", value = "empress-worker" },
@@ -521,6 +530,7 @@ resource "aws_ecs_task_definition" "worker" {
     aws_iam_role_policy.backend_execution_honeycomb_secret_read,
     aws_iam_role_policy_attachment.worker_task_sqs_consume,
     aws_iam_role_policy_attachment.worker_task_titan,
+    aws_iam_role_policy_attachment.worker_task_ingest_sources,
   ]
 }
 

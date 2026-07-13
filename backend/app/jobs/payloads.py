@@ -14,6 +14,7 @@ class IngestJob(BaseModel):
 
     kind: Literal["ingest"] = "ingest"
     csv: str | None = None
+    classified: str | None = None
     external: str | None = None
     embedder: Literal["fake", "bedrock"] | None = None
     blocklist: str | None = None
@@ -22,6 +23,8 @@ class IngestJob(BaseModel):
     def require_source(self) -> IngestJob:
         if not self.csv and not self.external:
             raise ValueError("provide csv and/or external")
+        if self.classified and not self.csv:
+            raise ValueError("classified input requires csv")
         return self
 
 

@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from opentelemetry import trace
+from sqlalchemy.exc import DisconnectionError, InterfaceError, OperationalError, TimeoutError
 from sqlalchemy.orm import Session
 
 from app.ingest.chunk import chunk_external_doc, compose_vmm_chunk
@@ -32,6 +33,16 @@ from app.ingest.upsert import upsert_document
 
 log = logging.getLogger("ingest")
 tracer = trace.get_tracer(__name__)
+
+# These errors indicate that the pipeline cannot reliably reach its datastore.
+# They must escape the row-level isolation below so async workers leave the SQS
+# message in the queue for retry/DLQ handling instead of reporting success.
+_DATASTORE_UNAVAILABLE_ERRORS = (
+    OperationalError,
+    InterfaceError,
+    DisconnectionError,
+    TimeoutError,
+)
 
 
 @dataclass
@@ -112,6 +123,8 @@ def ingest_vmm(
                     result = upsert_document(session, doc, embedder)
                     row_span.set_attribute("ingest.upsert_status", result.status)
                     _record(stats, doc, result.status, result.chunks_embedded)
+            except _DATASTORE_UNAVAILABLE_ERRORS:
+                raise
             except Exception:
                 stats.errors += 1
                 log.exception("row %d (%s) failed — skipping", i, row.get("Object identifier", "?"))
@@ -156,6 +169,8 @@ def ingest_external(
                     result = upsert_document(session, doc, embedder)
                     row_span.set_attribute("ingest.upsert_status", result.status)
                     _record(stats, doc, result.status, result.chunks_embedded)
+            except _DATASTORE_UNAVAILABLE_ERRORS:
+                raise
             except Exception:
                 stats.errors += 1
                 log.exception("external source %r failed — skipping", entry.get("title", "?"))

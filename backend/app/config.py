@@ -75,6 +75,7 @@ class Settings(BaseSettings):
     sqs_max_messages: int = 1
     ingest_admin_token: str | None = None
     ingest_job_csv_path: str | None = None
+    ingest_job_classified_path: str | None = None
     ingest_job_external_path: str | None = "external_sources.json"
 
     # Path to the directory containing persona markdown files.

@@ -391,6 +391,54 @@ then has all of these signals:
 Do not put the ingest admin token in either Vercel project or a committed file.
 It is for an operator smoke test, not a browser feature.
 
+### Upload and run the full knowledge ingest
+
+Terraform creates a private, encrypted, versioned ingest-source bucket. It does
+not manage the source objects, so the private CSV/workbook contents never enter
+Terraform state or the application image. The worker role can read only the two
+exact keys configured by `ingest_vmm_csv_key` and
+`ingest_classified_workbook_key`.
+
+Upload the reviewed source files from a trusted operator machine:
+
+```bash
+INGEST_BUCKET=$(AWS_PROFILE=empress terraform -chdir=infra/terraform \
+  output -raw ingest_sources_bucket_name)
+
+AWS_PROFILE=empress aws s3 cp \
+  'data/export_empress of japan.csv' \
+  "s3://$INGEST_BUCKET/vmm/export_empress-of-japan.csv" \
+  --region us-west-2 \
+  --sse aws:kms --sse-kms-key-id alias/empress-ingest-sources
+
+AWS_PROFILE=empress aws s3 cp \
+  data/Empress_of_Japan_records_classified.xlsx \
+  "s3://$INGEST_BUCKET/vmm/Empress_of_Japan_records_classified.xlsx" \
+  --region us-west-2 \
+  --sse aws:kms --sse-kms-key-id alias/empress-ingest-sources
+```
+
+If either Terraform key variable is overridden, use that exact output key
+instead. Confirm the current object versions and sizes before enqueueing; never
+make this bucket public or place credentials in object metadata.
+
+The same admin endpoint then creates one server-controlled full-ingest job. It
+does not accept paths, buckets, keys, or embedder overrides from the request:
+
+```bash
+curl --fail --show-error \
+  -X POST "$PUBLIC_API_BASE_URL/ingest/jobs" \
+  -H "Content-Type: application/json" \
+  -H "X-Admin-Token: $ADMIN_TOKEN" \
+  -d '{"include_csv":true,"include_external":true}'
+```
+
+For the current reviewed inputs, successful logs should report 296 documents
+(285 VMM and 11 external), 336 chunks, zero errors, and the configured Titan V2
+model. Repeat the identical job to verify idempotency, then confirm both the
+source queue and DLQ are empty. Investigate source-count drift before treating a
+different total as success.
+
 ### Validate target-tracking autoscaling
 
 The service targets 60% average CPU, scales between 2 and 6 tasks, waits two

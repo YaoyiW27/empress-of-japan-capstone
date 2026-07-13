@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from langgraph.checkpoint.memory import MemorySaver
 from opentelemetry import trace
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -80,6 +80,8 @@ class EnqueueJobResponse(BaseModel):
 
 
 class EnqueueIngestJobRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     include_csv: bool = False
     include_external: bool = True
 
@@ -127,11 +129,17 @@ def _build_ingest_job(req: EnqueueIngestJobRequest, settings: Settings) -> Inges
         raise HTTPException(status_code=400, detail="select at least one ingest source")
 
     csv_path = None
+    classified_path = None
     external_path = None
     if req.include_csv:
         if not settings.ingest_job_csv_path:
             raise HTTPException(status_code=400, detail="CSV ingest source is not configured")
         csv_path = settings.ingest_job_csv_path
+        if not settings.ingest_job_classified_path:
+            raise HTTPException(
+                status_code=400, detail="classified ingest source is not configured"
+            )
+        classified_path = settings.ingest_job_classified_path
     if req.include_external:
         if not settings.ingest_job_external_path:
             raise HTTPException(status_code=400, detail="external ingest source is not configured")
@@ -139,6 +147,7 @@ def _build_ingest_job(req: EnqueueIngestJobRequest, settings: Settings) -> Inges
 
     return IngestJob(
         csv=csv_path,
+        classified=classified_path,
         external=external_path,
         embedder=settings.embedder,
         blocklist=settings.donor_blocklist_path if csv_path else None,

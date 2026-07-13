@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from sqlalchemy.exc import OperationalError
 
 from app.ingest.chunk import compose_vmm_chunk, window_chunks
 from app.ingest.classified import load_classified_index
@@ -12,6 +13,7 @@ from app.ingest.embed import FakeEmbedder
 from app.ingest.mappings import derive_material_type, map_vessel_to_ship_era
 from app.ingest.normalize import normalize_vmm_row
 from app.ingest.parse import strip_markup
+from app.ingest.pipeline import ingest_external
 from app.ingest.privacy import DonorRedactor, apply_privacy
 from app.ingest.sources import read_external_manifest, read_vmm_rows
 from app.ingest.upsert import _find_existing
@@ -235,3 +237,41 @@ def test_external_manifest_requires_source_url_and_author_for_inline_text(tmp_pa
     )
     with pytest.raises(ValueError, match="source_url"):
         list(read_external_manifest(manifest))
+
+
+def test_external_ingest_propagates_datastore_outage(monkeypatch, tmp_path):
+    manifest = tmp_path / "ext.json"
+    manifest.write_text(
+        '[{"title": "T", "text": "Body", "license": "CC BY 4.0",'
+        ' "author_publisher": "Author", "source_url": "https://example.test/source"}]',
+        encoding="utf-8",
+    )
+    outage = OperationalError("SELECT documents", {}, ConnectionError("database unavailable"))
+
+    def fail_upsert(*_args, **_kwargs):
+        raise outage
+
+    monkeypatch.setattr("app.ingest.pipeline.upsert_document", fail_upsert)
+
+    with pytest.raises(OperationalError) as exc_info:
+        ingest_external(object(), manifest, FakeEmbedder())
+
+    assert exc_info.value is outage
+
+
+def test_external_ingest_still_skips_bad_source(monkeypatch, tmp_path):
+    manifest = tmp_path / "ext.json"
+    manifest.write_text(
+        '[{"title": "Bad", "text": "Body", "license": "CC BY 4.0"}]',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "app.ingest.pipeline.upsert_document",
+        lambda *_args, **_kwargs: pytest.fail("invalid source must not reach the datastore"),
+    )
+
+    stats = ingest_external(object(), manifest, FakeEmbedder())
+
+    assert stats.rows_in == 1
+    assert stats.errors == 1
+    assert stats.inserted == 0
