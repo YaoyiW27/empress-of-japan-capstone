@@ -19,6 +19,11 @@ Date: 2026-07-09 to 2026-07-13
   storing documents, metadata, and Titan embeddings in PostgreSQL/pgvector.
 - Verify the merged full-ingest path against the deployed AWS environment with
   the reviewed VMM CSV, classified workbook, and external-source manifest.
+- **Issue #69** — connect LangGraph persona chat to the privacy-gated retrieval
+  layer while keeping spoken narration separate from citations.
+- Let personas answer ordinary conversation naturally, ground supported
+  historical answers, and abstain in character when the available records do
+  not support a factual answer.
 
 ## 2. AI Tools Used
 Codex was used to inspect the agent and voice paths, implement the response
@@ -27,6 +32,9 @@ It was also used to inspect Issue #126 and trace the ingest exception path from
 per-source processing through the SQS worker.
 For Issue #136, Codex traced the API payload, worker, ECS task definitions, IAM,
 and existing local ingest pipeline before implementing the AWS input flow.
+For Issue #69, Codex inspected the graph/retrieval seams, probed the deployed
+`/retrieve` endpoint, traced its failure through CloudWatch, and implemented the
+retrieval fix and structured persona response contract with regression tests.
 
 ## 3. Prompts / Agent Workflow
 - Added an 800-character soft target to persona prompts.
@@ -59,6 +67,17 @@ and existing local ingest pipeline before implementing the AWS input flow.
 - Followed the ECS worker through successful external-source fetches and job
   completion, then verified that both the source queue and DLQ returned to zero
   visible and zero in-flight messages.
+- Found that deployed unfiltered retrieval failed because PostgreSQL could not
+  infer nullable bind parameter types. Added explicit casts for both optional
+  filters while preserving `retrievable_chunks` as the only query surface.
+- Wired each persona node to retrieve the latest visitor turn and provide the
+  top five candidates to Claude as untrusted archival data.
+- Added structured `grounded`, `conversational`, and `insufficient_evidence`
+  modes. The model selects supporting internal source IDs only for grounded
+  answers; the API validates them and returns source metadata separately from
+  the voice-safe response.
+- Added fail-closed behavior for unavailable retrieval and repeatedly invalid
+  structured model output, plus prompt-injection and inline-citation guards.
 
 ## 4. Useful Output
 - `backend/app/agents/graph.py` — prompt guidance and `truncate_response` logic.
@@ -94,6 +113,12 @@ and existing local ingest pipeline before implementing the AWS input flow.
   VMM and 11 external), 336 chunks embedded with Titan Text Embeddings V2, 120
   redactions, 54 out-of-scope rows, and zero errors. The SQS source queue and
   DLQ both reported zero visible and zero in-flight messages afterward.
+- Issue #69 implementation updated the retrieval SQL, LangGraph state/persona
+  node, Bedrock structured-output adapter, `/chat` response model, tests, and
+  architecture/operator documentation.
+- Issue #69 verification: 32 targeted agent/retrieval tests passed; the complete
+  backend suite passed with 82 tests and 3 integration skips. Ruff passed for
+  every changed Python file, and `git diff --check` passed.
 
 ## 5. Human Review / Changes
 - Kept `/voice/synthesize` validation unchanged and fixed the response earlier in
@@ -108,6 +133,13 @@ and existing local ingest pipeline before implementing the AWS input flow.
   PostgreSQL pgvector columns.
 - Kept source uploads out of Terraform because managing private source contents
   as Terraform objects would place their data or hashes in infrastructure state.
+- Kept citations out of narrator prose because the same response is synthesized
+  as speech. The backend exposes a separate structured list only when Claude
+  identifies a candidate as direct support for the answer.
+- Avoided a fixed similarity threshold: the small knowledge base always returns
+  nearest neighbours, even for greetings. One structured persona call instead
+  decides whether the turn is conversational, grounded, or a factual request
+  with insufficient evidence.
 
 ## 6. Reflection
 Prompt guidance improves normal model output, but a deterministic backend limit
@@ -133,3 +165,9 @@ outcomes rather than only a successful enqueue response. Worker completion
 counts, embedding totals, redaction/out-of-scope metrics, and empty source/DLQ
 queues together demonstrated that the full job completed without silently
 dropping work.
+
+Issue #69 reinforced that retrieval and grounding are separate decisions. A
+nearest-neighbour result is not automatically evidence. Preserving a normal
+persona response for conversation, requiring explicit source selection for
+historical claims, and abstaining when records are insufficient provides a more
+honest experience without making every visitor exchange sound like a footnote.

@@ -134,13 +134,11 @@ Built and working:
 - 360° panorama experience with drag + gyroscope look controls, per-narrator routes
 - Voice in (Web Speech) and out (Polly with browser fallback)
 - FastAPI + LangGraph persona chat over Bedrock
-- pgvector RAG store, embeddings, and `/retrieve` endpoint
+- pgvector RAG store, Titan embeddings, `/retrieve`, and grounded persona chat
 - Full Terraform-managed AWS stack, OIDC CI/CD, OTel → Honeycomb, cost budgets
 
 Planned / not yet wired (tracked in Issues):
 
-- **RAG is not yet connected to `/chat`** — personas currently answer from their
-  system prompt alone; `/retrieve` exists as a standalone endpoint.
 - **The agent graph is a single hop** (`dispatch → persona → END`) with no
   supervisor/router LLM and no agent-to-agent handoff; persona is chosen at the
   API layer. A richer multi-agent topology is a target, not current state.

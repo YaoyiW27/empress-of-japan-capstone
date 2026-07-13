@@ -3,6 +3,7 @@
 Run locally with:
     uvicorn app.main:app --reload
 """
+
 import asyncio
 import hmac
 import json
@@ -14,22 +15,27 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from langgraph.checkpoint.memory import MemorySaver
 from opentelemetry import trace
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.agents.graph import build_graph
-from app.agents.llm import make_chat_model
+from app.agents.graph import (
+    InvalidGroundedResponseError,
+    RetrievalUnavailableError,
+    build_graph,
+)
+from app.agents.llm import ChatModel, make_chat_model
 from app.agents.personas import load_personas, scene_to_personas
 from app.config import Settings, get_settings
-from app.db import engine, get_db
+from app.db import SessionLocal, engine, get_db
 from app.ingest.embed import make_embedder
 from app.jobs import IngestJob, SqsJobQueue
 from app.models import Ship
 from app.retrieval import (
     DEFAULT_TOP_K,
     MAX_TOP_K,
+    Citation,
     RetrievalResponse,
     RetrievalService,
     Retriever,
@@ -65,6 +71,7 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     persona_id: str
     response: str
+    citations: list[Citation] = Field(default_factory=list)
 
 
 class RetrieveRequest(BaseModel):
@@ -178,6 +185,7 @@ def create_app(
     voice_synthesizer: VoiceSynthesizer | None = None,
     transcriber: Transcriber | None = None,
     retriever: Retriever | None = None,
+    agent_chat_model: ChatModel | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     app = FastAPI(title=settings.app_name)
@@ -189,17 +197,35 @@ def create_app(
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    retrieval_service = retriever or RetrievalService(
+        make_embedder(
+            settings.embedder,
+            model_id=settings.bedrock_embedding_model,
+            region=settings.aws_region,
+        )
+    )
+
+    def retrieve_for_agent(query: str) -> RetrievalResponse:
+        # Graphs are compiled once and may run outside FastAPI's dependency
+        # injection, so each persona turn owns a short-lived DB session.
+        with SessionLocal() as session:
+            return retrieval_service.retrieve(session, query, top_k=DEFAULT_TOP_K)
+
     # Compile the agent graph once at startup (like `engine` in db.py).
     model_ids = {
         "bedrock": settings.bedrock_chat_model,
         "stub": "",
     }
-    chat_model = make_chat_model(
+    chat_model = agent_chat_model or make_chat_model(
         settings.chat_model,
         model_id=model_ids.get(settings.chat_model, ""),
         region=settings.aws_region,
     )
-    graph = build_graph(chat_model, max_response_length=settings.voice_max_text_length)
+    graph = build_graph(
+        chat_model,
+        retrieve_candidates=retrieve_for_agent,
+        max_response_length=settings.voice_max_text_length,
+    )
     # Server-side short-term memory: in-process per-session history, keyed by
     # session_id. The in-process MemorySaver is NOT shared across Fargate tasks
     # and is lost on restart, so it stays off by default — the supported deployed
@@ -209,6 +235,7 @@ def create_app(
         build_graph(
             chat_model,
             checkpointer=MemorySaver(),
+            retrieve_candidates=retrieve_for_agent,
             max_response_length=settings.voice_max_text_length,
         )
         if settings.enable_session_memory
@@ -216,13 +243,6 @@ def create_app(
     )
     synth = voice_synthesizer or _build_voice_synthesizer(settings)
     speech_transcriber = transcriber or _build_transcriber(settings)
-    retrieval_service = retriever or RetrievalService(
-        make_embedder(
-            settings.embedder,
-            model_id=settings.bedrock_embedding_model,
-            region=settings.aws_region,
-        )
-    )
 
     @app.get("/health")
     def health() -> dict[str, str]:
@@ -273,45 +293,54 @@ def create_app(
 
     @app.post("/chat", response_model=ChatResponse)
     def chat(req: ChatRequest) -> ChatResponse:
-        """Route a visitor's message to a persona agent and return its reply.
-
-        No RAG grounding yet — the persona answers from its system prompt alone
-        (deferred to a follow-up issue).
-        """
+        """Return a persona reply plus only the archival sources it actually used."""
         with tracer.start_as_current_span("chat.handle") as span:
             persona_id = _resolve_persona(req.persona_id, req.scene)
             span.set_attribute("chat.persona_id", persona_id)
             span.set_attribute("chat.scene", req.scene or "")
             span.set_attribute("chat.session_memory_requested", bool(req.session_id))
             user_turn = {"role": "user", "content": req.message}
-            if req.session_id and session_graph is not None:
-                # Memory path: send only the new turn; the reducer appends it to the
-                # session's checkpointed history so the persona sees prior turns.
-                result = session_graph.invoke(
-                    {"persona_id": persona_id, "scene": req.scene, "messages": [user_turn]},
-                    config={"configurable": {"thread_id": req.session_id}},
-                )
-            elif req.session_id:
-                # session_id given but server-side memory is off (in-process MemorySaver
-                # is not shared across Fargate tasks / survives no restart). Don't pretend
-                # to remember — tell the client to drive history itself until #34 lands.
+            try:
+                if req.session_id and session_graph is not None:
+                    # Memory path: send only the new turn; the reducer appends it to the
+                    # session's checkpointed history so the persona sees prior turns.
+                    result = session_graph.invoke(
+                        {"persona_id": persona_id, "scene": req.scene, "messages": [user_turn]},
+                        config={"configurable": {"thread_id": req.session_id}},
+                    )
+                elif req.session_id:
+                    # session_id given but server-side memory is off (in-process MemorySaver
+                    # is not shared across Fargate tasks / survives no restart). Don't pretend
+                    # to remember — tell the client to drive history itself until #34 lands.
+                    raise HTTPException(
+                        status_code=501,
+                        detail=(
+                            "session_id memory is not enabled in this deployment yet "
+                            "(shared checkpointer tracked in #34); send prior turns via `history`."
+                        ),
+                    )
+                else:
+                    # Stateless path: the client supplies the prior turns via `history`.
+                    result = graph.invoke(
+                        {
+                            "persona_id": persona_id,
+                            "scene": req.scene,
+                            "messages": [*req.history, user_turn],
+                        }
+                    )
+            except RetrievalUnavailableError as exc:
                 raise HTTPException(
-                    status_code=501,
-                    detail=(
-                        "session_id memory is not enabled in this deployment yet "
-                        "(shared checkpointer tracked in #34); send prior turns via `history`."
-                    ),
-                )
-            else:
-                # Stateless path: the client supplies the prior turns via `history`.
-                result = graph.invoke(
-                    {
-                        "persona_id": persona_id,
-                        "scene": req.scene,
-                        "messages": [*req.history, user_turn],
-                    }
-                )
-        return ChatResponse(persona_id=result["persona_id"], response=result["response"])
+                    status_code=503, detail="grounding retrieval is unavailable"
+                ) from exc
+            except InvalidGroundedResponseError as exc:
+                raise HTTPException(
+                    status_code=502, detail="chat model returned an invalid response"
+                ) from exc
+        return ChatResponse(
+            persona_id=result["persona_id"],
+            response=result["response"],
+            citations=result.get("citations", []),
+        )
 
     @app.post("/ingest/jobs", response_model=EnqueueJobResponse, status_code=202)
     def enqueue_ingest_job(
@@ -396,8 +425,7 @@ def create_app(
                                 {
                                     "type": "error",
                                     "detail": (
-                                        "recording exceeded "
-                                        f"{VOICE_MAX_RECORDING_SECONDS} seconds"
+                                        f"recording exceeded {VOICE_MAX_RECORDING_SECONDS} seconds"
                                     ),
                                 }
                             )
@@ -437,9 +465,7 @@ def create_app(
             pass
         except Exception:
             if websocket.client_state.name != "DISCONNECTED":
-                await websocket.send_json(
-                    {"type": "error", "detail": "voice transcription failed"}
-                )
+                await websocket.send_json({"type": "error", "detail": "voice transcription failed"})
                 await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
         finally:
             if not receiver.done():
