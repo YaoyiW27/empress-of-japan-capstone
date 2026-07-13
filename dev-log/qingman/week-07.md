@@ -2,7 +2,7 @@
 
 Name: Qingman Li (Alina)
 Week: Week 7 (July 9 - July 15, 2026)
-Date: 2026-07-09 to 2026-07-11
+Date: 2026-07-09 to 2026-07-13
 
 ## 1. Task / Goal
 - **Issue #125 / PR #134** — prevent narrator responses from exceeding
@@ -17,6 +17,8 @@ Date: 2026-07-09 to 2026-07-11
   external-source ingest in AWS while keeping source selection server-controlled.
 - Use private S3 only to deliver approved raw inputs to the ECS worker; continue
   storing documents, metadata, and Titan embeddings in PostgreSQL/pgvector.
+- Verify the merged full-ingest path against the deployed AWS environment with
+  the reviewed VMM CSV, classified workbook, and external-source manifest.
 
 ## 2. AI Tools Used
 Codex was used to inspect the agent and voice paths, implement the response
@@ -51,6 +53,12 @@ and existing local ingest pipeline before implementing the AWS input flow.
 - Added a private encrypted/versioned source bucket and least-privilege worker
   IAM access limited to the two approved objects. Raw inputs are not baked into
   the image or stored in Terraform state.
+- Uploaded the reviewed CSV and classified workbook to the exact allowlisted
+  keys in the KMS-encrypted ingest-source bucket, then submitted one full ingest
+  job through the admin-only API.
+- Followed the ECS worker through successful external-source fetches and job
+  completion, then verified that both the source queue and DLQ returned to zero
+  visible and zero in-flight messages.
 
 ## 4. Useful Output
 - `backend/app/agents/graph.py` — prompt guidance and `truncate_response` logic.
@@ -82,6 +90,10 @@ and existing local ingest pipeline before implementing the AWS input flow.
   AWS ingest verification remain deployment steps.
 - Split the work into `f8299c4` (backend full-ingest job support) and `2c89786`
   (private AWS ingest inputs and infrastructure documentation).
+- Live AWS verification completed successfully: 296 documents inserted (285
+  VMM and 11 external), 336 chunks embedded with Titan Text Embeddings V2, 120
+  redactions, 54 out-of-scope rows, and zero errors. The SQS source queue and
+  DLQ both reported zero visible and zero in-flight messages afterward.
 
 ## 5. Human Review / Changes
 - Kept `/voice/synthesize` validation unchanged and fixed the response earlier in
@@ -115,3 +127,9 @@ processed knowledge and semantic vectors belong in PostgreSQL/pgvector. Using
 separate controls for those stages also makes least privilege clearer: the API
 can enqueue only configured sources, and the worker can read only the approved
 objects before writing to the database.
+
+The live run also showed why deployment verification must include observable
+outcomes rather than only a successful enqueue response. Worker completion
+counts, embedding totals, redaction/out-of-scope metrics, and empty source/DLQ
+queues together demonstrated that the full job completed without silently
+dropping work.
