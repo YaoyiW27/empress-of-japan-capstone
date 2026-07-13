@@ -403,6 +403,12 @@ variable "forecasted_thresholds" {
 
 # --- Cost anomaly detection (issue #60, see cost_anomaly.tf) ---
 
+variable "enable_cost_anomaly_detection" {
+  description = "Create Cost Anomaly Detection resources. Off by default: the org SCP denies ce:CreateAnomalyMonitor for our deploy role, so enabling it fails terraform apply. Flip on only if the SCP is relaxed to allow Cost Explorer writes."
+  type        = bool
+  default     = false
+}
+
 variable "cost_anomaly_alert_threshold_usd" {
   description = "Minimum total anomalous spend (USD) that triggers a Cost Anomaly Detection alert. Small for the sandbox so a single service spiking is caught early."
   type        = number
