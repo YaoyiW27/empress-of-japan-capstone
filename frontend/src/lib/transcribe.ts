@@ -14,7 +14,14 @@ import { WS_BASE_URL } from "@/lib/api";
 
 // Must match backend/app/voice.py (VOICE_SAMPLE_RATE_HZ, VOICE_MAX_RECORDING_SECONDS).
 const TARGET_SAMPLE_RATE = 16_000;
-const MAX_RECORDING_MS = 15_000;
+// The backend rejects the stream the instant cumulative received PCM passes its
+// hard 15s limit (main.py: total_seconds > VOICE_MAX_RECORDING_SECONDS). The
+// worklet keeps producing frames until this main-thread timer fires, so stop
+// early enough that a trailing frame can't push us over — 500ms of headroom.
+const MAX_RECORDING_MS = 14_500;
+// Abort if the WebSocket handshake never completes, so a half-open backend
+// Transcribe session can't linger after the mic is already live.
+const CONNECT_TIMEOUT_MS = 10_000;
 
 type AudioContextConstructor = typeof AudioContext;
 
@@ -122,6 +129,7 @@ export function startTranscription(handlers: TranscribeHandlers): TranscribeSess
   let mediaStream: MediaStream | null = null;
   let workletNode: AudioWorkletNode | null = null;
   let maxTimer: ReturnType<typeof setTimeout> | null = null;
+  let connectTimer: ReturnType<typeof setTimeout> | null = null;
 
   let finalText = "";
   let partialText = "";
@@ -132,6 +140,10 @@ export function startTranscription(handlers: TranscribeHandlers): TranscribeSess
     if (maxTimer) {
       clearTimeout(maxTimer);
       maxTimer = null;
+    }
+    if (connectTimer) {
+      clearTimeout(connectTimer);
+      connectTimer = null;
     }
     mediaStream?.getTracks().forEach((track) => track.stop());
     mediaStream = null;
@@ -175,6 +187,65 @@ export function startTranscription(handlers: TranscribeHandlers): TranscribeSess
   }
 
   (async () => {
+    // Acquire and prepare the microphone FIRST — before opening the socket. The
+    // backend starts an Amazon Transcribe stream the moment the WebSocket
+    // handshake completes and only bounds *received audio*, not wall-clock time.
+    // Opening it up front (as this used to) meant a stalled permission prompt or
+    // slow audio init could leave an idle Transcribe session running with no
+    // client-side timeout. With the mic ready first, the socket opens only when
+    // we're about to stream, and the recording cap starts on `onopen` below.
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
+      });
+    } catch {
+      fail("Microphone access was denied.");
+      return;
+    }
+    if (stopRequested) {
+      stream.getTracks().forEach((track) => track.stop());
+      return;
+    }
+    mediaStream = stream;
+
+    const Ctx = getAudioContextCtor();
+    if (!Ctx) {
+      fail("Audio capture is not supported in this browser.");
+      return;
+    }
+
+    let context: AudioContext;
+    let source: MediaStreamAudioSourceNode;
+    let node: AudioWorkletNode;
+    let encode: (input: Float32Array) => ArrayBuffer;
+    try {
+      context = new Ctx({ sampleRate: TARGET_SAMPLE_RATE });
+      audioContext = context;
+
+      const moduleUrl = URL.createObjectURL(
+        new Blob([WORKLET_SOURCE], { type: "application/javascript" }),
+      );
+      await context.audioWorklet.addModule(moduleUrl);
+      URL.revokeObjectURL(moduleUrl);
+      if (stopRequested || settled) return;
+
+      encode = createPcmEncoder(context.sampleRate);
+      source = context.createMediaStreamSource(stream);
+      node = new AudioWorkletNode(context, "pcm-capture");
+      workletNode = node;
+
+      node.port.onmessage = (event: MessageEvent<Float32Array>) => {
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        ws.send(encode(event.data));
+      };
+    } catch {
+      fail("Audio capture is not supported in this browser.");
+      return;
+    }
+    if (stopRequested || settled) return;
+
+    // Mic is ready — now open the socket (this is what starts the backend stream).
     let socket: WebSocket;
     try {
       socket = new WebSocket(`${WS_BASE_URL}/voice/transcribe`);
@@ -184,6 +255,35 @@ export function startTranscription(handlers: TranscribeHandlers): TranscribeSess
       fail("Could not connect to the voice service.");
       return;
     }
+
+    // Guard the handshake itself: if it never opens, tear down rather than leave
+    // a half-open backend session behind.
+    connectTimer = setTimeout(() => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        fail("Could not connect to the voice service.");
+      }
+    }, CONNECT_TIMEOUT_MS);
+
+    socket.onopen = () => {
+      if (connectTimer) {
+        clearTimeout(connectTimer);
+        connectTimer = null;
+      }
+      if (stopRequested || settled) return;
+
+      // Wire the audio graph now that the socket is open so frames stream
+      // immediately. Keep the node in the graph so it pulls audio, but mute the
+      // output so the microphone is never echoed back to the speakers.
+      const mute = context.createGain();
+      mute.gain.value = 0;
+      source.connect(node);
+      node.connect(mute);
+      mute.connect(context.destination);
+
+      // Start the recording cap from when audio actually starts flowing, so the
+      // bounded PCM the backend sees stays under its hard 15s limit.
+      maxTimer = setTimeout(finish, MAX_RECORDING_MS);
+    };
 
     socket.onmessage = (event) => {
       let payload: { type?: string; transcript?: string; is_final?: boolean; detail?: string };
@@ -210,62 +310,6 @@ export function startTranscription(handlers: TranscribeHandlers): TranscribeSess
     // Server closes the socket after it finishes streaming finals.
     socket.onclose = () => settle();
     socket.onerror = () => fail("The voice connection was interrupted.");
-
-    let stream: MediaStream;
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
-      });
-    } catch {
-      fail("Microphone access was denied.");
-      return;
-    }
-    if (stopRequested) {
-      stream.getTracks().forEach((track) => track.stop());
-      return;
-    }
-    mediaStream = stream;
-
-    const Ctx = getAudioContextCtor();
-    if (!Ctx) {
-      fail("Audio capture is not supported in this browser.");
-      return;
-    }
-
-    try {
-      const context = new Ctx({ sampleRate: TARGET_SAMPLE_RATE });
-      audioContext = context;
-
-      const moduleUrl = URL.createObjectURL(
-        new Blob([WORKLET_SOURCE], { type: "application/javascript" }),
-      );
-      await context.audioWorklet.addModule(moduleUrl);
-      URL.revokeObjectURL(moduleUrl);
-      if (stopRequested || settled) return;
-
-      const encode = createPcmEncoder(context.sampleRate);
-      const source = context.createMediaStreamSource(stream);
-      const node = new AudioWorkletNode(context, "pcm-capture");
-      workletNode = node;
-
-      node.port.onmessage = (event: MessageEvent<Float32Array>) => {
-        if (!ws || ws.readyState !== WebSocket.OPEN) return;
-        ws.send(encode(event.data));
-      };
-
-      // Keep the node in the graph so it pulls audio, but mute the output so the
-      // microphone is never echoed back to the speakers.
-      const mute = context.createGain();
-      mute.gain.value = 0;
-      source.connect(node);
-      node.connect(mute);
-      mute.connect(context.destination);
-    } catch {
-      fail("Audio capture is not supported in this browser.");
-      return;
-    }
-
-    maxTimer = setTimeout(finish, MAX_RECORDING_MS);
   })();
 
   return {
