@@ -11,6 +11,14 @@ on:
       - "frontend/**"
       - ".github/workflows/deploy-frontend.yml"
   workflow_dispatch:
+  # Chained after a backend rollout so the publish follows the required order:
+  # terraform-apply -> backend rollout (applies CORS_ORIGINS to the live service)
+  # -> frontend publish. This guarantees a run happens once the backend actually
+  # allows the new frontend origin, even when the triggering push touched only
+  # infra/ (which never triggers this workflow's frontend/** path filter).
+  workflow_run:
+    workflows: [deploy-backend]
+    types: [completed]
 
 concurrency:
   group: deploy-frontend-sandbox
@@ -27,6 +35,11 @@ jobs:
   deploy:
     name: Build and publish frontend
     runs-on: ubuntu-latest
+    # When chained off deploy-backend, only publish if that rollout succeeded.
+    # Push and manual dispatch runs are unaffected.
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
     defaults:
       run:
         working-directory: frontend
@@ -66,19 +79,71 @@ jobs:
         run: |
           set -euo pipefail
 
-          SITES_JSON=$(aws ssm get-parameter \
-            --name /empress/frontend/sites \
-            --query 'Parameter.Value' --output text 2>/dev/null || true)
+          # This workflow can be triggered by a push on frontend/** in parallel
+          # with the terraform apply that first creates this parameter (initial
+          # rollout). Poll instead of failing immediately so the deploy doesn't
+          # lose that race and get stuck without a retrigger.
+          SITES_JSON=""
+          for attempt in $(seq 1 60); do
+            SITES_JSON=$(aws ssm get-parameter \
+              --name /empress/frontend/sites \
+              --query 'Parameter.Value' --output text 2>/dev/null || true)
+            if [ -n "$SITES_JSON" ] && [ "$SITES_JSON" != "None" ]; then
+              break
+            fi
+            echo "Waiting for SSM /empress/frontend/sites (terraform apply) ($attempt/60)..."
+            sleep 10
+          done
           if [ -z "$SITES_JSON" ] || [ "$SITES_JSON" = "None" ]; then
-            echo "SSM parameter /empress/frontend/sites is missing." >&2
+            echo "SSM parameter /empress/frontend/sites is still missing after 10 minutes." >&2
             echo "Apply infra/terraform (frontend.tf) before deploying the frontend." >&2
             exit 1
           fi
 
+          # A terraform apply only bumps the backend task-definition revision that
+          # carries the frontend origin in CORS_ORIGINS; the running service picks
+          # it up on the next backend rollout (deploy-backend). Gate the publish on
+          # the live backend actually allowing each origin, so the site never goes
+          # live able to load but unable to call the API (CORS 403). CORS_ORIGINS
+          # is exactly "https://${dist.domain_name}" per site (infra/terraform/
+          # ecs.tf), which equals the SSM `url` below.
+          API_BASE=$(aws ssm get-parameter \
+            --name /empress/backend/public_api_base_url \
+            --query 'Parameter.Value' --output text)
+
+          cors_allows_origin() {
+            local origin="$1" allowed
+            allowed=$(curl -sS -o /dev/null -D - --max-time 15 \
+              -H "Origin: $origin" "$API_BASE/health" \
+              | tr -d '\r' \
+              | awk -F': ' 'tolower($1)=="access-control-allow-origin"{print $2}') || true
+            [ "$allowed" = "$origin" ]
+          }
+
           for NAME in $(echo "$SITES_JSON" | jq -r 'keys[]'); do
             BUCKET=$(echo "$SITES_JSON" | jq -r --arg k "$NAME" '.[$k].bucket')
             DIST=$(echo "$SITES_JSON" | jq -r --arg k "$NAME" '.[$k].distribution_id')
+            URL=$(echo "$SITES_JSON" | jq -r --arg k "$NAME" '.[$k].url')
             echo "::group::Deploy site '$NAME' -> s3://$BUCKET (CloudFront $DIST)"
+
+            # Wait until the running backend allows this origin before publishing.
+            # Window (~15 min) covers a backend rollout still in flight, including
+            # an RDS cold start; when chained off deploy-backend the rollout is
+            # already done and this passes on the first try.
+            gated=0
+            for attempt in $(seq 1 90); do
+              if cors_allows_origin "$URL"; then
+                gated=1
+                break
+              fi
+              echo "Backend does not yet allow origin $URL; waiting for backend rollout ($attempt/90)..."
+              sleep 10
+            done
+            if [ "$gated" -ne 1 ]; then
+              echo "Backend CORS never allowed $URL after 15 minutes." >&2
+              echo "Ensure deploy-backend rolled out the task definition that includes this origin." >&2
+              exit 1
+            fi
 
             # HTML and top-level assets: prune removed files, always revalidate so
             # a new deploy is picked up immediately (paired with the invalidation).

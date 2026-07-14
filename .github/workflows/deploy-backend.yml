@@ -9,6 +9,15 @@ on:
       - ".dockerignore"
       - ".github/workflows/deploy-backend.yml"
   workflow_dispatch:
+  # A terraform apply can change the backend task definition (e.g. CORS_ORIGINS
+  # when a frontend origin is added). The ECS service ignores task_definition
+  # changes (infra/terraform/ecs.tf), so a new revision only reaches the running
+  # service on the next backend deploy. Chain this workflow after terraform-apply
+  # so an infra apply is always followed by a rollout that picks up the revision —
+  # the "backend rollout" step of the apply -> rollout -> frontend-publish order.
+  workflow_run:
+    workflows: [terraform-apply]
+    types: [completed]
 
 concurrency:
   group: deploy-backend-sandbox
@@ -33,6 +42,11 @@ jobs:
   deploy:
     name: Build, scan, and deploy
     runs-on: ubuntu-latest
+    # When chained off terraform-apply, only roll out if that apply succeeded.
+    # Push and manual dispatch runs are unaffected.
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
     steps:
       - name: Check out repository
         uses: actions/checkout@v6

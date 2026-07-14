@@ -199,8 +199,8 @@ GitHub Actions, all AWS access via **OIDC** (no static keys); scoped by subject
 |---|---|---|
 | `plan.yml` | PR touching `infra/terraform/**` | fmt-check, validate, plan → PR comment |
 | `apply.yml` | push to `main` (infra) | `terraform apply -auto-approve` |
-| `deploy-backend.yml` | push to `main` (backend) / dispatch | build → Trivy scan → push → start RDS + Alembic migrate → deploy backend & worker → scale → health check |
-| `deploy-frontend.yml` | push to `main` (frontend) / dispatch | `next build` static export → S3 sync (per site) → CloudFront invalidation |
+| `deploy-backend.yml` | push to `main` (backend) / dispatch / after `apply.yml` | build → Trivy scan → push → start RDS + Alembic migrate → deploy backend & worker → scale → health check |
+| `deploy-frontend.yml` | push to `main` (frontend) / dispatch / after `deploy-backend.yml` | wait for `sites` SSM + backend CORS → `next build` static export → S3 sync (per site) → CloudFront invalidation |
 | `migrate-backend.yml` | manual | one-off `alembic upgrade head` task |
 | `terraform-security.yml` | PR / push / dispatch | Trivy config scan |
 | `codeql.yml` | PR / push / weekly | CodeQL (python, js/ts) |
@@ -236,14 +236,26 @@ GitHub Actions, all AWS access via **OIDC** (no static keys); scoped by subject
 The frontend is a static export on S3 + CloudFront (`frontend.tf`,
 `deploy-frontend.yml`). Vercel is retired.
 
-### First-time / infra bring-up
+### Rollout order (enforced)
 
-1. Merge this change, then let `apply.yml` run (or `terraform apply` locally). This
-   creates the frontend bucket(s), CloudFront distribution(s), the URL-rewrite
-   function, and the `/empress/frontend/sites` SSM parameter, and updates the
-   backend `CORS_ORIGINS` to include the new CloudFront origin(s).
-2. Backend CORS picks up the new origins on the next backend task rollout
-   (`deploy-backend.yml`), since `CORS_ORIGINS` is a task-definition env var.
+Publishing depends on infra existing **and** the running backend already allowing
+the frontend origin, so the workflows are chained to run in this order:
+
+**`apply.yml` → `deploy-backend.yml` → `deploy-frontend.yml`.**
+
+1. `apply.yml` creates the frontend bucket(s), CloudFront distribution(s), the
+   URL-rewrite function, and the `/empress/frontend/sites` SSM parameter, and
+   bumps the backend task definition so `CORS_ORIGINS` includes the new
+   CloudFront origin(s).
+2. On completion, `apply.yml` triggers `deploy-backend.yml` (via `workflow_run`).
+   The ECS service ignores `task_definition` changes, so this rollout is what
+   actually applies the new `CORS_ORIGINS` to the live service.
+3. On completion, `deploy-backend.yml` triggers `deploy-frontend.yml`. Before it
+   syncs, `deploy-frontend.yml` (a) polls for the `/empress/frontend/sites` SSM
+   parameter and (b) gates on the live backend echoing
+   `Access-Control-Allow-Origin` for each site's origin — so the site never goes
+   live able to load but unable to call the API. Both waits also cover the case
+   where a `frontend/**` push triggers the deploy in parallel with the apply.
 
 ### Routine deploy (automatic)
 
