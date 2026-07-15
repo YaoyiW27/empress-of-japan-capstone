@@ -5,7 +5,7 @@ codebase. This describes **what exists in code today**; planned work is flagged
 explicitly. For team workflow see [`CONTRIBUTING.md`](../CONTRIBUTING.md); for a
 higher-level intro see [`README.md`](../README.md).
 
-Last verified against code: 2026-07-12.
+Last verified against code: 2026-07-13.
 
 ---
 
@@ -52,9 +52,12 @@ Visitor (browser)
 - **Conversation UI** (`NarratorOverlay.tsx`) — an overlay (tappable narrator
   cut-out + a small panel showing the last exchange), not a scrolling thread.
   Conversation history is kept in React state.
-- **API client** (`lib/chat.ts`) — plain `fetch` POST to `${API_BASE}/chat` with
-  `{persona_id, scene, message, history}`, returning a single JSON
-  `{persona_id, response}`. No WebSocket/SSE/streaming for chat.
+- **API client** (`lib/chat.ts`, `lib/voice.ts`) — plain `fetch` POST to
+  `${API_BASE_URL}/chat` with `{persona_id, scene, message, history}`, returning a
+  single JSON `{persona_id, response}`. No WebSocket/SSE/streaming for chat.
+  `lib/api.ts` centralizes the base URL (`NEXT_PUBLIC_API_BASE_URL`, inlined at
+  build time) and derives `WS_BASE_URL` (`https:`→`wss:`) for future WebSocket
+  clients of the backend's `WS /voice/transcribe`.
 - **Voice IO:**
   - STT — browser **Web Speech API** (`SpeechRecognition`), feeds transcript into
     the same submit path.
@@ -64,6 +67,11 @@ Visitor (browser)
   `/explore/[narratorId]` (panorama + chat, prerendered per narrator), `/scene`
   (R3F ship placeholder). The `/explore` subtree is wrapped in a landscape
   orientation gate.
+- **Hosting:** static export (`next.config.ts` `output: "export"`,
+  `trailingSlash: true`, `images.unoptimized`) → `out/` served from a private S3
+  bucket behind CloudFront (HTTPS via the default cloudfront.net cert). Replaces
+  Vercel. See §7 and the frontend deploy runbook (§10). No server-side rendering,
+  route handlers, or middleware — the app is fully client-driven.
 - **Narrators/scenes** are defined in `lib/narrators.ts` (3 narrators:
   `captain_sinclair`, `eleanor_whitmore`, `ming_chen`).
 
@@ -171,6 +179,12 @@ dispatch ──(state["persona_id"])──▶ <persona node> ──▶ END
   deletion-protected, nightly auto-stop via EventBridge for cost), **S3 + KMS**
   (voice cache), **SQS** + DLQ, **Secrets Manager**, **SSM**, **CloudWatch**
   (dashboard + 5 alarms → SNS), and IAM for **Bedrock/Polly/Transcribe**.
+- **Frontend hosting** (`frontend.tf`): per site (`var.frontend_sites`, default one
+  `main` site) a private **S3** bucket + **CloudFront** distribution with an Origin
+  Access Control and a viewer-request CloudFront Function that appends `index.html`
+  for directory-style routes. Default cloudfront.net cert (no custom domain). The
+  backend CORS allowlist auto-includes these CloudFront origins; `var.backend_cors_origins`
+  holds the transitional Vercel URLs during cutover.
 - **Note:** ECS services register at `desired_count=0`; the deploy workflow scales
   them up after pushing the first image.
 
@@ -185,7 +199,8 @@ GitHub Actions, all AWS access via **OIDC** (no static keys); scoped by subject
 |---|---|---|
 | `plan.yml` | PR touching `infra/terraform/**` | fmt-check, validate, plan → PR comment |
 | `apply.yml` | push to `main` (infra) | `terraform apply -auto-approve` |
-| `deploy-backend.yml` | push to `main` (backend) / dispatch | build → Trivy scan → push → start RDS + Alembic migrate → deploy backend & worker → scale → health check |
+| `deploy-backend.yml` | push to `main` (backend) / dispatch / after `apply.yml` | build → Trivy scan → push → start RDS + Alembic migrate → deploy backend & worker → scale → health check |
+| `deploy-frontend.yml` | push to `main` (frontend) / dispatch / after `deploy-backend.yml` | wait for `sites` SSM + backend CORS → `next build` static export → S3 sync (per site) → CloudFront invalidation |
 | `migrate-backend.yml` | manual | one-off `alembic upgrade head` task |
 | `terraform-security.yml` | PR / push / dispatch | Trivy config scan |
 | `codeql.yml` | PR / push / weekly | CodeQL (python, js/ts) |
@@ -213,3 +228,76 @@ GitHub Actions, all AWS access via **OIDC** (no static keys); scoped by subject
 > **Planned:** per-session/IP API rate limiting is documented (issue #89) but not
 > enforced in code; only input/output size caps and the ingest admin-token gate
 > exist today.
+
+---
+
+## 10. Frontend deploy runbook & validation
+
+The frontend is a static export on S3 + CloudFront (`frontend.tf`,
+`deploy-frontend.yml`). Vercel is retired.
+
+### Rollout order (enforced)
+
+Publishing depends on infra existing **and** the running backend already allowing
+the frontend origin, so the workflows are chained to run in this order:
+
+**`apply.yml` → `deploy-backend.yml` → `deploy-frontend.yml`.**
+
+1. `apply.yml` creates the frontend bucket(s), CloudFront distribution(s), the
+   URL-rewrite function, and the `/empress/frontend/sites` SSM parameter, and
+   bumps the backend task definition so `CORS_ORIGINS` includes the new
+   CloudFront origin(s).
+2. On completion, `apply.yml` triggers `deploy-backend.yml` (via `workflow_run`).
+   The ECS service ignores `task_definition` changes, so this rollout is what
+   actually applies the new `CORS_ORIGINS` to the live service.
+3. On completion, `deploy-backend.yml` triggers `deploy-frontend.yml`. Before it
+   syncs, `deploy-frontend.yml` (a) polls for the `/empress/frontend/sites` SSM
+   parameter and (b) gates on the live backend echoing
+   `Access-Control-Allow-Origin` for each site's origin — so the site never goes
+   live able to load but unable to call the API. Both waits also cover the case
+   where a `frontend/**` push triggers the deploy in parallel with the apply.
+
+### Routine deploy (automatic)
+
+- Any push to `main` touching `frontend/**` triggers `deploy-frontend.yml`:
+  `npm ci` → build with `NEXT_PUBLIC_API_BASE_URL` read from
+  `/empress/backend/public_api_base_url` → `aws s3 sync` (HTML revalidated,
+  `_next/` cached immutably) → `cloudfront create-invalidation "/*"`.
+- Manual trigger: **Actions → deploy-frontend → Run workflow**.
+
+### One-off manual deploy
+
+```bash
+cd frontend
+API_BASE=$(aws ssm get-parameter --name /empress/backend/public_api_base_url \
+  --query 'Parameter.Value' --output text)
+NEXT_PUBLIC_API_BASE_URL="$API_BASE" npm run build
+SITES=$(aws ssm get-parameter --name /empress/frontend/sites \
+  --query 'Parameter.Value' --output text)
+BUCKET=$(echo "$SITES" | jq -r '.main.bucket')
+DIST=$(echo "$SITES" | jq -r '.main.distribution_id')
+aws s3 sync out/ "s3://$BUCKET/" --delete --exclude "_next/*" \
+  --cache-control "public, max-age=0, must-revalidate"
+aws s3 sync out/_next/ "s3://$BUCKET/_next/" --delete \
+  --cache-control "public, max-age=31536000, immutable"
+aws cloudfront create-invalidation --distribution-id "$DIST" --paths "/*"
+```
+
+### Validation
+
+- `terraform output frontend_site_urls` → open each URL; the landing page loads
+  over HTTPS.
+- Deep links resolve (not 403/404 XML): `/explore/`, `/explore/captain_sinclair/`.
+- DevTools → Network: `/chat` and `/voice/synthesize` requests target the backend
+  CloudFront HTTPS URL (not `127.0.0.1`), with **no CORS or mixed-content errors**.
+- A spoken or typed prompt returns a narrator response; `POST /voice/synthesize`
+  plays audio (or documents the browser-TTS fallback).
+- `curl -sI https://<frontend-distribution>.cloudfront.net/` returns `200` and a
+  `content-type: text/html` for the landing page.
+
+### Adding / removing a second site
+
+- Add an entry to `var.frontend_sites` (e.g. `gyro-test = { comment = "…" }`) and
+  apply; the workflow deploys every site in the SSM map automatically.
+- Retiring Vercel: once traffic is on AWS, empty `var.backend_cors_origins` to drop
+  the legacy Vercel origins from the backend CORS allowlist.

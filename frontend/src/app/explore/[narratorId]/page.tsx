@@ -11,6 +11,11 @@ export function generateStaticParams() {
   return narrators.map((narrator) => ({ narratorId: narrator.id }));
 }
 
+// Static export ships only the narrators returned above; any other id is a 404.
+// (A static export cannot render unknown params on demand — dynamicParams: true
+// is unsupported.)
+export const dynamicParams = false;
+
 export async function generateMetadata({
   params,
 }: {
