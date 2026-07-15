@@ -10,17 +10,30 @@ A ``message`` is a ``{"role": "user"|"assistant", "content": str}`` dict.
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Literal, Protocol
 
 from opentelemetry import trace
+from pydantic import BaseModel, Field
 
 tracer = trace.get_tracer(__name__)
+
+
+class GroundedChatResult(BaseModel):
+    """Private model output; only response + validated citations reach the API."""
+
+    answer_mode: Literal["grounded", "conversational", "insufficient_evidence"]
+    response: str
+    used_source_ids: list[str] = Field(default_factory=list)
 
 
 class ChatModel(Protocol):
     model_id: str
 
     def invoke(self, system: str, messages: list[dict[str, str]]) -> str: ...
+
+    def invoke_grounded(
+        self, system: str, messages: list[dict[str, str]]
+    ) -> GroundedChatResult: ...
 
 
 class StubChatModel:
@@ -42,6 +55,13 @@ class StubChatModel:
             identity = system.strip().split(".")[0] if system else "An agent"
             return f"[stub reply] {identity}. You asked: {last_user!r}"
 
+    def invoke_grounded(self, system: str, messages: list[dict[str, str]]) -> GroundedChatResult:
+        return GroundedChatResult(
+            answer_mode="conversational",
+            response=self.invoke(system, messages),
+            used_source_ids=[],
+        )
+
 
 class BedrockChatModel:
     """Claude via AWS Bedrock (real). Requires sandbox chat IAM + model access."""
@@ -52,6 +72,7 @@ class BedrockChatModel:
 
         self.model_id = model_id
         self._client = ChatBedrockConverse(model=model_id, region_name=region)
+        self._grounded_client = self._client.with_structured_output(GroundedChatResult)
 
     def invoke(self, system: str, messages: list[dict[str, str]]) -> str:
         with tracer.start_as_current_span("llm.invoke") as span:
@@ -64,6 +85,21 @@ class BedrockChatModel:
                 lc_messages.append((role, m["content"]))
             result = self._client.invoke(lc_messages)
             return result.content if isinstance(result.content, str) else str(result.content)
+
+    def invoke_grounded(self, system: str, messages: list[dict[str, str]]) -> GroundedChatResult:
+        with tracer.start_as_current_span("llm.invoke") as span:
+            span.set_attribute("llm.provider", "bedrock")
+            span.set_attribute("llm.model_id", self.model_id)
+            span.set_attribute("llm.message_count", len(messages))
+            span.set_attribute("llm.structured_output", True)
+            lc_messages: list[tuple[str, str]] = [("system", system)]
+            for message in messages:
+                role = "human" if message.get("role") == "user" else "ai"
+                lc_messages.append((role, message["content"]))
+            result = self._grounded_client.invoke(lc_messages)
+            if isinstance(result, GroundedChatResult):
+                return result
+            return GroundedChatResult.model_validate(result)
 
 
 def make_chat_model(kind: str, *, model_id: str, region: str) -> ChatModel:

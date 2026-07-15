@@ -1,7 +1,7 @@
-"""Multi-agent backend (issue #31).
+"""Persona-agent backend with privacy-gated grounding (issues #31 and #69).
 
 A minimal LangGraph topology: an orchestrator dispatches a visitor's question to
-one persona agent (Storyteller/Curator/passenger archetypes), which answers from
-its system prompt alone. Retrieval (RAG grounding + citations) is a deliberate
-follow-up — the persona node is the seam where a ``retrieve`` step will plug in.
+one persona agent. The persona retrieves archival candidates, chooses whether the
+turn is grounded, conversational, or unsupported by available evidence, and keeps
+structured citations separate from voice narration.
 """

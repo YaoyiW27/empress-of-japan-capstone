@@ -5,6 +5,8 @@ from __future__ import annotations
 import operator
 from typing import Annotated, TypedDict
 
+from app.retrieval import Citation
+
 
 class AgentState(TypedDict, total=False):
     persona_id: str
@@ -14,3 +16,5 @@ class AgentState(TypedDict, total=False):
     # checkpointed history (server-side session memory), not overwritten.
     messages: Annotated[list[dict[str, str]], operator.add]
     response: str
+    citations: list[Citation]
+    answer_mode: str

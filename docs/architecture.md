@@ -30,7 +30,7 @@ Visitor (browser)
                     ▼                        ▼                           ▼
               LangGraph               Postgres 16 + pgvector        AWS Bedrock
         dispatch ─▶ persona ─▶ END    (RAG store, Titan embeds)   (Claude Sonnet 4-6,
-        (persona picked at API)       via /retrieve endpoint       Titan embeddings)
+        (retrieve + answer mode)      privacy-gated retrieval      Titan embeddings)
 
   SQS ─▶ worker (Fargate) ─▶ ingest pipeline ─▶ pgvector
   OTel ─▶ Honeycomb   ·   Logs/metrics ─▶ CloudWatch
@@ -53,11 +53,13 @@ Visitor (browser)
   cut-out + a small panel showing the last exchange), not a scrolling thread.
   Conversation history is kept in React state.
 - **API client** (`lib/chat.ts`, `lib/voice.ts`) — plain `fetch` POST to
-  `${API_BASE_URL}/chat` with `{persona_id, scene, message, history}`, returning a
-  single JSON `{persona_id, response}`. No WebSocket/SSE/streaming for chat.
-  `lib/api.ts` centralizes the base URL (`NEXT_PUBLIC_API_BASE_URL`, inlined at
-  build time) and derives `WS_BASE_URL` (`https:`→`wss:`) for future WebSocket
-  clients of the backend's `WS /voice/transcribe`.
+  `${API_BASE_URL}/chat` with `{persona_id, scene, message, history}`. The backend
+  returns `{persona_id, response, citations}`; the current UI consumes `response`
+  for narration and safely ignores the separate citations field. No
+  WebSocket/SSE/streaming for chat. `lib/api.ts` centralizes the base URL
+  (`NEXT_PUBLIC_API_BASE_URL`, inlined at build time) and derives `WS_BASE_URL`
+  (`https:`→`wss:`) for future WebSocket clients of the backend's
+  `WS /voice/transcribe`.
 - **Voice IO:**
   - STT — browser **Web Speech API** (`SpeechRecognition`), feeds transcript into
     the same submit path.
@@ -111,9 +113,9 @@ Visitor (browser)
 
 ## 4. Agent topology (LangGraph)
 
-The graph is built in `backend/app/agents/graph.py` (`build_graph`). It is a
-**single-hop graph** — no supervisor/router LLM, no tools, no RAG node, no
-agent-to-agent handoff:
+The graph is built in `backend/app/agents/graph.py` (`build_graph`). It remains a
+**single-hop graph** — no supervisor/router LLM or agent-to-agent handoff — while
+each persona node now performs its own retrieval and grounding decision:
 
 ```
 dispatch ──(state["persona_id"])──▶ <persona node> ──▶ END
@@ -122,13 +124,14 @@ dispatch ──(state["persona_id"])──▶ <persona node> ──▶ END
 - **`dispatch`** — no-op entry node; exists so a conditional edge can fan out.
 - **Persona nodes** — one per persona, generated dynamically from the persona
   markdown registry (`data/ai/personas/`): `ming_chen`, `eleanor_whitmore`,
-  `captain_sinclair`. Each loads its system prompt, calls the chat model, and
-  truncates the reply to a spoken-length soft cap (~800 chars).
+  `captain_sinclair`. Each retrieves top-five candidates, asks Claude for a
+  structured `grounded`, `conversational`, or `insufficient_evidence` decision,
+  and truncates the narration to a spoken-length soft cap (~800 chars).
 - **Routing** — a conditional edge reads `state["persona_id"]` and routes to the
   same-named node. The persona is resolved **at the API layer** (`_resolve_persona`
   in `main.py`) before the graph runs; `scene` is only a disambiguating hint.
 - **State** (`agents/state.py`): `persona_id`, `scene`, `messages` (append reducer),
-  `response`.
+  `response`, current-turn `citations`, and the internal answer mode.
 
 > **Planned:** a richer multi-agent topology (routing/handoff between more agents)
 > is a target, not current state.
@@ -147,10 +150,12 @@ dispatch ──(state["persona_id"])──▶ <persona node> ──▶ END
   50-word overlap.
 - **Retrieval** (`retrieval.py`): raw SQL cosine distance (`<=>`),
   `ORDER BY ... LIMIT :top_k`, score = `1.0 - distance`. Top-k default 5, max 20.
-
-> **Planned:** RAG is currently exposed only via the standalone `/retrieve`
-> endpoint. It is **not yet wired into `/chat`** — personas answer from their
-> system prompt alone.
+- **Grounding** (`agents/graph.py`): `/chat` supplies candidates as untrusted
+  archival data. Claude selects only sources that directly support a factual
+  answer. Greetings use persona knowledge with no citations; unsupported factual
+  questions produce an in-character limitation rather than a guessed answer.
+- **Citations:** selected source metadata is returned separately from narration.
+  The spoken `response` never contains citation markers or a source list.
 
 ---
 
@@ -161,8 +166,9 @@ dispatch ──(state["persona_id"])──▶ <persona node> ──▶ END
 3. Frontend `POST /chat` `{persona_id, scene, message, history}` →
    CloudFront → ALB → FastAPI.
 4. FastAPI resolves the persona and calls the graph: `dispatch` → persona node →
-   Bedrock (Claude Sonnet 4-6) with that persona's system prompt.
-5. Response returns as a single JSON payload (no streaming).
+   Titan query embedding/pgvector retrieval → structured Claude response.
+5. Response returns as `{persona_id, response, citations}` in one JSON payload
+   (no streaming); only `response` proceeds to voice synthesis.
 6. Frontend `POST /voice/synthesize`; Polly renders audio → cached in S3 → played.
 7. Spans go to Honeycomb via the OTel sidecar; logs/metrics to CloudWatch.
 

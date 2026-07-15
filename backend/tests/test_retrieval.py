@@ -68,6 +68,11 @@ def test_retrieval_sql_only_reads_retrievable_chunks_view() -> None:
     assert "from documents" not in normalized
     assert "join chunks" not in normalized
     assert "from chunks" not in normalized
+    # PostgreSQL cannot infer the type of a nullable bind used first in
+    # ``:value IS NULL``. Keep both optional filters explicitly typed so the
+    # deployed psycopg path works when no filters are supplied.
+    assert "cast(:ship as ship_enum) is null" in normalized
+    assert "cast(:material_type as text) is null" in normalized
 
 
 class StubRetriever:

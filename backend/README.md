@@ -26,6 +26,35 @@ Health endpoints:
 `DATABASE_URL` is read from the environment / `.env` (never committed — see
 CLAUDE.md). It defaults to the local docker-compose database below.
 
+### Grounded persona chat
+
+`POST /chat` retrieves the five nearest candidates from the privacy-gated
+`retrievable_chunks` view before invoking the selected persona. Claude returns
+an internal structured decision with one of three modes:
+
+- `grounded` for historical/factual answers supported by relevant candidates;
+- `conversational` for greetings, thanks, and other non-factual persona turns;
+- `insufficient_evidence` for factual questions the available records cannot
+  support, in which case the persona acknowledges the limitation rather than
+  guessing.
+
+The public response keeps narration separate from evidence:
+
+```json
+{
+  "persona_id": "captain_sinclair",
+  "response": "Spoken narration without footnotes or source markers.",
+  "citations": []
+}
+```
+
+Only sources selected for a grounded answer appear in `citations`; conversational
+and insufficient-evidence replies return an empty list. The `response` field
+never contains citation numbers or a source list, so it can be sent directly to
+voice synthesis. Retrieval failures return `503`, and invalid structured model
+output returns `502`; neither path silently falls back to an ungrounded factual
+answer.
+
 Lint, format, and test:
 
 ```bash
@@ -91,11 +120,11 @@ rate-based rules if true client-IP limits become necessary.
 - Return `501` for `session_id` memory while the deployed shared checkpointer is
   unavailable; clients should send compact `history` instead.
 - Return `503` for missing runtime configuration or unavailable dependencies
-  where the operator needs to fix the deployment.
+  where the operator needs to fix the deployment. `/chat` uses this status when
+  its privacy-gated retrieval dependency is unavailable.
 - Target `502` for upstream managed-service failures after bounded retry. The
-  voice synthesis path maps known provider failures to `502`; chat still needs
-  explicit Bedrock exception mapping so upstream failures do not surface as
-  generic `500` responses.
+  voice synthesis path maps known provider failures to `502`; chat returns it
+  when Claude fails twice to produce a valid structured grounding decision.
 
 ### Signals to inspect
 
@@ -109,7 +138,8 @@ Required Honeycomb/CloudWatch views:
 - request count, latency, and error rate by route and status code;
 - `llm.invoke` count/error/latency by `llm.provider` and `llm.model_id`;
 - `agent.persona_id` distribution for visitor chat traffic;
-- `rag.retrieve` result count and `rag.top_k` distribution;
+- `rag.retrieve` result count and `rag.top_k` distribution, plus candidate count,
+  selected citation count, and answer mode from the persona span;
 - `voice.synthesize` count, error rate, and `voice.cache_hit` ratio;
 - Transcribe WebSocket close/error counts and recording-duration rejections;
 - Bedrock, Polly, Transcribe, Fargate, RDS, and CloudWatch cost by service.
