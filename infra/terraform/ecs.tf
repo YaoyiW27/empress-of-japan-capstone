@@ -255,7 +255,12 @@ resource "aws_ecs_task_definition" "backend" {
         { name = "BEDROCK_EMBEDDING_MODEL", value = var.bedrock_embedding_model_id },
         { name = "ENABLE_SESSION_MEMORY", value = "false" },
         { name = "PERSONA_DIR", value = "/app/data/ai/personas" },
-        { name = "CORS_ORIGINS", value = jsonencode(var.backend_cors_origins) },
+        # AWS frontend CloudFront origins are wired in automatically; var.backend_cors_origins
+        # carries any transitional extras (the legacy Vercel URLs during cutover).
+        { name = "CORS_ORIGINS", value = jsonencode(concat(
+          [for k, dist in aws_cloudfront_distribution.frontend : "https://${dist.domain_name}"],
+          var.backend_cors_origins,
+        )) },
         { name = "JOBS_QUEUE_URL", value = aws_sqs_queue.jobs.url },
         { name = "INGEST_JOB_CSV_PATH", value = "s3://${aws_s3_bucket.ingest_sources.bucket}/${var.ingest_vmm_csv_key}" },
         { name = "INGEST_JOB_CLASSIFIED_PATH", value = "s3://${aws_s3_bucket.ingest_sources.bucket}/${var.ingest_classified_workbook_key}" },

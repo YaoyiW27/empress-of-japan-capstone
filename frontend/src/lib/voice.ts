@@ -1,3 +1,5 @@
+import { API_BASE_URL } from "@/lib/api";
+
 export type VoiceSynthesizeResult = {
   audio_url: string;
   cached: boolean;
@@ -16,9 +18,7 @@ export async function synthesizeNarratorVoice({
   narratorId: string;
   text: string;
 }): Promise<VoiceSynthesizeResult> {
-  const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
-
-  const res = await fetch(`${apiBase}/voice/synthesize`, {
+  const res = await fetch(`${API_BASE_URL}/voice/synthesize`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

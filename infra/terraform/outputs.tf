@@ -180,3 +180,20 @@ output "backend_voice_runtime_policy_arn" {
   description = "IAM policy granting the backend scoped Polly, Transcribe, and voice-cache access."
   value       = aws_iam_policy.backend_voice_runtime.arn
 }
+
+# --- Static frontend hosting (see frontend.tf) ---
+
+output "frontend_site_urls" {
+  description = "Public CloudFront HTTPS URL for each hosted frontend site, keyed by site name."
+  value       = { for k, dist in aws_cloudfront_distribution.frontend : k => "https://${dist.domain_name}" }
+}
+
+output "frontend_bucket_names" {
+  description = "Private S3 bucket backing each frontend site, keyed by site name."
+  value       = { for k, bucket in aws_s3_bucket.frontend : k => bucket.bucket }
+}
+
+output "frontend_sites_parameter_name" {
+  description = "SSM parameter holding the frontend site map (bucket + distribution id) consumed by deploy-frontend.yml."
+  value       = aws_ssm_parameter.frontend_sites.name
+}
