@@ -5,6 +5,7 @@ visitors step aboard a 360° recreation of the *Empress of Japan* ocean liners a
 converse with historical personas (a captain, a first-class passenger, a crew
 member) grounded in VMM archival material.
 
+- **Live app:** https://d2kekuy8p1ofvv.cloudfront.net
 - **Course:** Northeastern CS 7980 Capstone, Summer 2026
 - **Primary stakeholder:** Ashley Smith, VMM curator
 - **Final showcase:** 2026-08-10
@@ -20,7 +21,8 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for team workflow and
 Visitor (browser)
   ├─ Next.js 16 App Router + React 19
   ├─ React Three Fiber: 360° panorama viewer (drag + gyroscope) + GLB ship model
-  ├─ Voice in: Web Speech API (STT)   Voice out: AWS Polly (S3) w/ browser fallback
+  ├─ Voice in: AWS Transcribe (primary STT) w/ Web Speech API fallback
+  ├─ Voice out: AWS Polly (S3) w/ browser speechSynthesis fallback
   └─ Chat: fetch POST /chat  ──────────────┐
                                             ▼
                               CloudFront ─▶ ALB ─▶ ECS Fargate (FastAPI)
@@ -42,7 +44,7 @@ Everything runs in a ~$1,000 AWS sandbox in `us-west-2`.
 |---|---|
 | **Frontend** | Next.js 16.2 (App Router), React 19, TypeScript, Tailwind v4, Turbopack |
 | **3D** | React Three Fiber + drei + three — 360° equirectangular panorama viewer (pointer + phone gyroscope) and a GLB ship model |
-| **Voice** | STT: browser Web Speech API · TTS: AWS Polly (cached to S3), with browser `speechSynthesis` fallback |
+| **Voice** | STT: AWS Transcribe via `WS /voice/transcribe`, with browser Web Speech API fallback · TTS: AWS Polly (cached to S3), with browser `speechSynthesis` fallback |
 | **Backend** | FastAPI (Python 3.12), LangGraph, SQLAlchemy 2.0 + Alembic, psycopg 3 |
 | **LLM** | AWS Bedrock (`ChatBedrockConverse`) — Claude Sonnet 4-6 (`us.anthropic.claude-sonnet-4-6`) |
 | **RAG** | Postgres 16 + pgvector (HNSW cosine); Amazon Titan Text Embeddings V2 (1024-dim) |
@@ -70,7 +72,8 @@ Everything runs in a ~$1,000 AWS sandbox in `us-west-2`.
 ## How a visitor query flows
 
 1. Visitor opens `/explore/[narratorId]`, sees the panorama and the narrator overlay.
-2. Taps 🎤 (Web Speech API transcribes) or types a message.
+2. Taps the microphone (AWS Transcribe streams audio via WebSocket; browser Web
+   Speech API is the fallback) or types a message.
 3. Frontend `POST /chat` with `{persona_id, scene, message, history}` → CloudFront → ALB → FastAPI.
 4. FastAPI resolves the persona and calls the LangGraph graph: `dispatch` routes on
    `persona_id` to the matching persona node, which calls Bedrock (Claude Sonnet 4-6)
@@ -132,7 +135,7 @@ never commit `*.tfstate*` or `.tfvars`. Deploys happen through GitHub Actions
 Built and working:
 
 - 360° panorama experience with drag + gyroscope look controls, per-narrator routes
-- Voice in (Web Speech) and out (Polly with browser fallback)
+- Voice in (AWS Transcribe with Web Speech fallback) and out (Polly with browser fallback)
 - FastAPI + LangGraph persona chat over Bedrock
 - pgvector RAG store, Titan embeddings, `/retrieve`, and grounded persona chat
 - Full Terraform-managed AWS stack, OIDC CI/CD, OTel → Honeycomb, cost budgets
