@@ -147,16 +147,22 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Prefer a Terraform-registered revision that already contains the
-          # current AWS frontend CloudFront origins in CORS_ORIGINS. The initial
-          # frontend rollout can trigger a push deploy in parallel with
-          # terraform-apply; a newer app-image revision may therefore exist that
-          # was rendered from the old Vercel-only CORS config. Starting from the
-          # CORS-aware revision avoids carrying stale env forward.
+          # Start from the currently running service revision so application
+          # deploys preserve the live runtime config. Then merge the AWS frontend
+          # CloudFront origins from SSM into CORS_ORIGINS so a stale Vercel-only
+          # baseline cannot be carried forward.
+          SELECTED_TASKDEF=$(aws ecs describe-services \
+            --cluster "$ECS_CLUSTER" \
+            --services "$ECS_SERVICE" \
+            --query 'services[0].taskDefinition' \
+            --output text)
+          aws ecs describe-task-definition \
+            --task-definition "$SELECTED_TASKDEF" \
+            --query taskDefinition > task-definition.json
+
           SITES_JSON=$(aws ssm get-parameter \
             --name /empress/frontend/sites \
             --query 'Parameter.Value' --output text 2>/dev/null || true)
-          SELECTED_TASKDEF=""
 
           if [ -n "$SITES_JSON" ] && [ "$SITES_JSON" != "None" ]; then
             mapfile -t FRONTEND_ORIGINS < <(echo "$SITES_JSON" | jq -r '.[].url')
@@ -165,60 +171,30 @@ jobs:
               exit 1
             fi
 
-            for attempt in $(seq 1 60); do
-              mapfile -t CANDIDATES < <(aws ecs list-task-definitions \
-                --family-prefix "$ECS_SERVICE" \
-                --status ACTIVE \
-                --sort DESC \
-                --max-items 100 \
-                --query 'taskDefinitionArns[]' \
-                --output text | tr '\t' '\n')
-
-              for candidate in "${CANDIDATES[@]}"; do
-                aws ecs describe-task-definition \
-                  --task-definition "$candidate" \
-                  --query taskDefinition > candidate-task-definition.json
-                CORS_VALUE=$(jq -r '.containerDefinitions[]
-                  | select(.name == env.CONTAINER_NAME)
+            CORS_ORIGINS_JSON=$(jq -nc \
+              --argjson sites "$SITES_JSON" \
+              --slurpfile task task-definition.json \
+              --arg container "$CONTAINER_NAME" '
+              def existing_cors:
+                ($task[0].containerDefinitions[]
+                  | select(.name == $container)
                   | (.environment // [])
                   | map(select(.name == "CORS_ORIGINS").value)
-                  | .[0] // ""' candidate-task-definition.json)
+                  | .[0] // "[]")
+                | fromjson;
+              ([($sites[] | .url)] + existing_cors) | unique
+            ')
 
-                has_all_origins=1
-                for origin in "${FRONTEND_ORIGINS[@]}"; do
-                  if ! echo "$CORS_VALUE" | jq -e --arg origin "$origin" 'fromjson | index($origin) != null' >/dev/null 2>&1; then
-                    has_all_origins=0
-                    break
-                  fi
-                done
-
-                if [ "$has_all_origins" -eq 1 ]; then
-                  SELECTED_TASKDEF="$candidate"
-                  cp candidate-task-definition.json task-definition.json
-                  break 2
-                fi
-              done
-
-              echo "Waiting for a task definition with frontend CORS origins ($attempt/60)..."
-              sleep 10
-            done
-
-            if [ -z "$SELECTED_TASKDEF" ]; then
-              echo "No active $ECS_SERVICE task definition includes all frontend CORS origins after 10 minutes." >&2
-              printf 'Expected origins:\n' >&2
-              printf '  %s\n' "${FRONTEND_ORIGINS[@]}" >&2
-              echo "Wait for terraform-apply to register the CORS-aware revision, or inspect ECS task definition history." >&2
-              exit 1
-            fi
-          else
-            SELECTED_TASKDEF=$(aws ecs describe-services \
-              --cluster "$ECS_CLUSTER" \
-              --services "$ECS_SERVICE" \
-              --query 'services[0].taskDefinition' \
-              --output text)
-            aws ecs describe-task-definition \
-              --task-definition "$SELECTED_TASKDEF" \
-              --query taskDefinition > task-definition.json
+            jq --arg container "$CONTAINER_NAME" --arg cors "$CORS_ORIGINS_JSON" '
+              .containerDefinitions |= map(
+                if .name == $container then
+                  .environment = (((.environment // []) | map(select(.name != "CORS_ORIGINS"))) + [
+                    {"name": "CORS_ORIGINS", "value": $cors}
+                  ])
+                else . end
+              )
+            ' task-definition.json > task-definition-with-cors.json
+            mv task-definition-with-cors.json task-definition.json
           fi
 
           echo "Using task definition baseline: $SELECTED_TASKDEF"
