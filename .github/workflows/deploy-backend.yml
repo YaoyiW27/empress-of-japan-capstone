@@ -160,41 +160,57 @@ jobs:
 
           if [ -n "$SITES_JSON" ] && [ "$SITES_JSON" != "None" ]; then
             mapfile -t FRONTEND_ORIGINS < <(echo "$SITES_JSON" | jq -r '.[].url')
-            mapfile -t CANDIDATES < <(aws ecs list-task-definitions \
-              --family-prefix "$ECS_SERVICE" \
-              --status ACTIVE \
-              --sort DESC \
-              --max-items 25 \
-              --query 'taskDefinitionArns[]' \
-              --output text | tr '\t' '\n')
+            if [ "${#FRONTEND_ORIGINS[@]}" -eq 0 ]; then
+              echo "SSM /empress/frontend/sites exists but does not contain any frontend URLs." >&2
+              exit 1
+            fi
 
-            for candidate in "${CANDIDATES[@]}"; do
-              aws ecs describe-task-definition \
-                --task-definition "$candidate" \
-                --query taskDefinition > candidate-task-definition.json
-              CORS_VALUE=$(jq -r '.containerDefinitions[]
-                | select(.name == env.CONTAINER_NAME)
-                | (.environment // [])
-                | map(select(.name == "CORS_ORIGINS").value)
-                | .[0] // ""' candidate-task-definition.json)
+            for attempt in $(seq 1 60); do
+              mapfile -t CANDIDATES < <(aws ecs list-task-definitions \
+                --family-prefix "$ECS_SERVICE" \
+                --status ACTIVE \
+                --sort DESC \
+                --max-items 100 \
+                --query 'taskDefinitionArns[]' \
+                --output text | tr '\t' '\n')
 
-              has_all_origins=1
-              for origin in "${FRONTEND_ORIGINS[@]}"; do
-                if ! echo "$CORS_VALUE" | jq -e --arg origin "$origin" 'fromjson | index($origin) != null' >/dev/null 2>&1; then
-                  has_all_origins=0
-                  break
+              for candidate in "${CANDIDATES[@]}"; do
+                aws ecs describe-task-definition \
+                  --task-definition "$candidate" \
+                  --query taskDefinition > candidate-task-definition.json
+                CORS_VALUE=$(jq -r '.containerDefinitions[]
+                  | select(.name == env.CONTAINER_NAME)
+                  | (.environment // [])
+                  | map(select(.name == "CORS_ORIGINS").value)
+                  | .[0] // ""' candidate-task-definition.json)
+
+                has_all_origins=1
+                for origin in "${FRONTEND_ORIGINS[@]}"; do
+                  if ! echo "$CORS_VALUE" | jq -e --arg origin "$origin" 'fromjson | index($origin) != null' >/dev/null 2>&1; then
+                    has_all_origins=0
+                    break
+                  fi
+                done
+
+                if [ "$has_all_origins" -eq 1 ]; then
+                  SELECTED_TASKDEF="$candidate"
+                  cp candidate-task-definition.json task-definition.json
+                  break 2
                 fi
               done
 
-              if [ "$has_all_origins" -eq 1 ]; then
-                SELECTED_TASKDEF="$candidate"
-                cp candidate-task-definition.json task-definition.json
-                break
-              fi
+              echo "Waiting for a task definition with frontend CORS origins ($attempt/60)..."
+              sleep 10
             done
-          fi
 
-          if [ -z "$SELECTED_TASKDEF" ]; then
+            if [ -z "$SELECTED_TASKDEF" ]; then
+              echo "No active $ECS_SERVICE task definition includes all frontend CORS origins after 10 minutes." >&2
+              printf 'Expected origins:\n' >&2
+              printf '  %s\n' "${FRONTEND_ORIGINS[@]}" >&2
+              echo "Wait for terraform-apply to register the CORS-aware revision, or inspect ECS task definition history." >&2
+              exit 1
+            fi
+          else
             SELECTED_TASKDEF=$(aws ecs describe-services \
               --cluster "$ECS_CLUSTER" \
               --services "$ECS_SERVICE" \
