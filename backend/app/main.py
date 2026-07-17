@@ -27,6 +27,7 @@ from app.agents.graph import (
 )
 from app.agents.llm import ChatModel, make_chat_model
 from app.agents.personas import load_personas, scene_to_personas
+from app.agents.scenes import load_scenes
 from app.config import Settings, get_settings
 from app.db import SessionLocal, engine, get_db
 from app.ingest.embed import make_embedder
@@ -107,9 +108,17 @@ class VoiceSynthesizeResponse(BaseModel):
 def _resolve_persona(persona_id: str | None, scene: str | None) -> str:
     """Pick the persona: explicit id wins; a scene is a hint, ambiguous if shared."""
     personas = load_personas()
+    scenes = load_scenes()
+    if scene is not None and scene not in scenes:
+        raise HTTPException(status_code=404, detail=f"unknown scene: {scene!r}")
     if persona_id is not None:
         if persona_id not in personas:
             raise HTTPException(status_code=404, detail=f"unknown persona_id: {persona_id!r}")
+        if scene is not None and scene not in personas[persona_id].scenes:
+            raise HTTPException(
+                status_code=400,
+                detail=f"persona {persona_id!r} is not available in scene {scene!r}",
+            )
         return persona_id
     if scene is not None:
         candidates = scene_to_personas().get(scene, ())

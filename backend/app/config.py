@@ -82,6 +82,8 @@ class Settings(BaseSettings):
     # Defaults to the repo-root relative path for local dev, but can be overridden
     # via the PERSONA_DIR env var for Docker container deployments (#56).
     persona_dir: Path = Path(__file__).resolve().parents[2] / "data" / "ai" / "personas"
+    # Scene context prompts are composed after the selected persona prompt.
+    scene_dir: Path = Path(__file__).resolve().parents[2] / "data" / "ai" / "scenes"
 
     # --- Voice interaction ---------------------------------------------------
     # AWS credentials are never configured here. In AWS, Polly/Transcribe/S3

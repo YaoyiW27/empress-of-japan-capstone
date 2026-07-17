@@ -13,6 +13,7 @@ from app.agents.graph import (
 )
 from app.agents.llm import GroundedChatResult, StubChatModel
 from app.agents.personas import load_personas, scene_to_personas
+from app.agents.scenes import load_scenes
 from app.config import Settings
 from app.main import create_app
 from app.retrieval import Citation, RetrievalResponse, RetrievedChunk
@@ -183,6 +184,20 @@ def test_scene_index_disambiguation() -> None:
     assert set(index["loading_dock"]) == {"captain_sinclair", "ming_chen"}
 
 
+def test_scenes_load_with_context_prompts() -> None:
+    scenes = load_scenes()
+    assert {"bridge", "engine_room", "first_class_suite"} <= set(scenes)
+    for scene in scenes.values():
+        assert scene.name
+        assert scene.context_prompt.startswith("The current location is")
+
+
+def test_every_persona_scene_has_a_context_prompt() -> None:
+    scenes = load_scenes()
+    for persona in load_personas().values():
+        assert set(persona.scenes) <= set(scenes)
+
+
 def test_graph_dispatches_to_named_persona() -> None:
     graph = build_graph(StubChatModel())
     result = graph.invoke(
@@ -242,6 +257,51 @@ def test_graph_applies_soft_prompt_and_stores_truncated_response() -> None:
         "role": "assistant",
         "content": result["response"],
     }
+
+
+def test_graph_composes_persona_then_scene_then_grounding_policy() -> None:
+    model = LongResponseChatModel("On the bridge.")
+    graph = build_graph(model)
+
+    graph.invoke(
+        {
+            "persona_id": "captain_sinclair",
+            "scene": "bridge",
+            "messages": [{"role": "user", "content": "Where are we?"}],
+        }
+    )
+
+    persona_text = load_personas()["captain_sinclair"].system_prompt
+    scene_text = load_scenes()["bridge"].context_prompt
+    assert persona_text in model.system_prompt
+    assert scene_text in model.system_prompt
+    assert model.system_prompt.index(persona_text) < model.system_prompt.index(scene_text)
+    assert model.system_prompt.index(scene_text) < model.system_prompt.index("GROUNDING POLICY")
+
+
+def test_switching_scenes_changes_scene_context() -> None:
+    bridge_model = LongResponseChatModel("On the bridge.")
+    dock_model = LongResponseChatModel("At the dock.")
+
+    build_graph(bridge_model).invoke(
+        {
+            "persona_id": "captain_sinclair",
+            "scene": "bridge",
+            "messages": [{"role": "user", "content": "Where are we?"}],
+        }
+    )
+    build_graph(dock_model).invoke(
+        {
+            "persona_id": "captain_sinclair",
+            "scene": "loading_dock",
+            "messages": [{"role": "user", "content": "Where are we?"}],
+        }
+    )
+
+    assert load_scenes()["bridge"].context_prompt in bridge_model.system_prompt
+    assert load_scenes()["loading_dock"].context_prompt not in bridge_model.system_prompt
+    assert load_scenes()["loading_dock"].context_prompt in dock_model.system_prompt
+    assert load_scenes()["bridge"].context_prompt not in dock_model.system_prompt
 
 
 def test_grounded_answer_returns_only_selected_deduplicated_citations() -> None:
@@ -496,3 +556,25 @@ def test_chat_endpoint_unknown_persona() -> None:
     client = _agent_test_client()
     resp = client.post("/chat", json={"persona_id": "nope", "message": "hi"})
     assert resp.status_code == 404
+
+
+def test_chat_endpoint_unknown_scene_with_explicit_persona() -> None:
+    client = _agent_test_client()
+    resp = client.post(
+        "/chat",
+        json={"persona_id": "captain_sinclair", "scene": "nope", "message": "hi"},
+    )
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "unknown scene: 'nope'"
+
+
+def test_chat_endpoint_rejects_persona_unavailable_in_scene() -> None:
+    client = _agent_test_client()
+    resp = client.post(
+        "/chat",
+        json={"persona_id": "captain_sinclair", "scene": "engine_room", "message": "hi"},
+    )
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == (
+        "persona 'captain_sinclair' is not available in scene 'engine_room'"
+    )

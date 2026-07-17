@@ -77,7 +77,7 @@ Everything runs in a ~$1,000 AWS sandbox in `us-west-2`.
 3. Frontend `POST /chat` with `{persona_id, scene, message, history}` → CloudFront → ALB → FastAPI.
 4. FastAPI resolves the persona and calls the LangGraph graph: `dispatch` routes on
    `persona_id` to the matching persona node, which calls Bedrock (Claude Sonnet 4-6)
-   with that persona's system prompt.
+   with the persona prompt followed by the active scene context and grounding policy.
 5. Response returns as a single JSON payload (no streaming for chat).
 6. Frontend requests `POST /voice/synthesize`; Polly renders audio, cached in S3, played back.
 7. Traces flow to Honeycomb via the OTel sidecar; logs/metrics to CloudWatch.
