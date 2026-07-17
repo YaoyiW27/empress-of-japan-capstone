@@ -94,7 +94,7 @@ export default function NarratorOverlay({
     try {
       const result = await sendChatMessage({
         personaId: narrator.id,
-        scene: scene.id,
+        scene: scene.backendSceneId,
         message,
         history,
       });

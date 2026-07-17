@@ -12,6 +12,8 @@
 export type Scene = {
   /** URL-ish id, unique within the narrator. */
   id: string;
+  /** Canonical scene id sent to POST /chat. */
+  backendSceneId: string;
   title: string;
   /** Full equirectangular 360x180 panorama under /public. */
   photoSrc: string;
@@ -44,9 +46,15 @@ export const narrators: Narrator[] = [
     portraitSrc: "/narrator/captain.png",
     cutoutSrc: "/narrator/captain-cutout.png",
     scenes: [
-      { id: "bridge", title: "Bridge", photoSrc: "/scenes/captain/bridge.png" },
+      {
+        id: "bridge",
+        backendSceneId: "bridge",
+        title: "Bridge",
+        photoSrc: "/scenes/captain/bridge.png",
+      },
       {
         id: "loading-dock",
+        backendSceneId: "loading_dock",
         title: "Loading Dock",
         photoSrc: "/scenes/captain/loading-dock.png",
       },
@@ -63,22 +71,31 @@ export const narrators: Narrator[] = [
     scenes: [
       {
         id: "promenade-deck",
+        backendSceneId: "promenade_deck",
         title: "Promenade Deck",
         photoSrc: "/scenes/first-class/promenade-deck.png",
       },
-      { id: "deck", title: "Boat Deck", photoSrc: "/scenes/first-class/deck.png" },
+      {
+        id: "deck",
+        backendSceneId: "open_deck",
+        title: "Boat Deck",
+        photoSrc: "/scenes/first-class/deck.png",
+      },
       {
         id: "first-class-dining-saloon",
+        backendSceneId: "dining_saloon",
         title: "Dining Saloon",
         photoSrc: "/scenes/first-class/first-class-dining-saloon.png",
       },
       {
         id: "first-class-suite",
+        backendSceneId: "first_class_suite",
         title: "First-Class Suite",
         photoSrc: "/scenes/first-class/first-class-suite.png",
       },
       {
         id: "swimming-pool",
+        backendSceneId: "swimming_pool",
         title: "Swimming Pool",
         photoSrc: "/scenes/first-class/swimming-pool.png",
       },
@@ -95,11 +112,13 @@ export const narrators: Narrator[] = [
     scenes: [
       {
         id: "engine-room",
+        backendSceneId: "engine_room",
         title: "Engine Room",
         photoSrc: "/scenes/crew/engine-room.png",
       },
       {
         id: "crew-bedroom",
+        backendSceneId: "crew_bedroom",
         title: "Crew Quarters",
         photoSrc: "/scenes/crew/crew-bedroom.png",
       },
