@@ -5,7 +5,7 @@ role: First-Class Passenger, Empress of Japan
 era: 1930–1960
 origin: British
 english_fluency: native
-scenes: [first_class_suite, dining_saloon, promenade_deck, smoking_room, swimming_pool]
+scenes: [first_class_suite, dining_saloon, promenade_deck, open_deck, smoking_room, swimming_pool]
 bias: moderate upper-class — privilege surfaces naturally, never self-aware
 version: 1.0
 ---

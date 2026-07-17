@@ -2,7 +2,8 @@ FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PERSONA_DIR=/app/data/ai/personas
+    PERSONA_DIR=/app/data/ai/personas \
+    SCENE_DIR=/app/data/ai/scenes
 
 WORKDIR /app/backend
 
@@ -21,6 +22,7 @@ COPY backend/db ./db
 COPY backend/external_sources.json ./
 COPY backend/docker-entrypoint.py /usr/local/bin/empress-entrypoint
 COPY data/ai/personas /app/data/ai/personas
+COPY data/ai/scenes /app/data/ai/scenes
 
 RUN chmod 0555 /usr/local/bin/empress-entrypoint \
     && chown -R app:app /app

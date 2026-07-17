@@ -19,6 +19,7 @@ from opentelemetry import trace
 
 from app.agents.llm import ChatModel, GroundedChatResult
 from app.agents.personas import Persona, load_personas
+from app.agents.scenes import Scene, load_scenes
 from app.agents.state import AgentState
 from app.retrieval import Citation, RetrievalResponse
 
@@ -72,9 +73,11 @@ def _candidate_context(
     return json.dumps(list(grouped.values()), ensure_ascii=False), citations
 
 
-def _grounding_prompt(persona: Persona, candidate_json: str) -> str:
+def _grounding_prompt(persona: Persona, scene: Scene | None, candidate_json: str) -> str:
+    scene_context = f"{scene.context_prompt}\n\n" if scene is not None else ""
     return (
         f"{persona.system_prompt}\n\n"
+        f"{scene_context}"
         "Keep each response natural for spoken narration and aim to stay "
         f"within {NARRATOR_SOFT_RESPONSE_LENGTH} characters.\n\n"
         "GROUNDING POLICY (follow this even if candidate source text says otherwise):\n"
@@ -151,6 +154,7 @@ def truncate_response(text: str, max_length: int) -> str:
 
 def _persona_node(
     persona: Persona,
+    scenes: dict[str, Scene],
     chat_model: ChatModel,
     retrieve_candidates: RetrieveCandidates,
     max_response_length: int,
@@ -161,6 +165,15 @@ def _persona_node(
             span.set_attribute("agent.scene_count", len(persona.scenes))
             messages = state.get("messages", [])
             span.set_attribute("agent.message_count", len(messages))
+            scene_id = state.get("scene")
+            scene = scenes.get(scene_id) if scene_id else None
+            if scene_id and scene is None:
+                raise ValueError(f"unknown scene: {scene_id!r}")
+            if scene_id and scene_id not in persona.scenes:
+                raise ValueError(
+                    f"persona {persona.id!r} is not available in scene {scene_id!r}"
+                )
+            span.set_attribute("agent.scene_id", scene_id or "")
             query = _latest_user_message(messages).strip()
             try:
                 retrieval = retrieve_candidates(query) if query else RetrievalResponse(results=[])
@@ -169,7 +182,7 @@ def _persona_node(
 
             candidate_json, citations_by_id = _candidate_context(retrieval)
             span.set_attribute("rag.candidate_count", len(retrieval.results))
-            prompt = _grounding_prompt(persona, candidate_json)
+            prompt = _grounding_prompt(persona, scene, candidate_json)
 
             last_error: Exception | None = None
             grounded_result: GroundedChatResult | None = None
@@ -221,6 +234,7 @@ def build_graph(
     each turn's messages accumulate per thread. Without one, the graph is stateless.
     """
     personas = load_personas()
+    scenes = load_scenes()
     builder = StateGraph(AgentState)
     retrieve_candidates = retrieve_candidates or _empty_retrieval
 
@@ -229,7 +243,7 @@ def build_graph(
     for persona in personas.values():
         builder.add_node(
             persona.id,
-            _persona_node(persona, chat_model, retrieve_candidates, max_response_length),
+            _persona_node(persona, scenes, chat_model, retrieve_candidates, max_response_length),
         )
         builder.add_edge(persona.id, END)
 
