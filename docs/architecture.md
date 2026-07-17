@@ -129,9 +129,14 @@ dispatch ──(state["persona_id"])──▶ <persona node> ──▶ END
   and truncates the narration to a spoken-length soft cap (~800 chars).
 - **Routing** — a conditional edge reads `state["persona_id"]` and routes to the
   same-named node. The persona is resolved **at the API layer** (`_resolve_persona`
-  in `main.py`) before the graph runs; `scene` is only a disambiguating hint.
+  in `main.py`) before the graph runs. `scene` can disambiguate a persona when no
+  `persona_id` is supplied; when both are supplied, the API validates that the
+  persona is available in that scene.
 - **State** (`agents/state.py`): `persona_id`, `scene`, `messages` (append reducer),
   `response`, current-turn `citations`, and the internal answer mode.
+- **Prompt composition** — the selected persona prompt is followed by the active
+  scene context from `data/ai/scenes`, then the grounding and response policy.
+  Omitting `scene` intentionally keeps the persona-only fallback.
 
 > **Planned:** a richer multi-agent topology (routing/handoff between more agents)
 > is a target, not current state.

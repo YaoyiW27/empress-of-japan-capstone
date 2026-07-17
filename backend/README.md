@@ -38,6 +38,20 @@ an internal structured decision with one of three modes:
   support, in which case the persona acknowledges the limitation rather than
   guessing.
 
+When `scene` is supplied, the backend validates that the scene exists and that
+the selected persona is available there. The model system prompt is composed as
+persona prompt, then scene context prompt, then the grounding policy. Callers may
+omit `scene` for persona-only chat; unknown or incompatible scenes are rejected.
+
+```json
+{
+  "persona_id": "captain_sinclair",
+  "scene": "bridge",
+  "message": "Where are we?",
+  "history": []
+}
+```
+
 The public response keeps narration separate from evidence:
 
 ```json
