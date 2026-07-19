@@ -3,7 +3,11 @@
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import type { Narrator, Scene } from "@/lib/narrators";
-import { sendChatMessage, type ChatHistoryTurn } from "@/lib/chat";
+import {
+  getOrCreateTabChatSession,
+  sendChatMessage,
+  type ChatHistoryTurn,
+} from "@/lib/chat";
 import { synthesizeNarratorVoice } from "@/lib/voice";
 
 type SpeechRecognitionConstructor = new () => SpeechRecognition;
@@ -92,15 +96,19 @@ export default function NarratorOverlay({
     setTranscript(message);
 
     try {
+      const { sessionId, isNew } = getOrCreateTabChatSession();
+      if (isNew && history.length > 0) {
+        setHistory([]);
+      }
       const result = await sendChatMessage({
         personaId: narrator.id,
         scene: scene.backendSceneId,
         message,
-        history,
+        sessionId,
       });
 
-      setHistory([
-        ...history,
+      setHistory((current) => [
+        ...(isNew ? [] : current),
         { role: "user", content: message },
         { role: "assistant", content: result.response },
       ]);
