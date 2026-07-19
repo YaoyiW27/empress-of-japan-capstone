@@ -2,7 +2,7 @@
 
 Name: Qingman Li (Alina)
 Week: Week 8 (July 16 - July 22, 2026)
-Date: 2026-07-16
+Date: 2026-07-16 to 2026-07-18
 
 ## 1. Task / Goal
 - **Issue #146** — investigate whether the active scene context was being sent
@@ -15,6 +15,13 @@ Date: 2026-07-16
   rather than silently running with only the persona prompt.
 - Package the authored files under `data/ai/scenes` in the deployed backend
   image and add regression coverage for scene-aware prompt construction.
+- **Issue #34** — replace process-local LangGraph session memory with a
+  Postgres-backed checkpointer so one conversation can continue across API
+  instances and instance restarts.
+- Treat short-term memory as session-scoped data with a 30-minute sliding idle
+  timeout, then remove the expired thread's checkpoints and metadata.
+- Connect the frontend to the new API contract with one `session_id` per browser
+  tab, stored in `sessionStorage`, while retaining local history for display.
 
 ## 2. AI Tools Used
 Codex was used to trace the complete chat request path from the narrator overlay
@@ -22,6 +29,12 @@ through `POST /chat` and into the LangGraph persona node. It compared the runtim
 implementation with the authored scene files, confirmed the root cause, drafted
 Issue #146, implemented the fix, added tests and documentation, and separated
 the finished work into focused Git commits.
+For Issue #34, Codex inspected the existing `MemorySaver`, FastAPI lifecycle,
+RDS/Alembic configuration, ECS deployment settings, and frontend chat call. It
+then implemented the shared checkpointer, designed concurrency-safe expiry
+cleanup, added integration coverage, connected the browser session contract,
+ran the available validation, and split the work into backend, documentation,
+infrastructure, and frontend commits.
 
 ## 3. Prompts / Agent Workflow
 - Searched the frontend and backend for `scene`, persona prompts, and system
@@ -47,6 +60,28 @@ the finished work into focused Git commits.
   load the scene files through `SCENE_DIR`.
 - Added regression tests for scene parsing, persona-to-scene coverage, prompt
   ordering, scene switching, unknown scenes, and incompatible personas.
+- Confirmed that the existing `session_id` path used an in-process
+  `MemorySaver`, was disabled by default, and could not survive load balancing
+  or an API restart.
+- Reused the existing PostgreSQL/RDS database with LangGraph's
+  `PostgresSaver` and a psycopg connection pool instead of introducing Redis.
+- Added `agent_sessions` lifecycle metadata and an Alembic migration, while
+  leaving LangGraph responsible for creating and migrating its own checkpoint
+  tables.
+- Added a 30-minute sliding TTL. Each valid session request refreshes its
+  expiry; reusing an already expired ID deletes its old thread before beginning
+  a new conversation.
+- Added a 60-second background cleanup loop that processes expired sessions in
+  batches with `FOR UPDATE SKIP LOCKED`, allowing multiple API tasks to sweep
+  safely without sticky-session assumptions.
+- Moved checkpointer startup, graph compilation, cleanup-task creation, and
+  connection-pool shutdown into the FastAPI lifespan. Enabled the feature in
+  the ECS task definition and kept the client-provided `history` fallback when
+  session memory is disabled.
+- Added frontend tab-scoped session management using `sessionStorage` and
+  `crypto.randomUUID()`. Chat requests now send `session_id` instead of the
+  entire history; after 30 minutes of inactivity the frontend rotates the ID
+  and clears the displayed conversation history.
 
 ## 4. Useful Output
 - GitHub Issue #146 — documented the missing runtime composition, Docker gap,
@@ -68,6 +103,22 @@ the finished work into focused Git commits.
   reported no whitespace errors.
 - Split the work into `be76e67` (backend scene prompt implementation),
   `73f4aa1` (frontend scene ID mapping), and `f12511b` (documentation).
+- `backend/app/session_memory.py` — pooled Postgres checkpointer, sliding TTL,
+  immediate expired-thread reset, and multi-instance cleanup loop.
+- `backend/alembic/versions/0002_agent_sessions.py` — indexed session lifecycle
+  table; Alembic autogenerate also excludes package-owned checkpoint tables.
+- `backend/app/main.py` — lifespan-managed shared session graph, validated
+  1–128 character session IDs, and explicit `501`/`503` failure behavior.
+- `frontend/src/lib/chat.ts` and `NarratorOverlay.tsx` — one tab-scoped session
+  ID, backend session requests, local display history, and idle rotation.
+- Issue #34 verification: the complete backend suite passed with 96 tests and 6
+  integration skips. The three new Postgres scenarios cover interleaved turns
+  across two app instances, restart recovery, immediate expiry reset, and
+  concurrent cleanup; they skipped locally because Docker/Postgres was not
+  running. Frontend ESLint and the production Next.js build passed.
+- Split the work into `2581261` (backend persistence, migration, and tests),
+  `d20fd96` (documentation), `addf4d2` (ECS enablement), and `729c08a`
+  (frontend tab-scoped sessions).
 
 ## 5. Human Review / Changes
 - Verified the diagnosis against both the request flow and the exact system
@@ -85,6 +136,17 @@ the finished work into focused Git commits.
   visitor experience.
 - Separated backend behavior, frontend mapping, and documentation into three
   commits so each design concern can be reviewed independently.
+- Chose Postgres over Redis for Issue #34 because the project already operates
+  private RDS access from every API task and does not require another service
+  for the expected museum-demo latency or scale.
+- Defined expiry by inactivity rather than creation time so an active visitor
+  is not interrupted mid-conversation. Kept cleanup idempotent and locked at
+  the session row so a request refreshing a live session is not deleted by a
+  concurrent API instance's sweeper.
+- Kept the frontend transcript separate from backend memory: React state still
+  supports display, while only the current message and opaque session ID cross
+  the API boundary. Used `sessionStorage` rather than `localStorage` so separate
+  tabs and future visits do not share conversation memory.
 
 ## 6. Reflection
 This issue showed that carrying a field through API and graph state is not the
@@ -104,3 +166,17 @@ Finally, prompt composition needs deterministic tests. Checking the exact order
 of persona, scene, and grounding instructions—and proving that switching scenes
 replaces only the contextual portion—provides stronger protection than testing
 only that `/chat` returns a successful response.
+
+Issue #34 clarified that a stateless API does not mean the application has no
+state; it means request-serving processes do not own durable state. Moving the
+LangGraph thread to Postgres lets the load balancer route any turn to any task,
+while the separate expiry table gives the product an explicit privacy and
+storage lifecycle instead of retaining visitor conversations indefinitely.
+
+The cleanup design also showed why expiry needs coordination with active
+requests. A timer that simply deletes old rows can race with another instance
+refreshing the same session. Row locking, `SKIP LOCKED`, immediate cleanup on
+expired-ID reuse, and idempotent checkpoint deletion make the behavior safe
+under horizontal scaling. On the client, keeping the opaque ID in
+`sessionStorage` aligns the UI boundary with the backend's thread boundary
+without turning short-term memory into a cross-visit user profile.
