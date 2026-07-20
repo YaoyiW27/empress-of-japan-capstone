@@ -69,6 +69,21 @@ voice synthesis. Retrieval failures return `503`, and invalid structured model
 output returns `502`; neither path silently falls back to an ungrounded factual
 answer.
 
+### Short-term session memory
+
+Set `ENABLE_SESSION_MEMORY=true` to persist LangGraph conversation state in the
+same Postgres database used by the API. Send a stable `session_id` (1–128
+characters) and only the new message on each turn; any API instance can resume
+that thread, including after another instance restarts. Requests without a
+`session_id` keep using the client-provided `history` path.
+
+The default sliding TTL is 30 minutes. Each session request refreshes it, and a
+background sweep removes expired thread checkpoints at most 60 seconds later.
+Reusing an expired `session_id` starts a new conversation immediately, even if
+the periodic sweep has not run yet. Configure these values with
+`SESSION_MEMORY_TTL_SECONDS`, `SESSION_CLEANUP_INTERVAL_SECONDS`, and
+`SESSION_CLEANUP_BATCH_SIZE`.
+
 Lint, format, and test:
 
 ```bash
@@ -111,9 +126,9 @@ rate-based rules if true client-IP limits become necessary.
 - **Model:** deployed chat uses the configured Bedrock inference profile
   `BEDROCK_CHAT_MODEL` (`us.anthropic.claude-sonnet-4-6` by default).
 - **Input budget:** keep browser-supplied history to the latest **8 turns**
-  or roughly **4,000 input tokens**, whichever is smaller. Server-side session
-  memory is disabled in AWS until a shared checkpointer lands, so clients own
-  history trimming.
+  or roughly **4,000 input tokens**, whichever is smaller. Requests with a
+  `session_id` instead use Postgres-backed LangGraph short-term memory shared
+  by every API instance.
 - **Output budget:** narrator responses target **800 characters** for spoken
   playback and are hard-capped by `VOICE_MAX_TEXT_LENGTH` (default `1000`
   characters) before they are returned or sent to Polly.
@@ -131,8 +146,8 @@ rate-based rules if true client-IP limits become necessary.
 
 - Return `400` for invalid public input (`top_k`, blank queries, overlong voice
   text) so clients can fix the request without retrying.
-- Return `501` for `session_id` memory while the deployed shared checkpointer is
-  unavailable; clients should send compact `history` instead.
+- Return `501` for `session_id` memory when it is disabled in the current
+  environment; clients should send compact `history` instead.
 - Return `503` for missing runtime configuration or unavailable dependencies
   where the operator needs to fix the deployment. `/chat` uses this status when
   its privacy-gated retrieval dependency is unavailable.
@@ -170,22 +185,28 @@ Follow-up implementation work:
 
 ### Migrations (Alembic)
 
-`db/schema.sql` is the canonical DDL. The **initial** Alembic migration
-(`alembic/versions/0001_initial_schema.py`) is generated from it so the two do
-not diverge; Alembic owns migrations from here forward.
+`db/schema.sql` is the canonical fresh-database DDL. The Alembic migration chain
+must produce the same current schema; Alembic owns upgrades for existing
+databases.
 
 **Which command depends on the environment** — does the database already have
 the schema, or is it empty?
 
-**Local docker-compose DB → `stamp` (don't `upgrade`).** This DB auto-applied
-`schema.sql` on first `docker compose up`, so its tables/enums already exist.
-Running `alembic upgrade head` here would try to re-create them and fail with
-`type "source_type_enum" already exists`. `stamp` just records that the DB is
-already at revision 0001:
+**Fresh local docker-compose DB → `stamp`.** A newly created volume auto-applies
+the current `schema.sql`, including all migrations through `head`, so record
+that state without replaying DDL:
 
 ```bash
-alembic stamp head                # record "already at 0001"; runs no DDL
-alembic current                   # verify → 0001_initial (head)
+alembic stamp head                # record "already at current head"; runs no DDL
+alembic current                   # verify → 0002_agent_sessions (head)
+```
+
+For a local volume created before `agent_sessions` existed, first record the
+old baseline and then apply the new migration:
+
+```bash
+alembic stamp 0001_initial
+alembic upgrade head
 ```
 
 **Cloud (AWS RDS) or any fresh/empty DB → `upgrade`.** RDS is provisioned empty

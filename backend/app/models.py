@@ -32,6 +32,19 @@ class Base(DeclarativeBase):
     pass
 
 
+class AgentSession(Base):
+    """Lifecycle metadata for a LangGraph short-term-memory thread."""
+
+    __tablename__ = "agent_sessions"
+    __table_args__ = (Index("idx_agent_sessions_expires_at", "expires_at"),)
+
+    session_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    last_active_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    expires_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 # --- Enums (mirror schema.sql) -------------------------------------------------
 class SourceType(enum.StrEnum):
     vmm_catalogue = "vmm_catalogue"

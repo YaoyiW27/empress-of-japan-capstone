@@ -253,7 +253,10 @@ resource "aws_ecs_task_definition" "backend" {
         { name = "BEDROCK_CHAT_MODEL", value = var.bedrock_chat_inference_profile_id },
         { name = "EMBEDDER", value = "bedrock" },
         { name = "BEDROCK_EMBEDDING_MODEL", value = var.bedrock_embedding_model_id },
-        { name = "ENABLE_SESSION_MEMORY", value = "false" },
+        { name = "ENABLE_SESSION_MEMORY", value = "true" },
+        { name = "SESSION_MEMORY_TTL_SECONDS", value = "1800" },
+        { name = "SESSION_CLEANUP_INTERVAL_SECONDS", value = "60" },
+        { name = "SESSION_CLEANUP_BATCH_SIZE", value = "100" },
         { name = "PERSONA_DIR", value = "/app/data/ai/personas" },
         # AWS frontend CloudFront origins are wired in automatically; var.backend_cors_origins
         # carries any transitional extras (the legacy Vercel URLs during cutover).

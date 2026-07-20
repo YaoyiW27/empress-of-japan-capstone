@@ -8,13 +8,15 @@ import asyncio
 import hmac
 import json
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager, suppress
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from langgraph.checkpoint.memory import MemorySaver
 from opentelemetry import trace
+from psycopg import Error as PsycopgError
+from psycopg_pool import PoolTimeout
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
@@ -41,6 +43,11 @@ from app.retrieval import (
     RetrievalService,
     Retriever,
 )
+from app.session_memory import (
+    PostgresSessionMemory,
+    SessionMemoryBackend,
+    run_cleanup_loop,
+)
 from app.telemetry import configure_telemetry
 from app.voice import (
     NARRATOR_VOICES,
@@ -63,7 +70,7 @@ class ChatRequest(BaseModel):
     scene: str | None = None
     # When set, the backend keeps this session's conversation in memory and the
     # later turns see the earlier ones — send only the new `message` each turn.
-    session_id: str | None = None
+    session_id: str | None = Field(default=None, min_length=1, max_length=128)
     # Stateless fallback (no session_id): the client supplies prior turns.
     # {"role": "user"|"assistant", "content": str}.
     history: list[dict[str, str]] = []
@@ -195,17 +202,9 @@ def create_app(
     transcriber: Transcriber | None = None,
     retriever: Retriever | None = None,
     agent_chat_model: ChatModel | None = None,
+    session_memory_backend: SessionMemoryBackend | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
-    app = FastAPI(title=settings.app_name)
-    configure_telemetry(app, settings)
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.cors_origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
     retrieval_service = retriever or RetrievalService(
         make_embedder(
             settings.embedder,
@@ -235,20 +234,46 @@ def create_app(
         retrieve_candidates=retrieve_for_agent,
         max_response_length=settings.voice_max_text_length,
     )
-    # Server-side short-term memory: in-process per-session history, keyed by
-    # session_id. The in-process MemorySaver is NOT shared across Fargate tasks
-    # and is lost on restart, so it stays off by default — the supported deployed
-    # path is the stateless client-provided `history`. Flip enable_session_memory
-    # on once #34 swaps in a shared (Postgres) checkpointer. See PR #71 / #42.
-    session_graph = (
-        build_graph(
-            chat_model,
-            checkpointer=MemorySaver(),
-            retrieve_candidates=retrieve_for_agent,
-            max_response_length=settings.voice_max_text_length,
-        )
-        if settings.enable_session_memory
-        else None
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        cleanup_task: asyncio.Task[None] | None = None
+        memory = session_memory_backend
+        try:
+            if settings.enable_session_memory:
+                memory = memory or PostgresSessionMemory(settings, engine)
+                await asyncio.to_thread(memory.open)
+                app.state.session_memory = memory
+                app.state.session_graph = build_graph(
+                    chat_model,
+                    checkpointer=memory.checkpointer,
+                    retrieve_candidates=retrieve_for_agent,
+                    max_response_length=settings.voice_max_text_length,
+                )
+                cleanup_task = asyncio.create_task(
+                    run_cleanup_loop(memory, settings.session_cleanup_interval_seconds)
+                )
+            yield
+        finally:
+            if cleanup_task is not None:
+                cleanup_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await cleanup_task
+            if memory is not None and settings.enable_session_memory:
+                await asyncio.to_thread(memory.close)
+            app.state.session_memory = None
+            app.state.session_graph = None
+
+    app = FastAPI(title=settings.app_name, lifespan=lifespan)
+    app.state.session_memory = None
+    app.state.session_graph = None
+    configure_telemetry(app, settings)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
     synth = voice_synthesizer or _build_voice_synthesizer(settings)
     speech_transcriber = transcriber or _build_transcriber(settings)
@@ -310,7 +335,12 @@ def create_app(
             span.set_attribute("chat.session_memory_requested", bool(req.session_id))
             user_turn = {"role": "user", "content": req.message}
             try:
-                if req.session_id and session_graph is not None:
+                session_graph = app.state.session_graph
+                session_memory = app.state.session_memory
+                if req.session_id and session_graph is not None and session_memory is not None:
+                    # Refresh the sliding TTL before invoking the graph. If this ID
+                    # expired, refresh() removes its old checkpoints first.
+                    session_memory.refresh(req.session_id)
                     # Memory path: send only the new turn; the reducer appends it to the
                     # session's checkpointed history so the persona sees prior turns.
                     result = session_graph.invoke(
@@ -318,14 +348,13 @@ def create_app(
                         config={"configurable": {"thread_id": req.session_id}},
                     )
                 elif req.session_id:
-                    # session_id given but server-side memory is off (in-process MemorySaver
-                    # is not shared across Fargate tasks / survives no restart). Don't pretend
-                    # to remember — tell the client to drive history itself until #34 lands.
+                    # session_id given but server-side memory is disabled. Do not
+                    # pretend to remember; the caller must provide history instead.
                     raise HTTPException(
                         status_code=501,
                         detail=(
-                            "session_id memory is not enabled in this deployment yet "
-                            "(shared checkpointer tracked in #34); send prior turns via `history`."
+                            "session_id memory is not enabled in this deployment; "
+                            "send prior turns via `history`."
                         ),
                     )
                 else:
@@ -337,6 +366,10 @@ def create_app(
                             "messages": [*req.history, user_turn],
                         }
                     )
+            except (SQLAlchemyError, PsycopgError, PoolTimeout) as exc:
+                raise HTTPException(
+                    status_code=503, detail="session memory is unavailable"
+                ) from exc
             except RetrievalUnavailableError as exc:
                 raise HTTPException(
                     status_code=503, detail="grounding retrieval is unavailable"

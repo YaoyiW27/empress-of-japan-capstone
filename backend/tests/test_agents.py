@@ -3,6 +3,7 @@
 import pytest
 from fastapi.testclient import TestClient
 from langgraph.checkpoint.memory import MemorySaver
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.agents.graph import (
@@ -61,6 +62,31 @@ class FailingRetriever(EmptyRetriever):
         material_type: str | None = None,
     ) -> RetrievalResponse:
         raise RuntimeError("database unavailable")
+
+
+class InMemorySessionBackend:
+    def __init__(self) -> None:
+        self.checkpointer = MemorySaver()
+        self.refreshes: list[str] = []
+        self.opened = False
+
+    def open(self) -> None:
+        self.opened = True
+
+    def close(self) -> None:
+        self.opened = False
+
+    def refresh(self, session_id: str) -> bool:
+        self.refreshes.append(session_id)
+        return False
+
+    def cleanup_expired(self) -> int:
+        return 0
+
+
+class FailingSessionBackend(InMemorySessionBackend):
+    def refresh(self, session_id: str) -> bool:
+        raise OperationalError("refresh session", {}, RuntimeError("database unavailable"))
 
 
 def _agent_test_client(**settings_overrides: object) -> TestClient:
@@ -452,8 +478,8 @@ def test_session_memory_accumulates() -> None:
 
 
 def test_chat_endpoint_session_id_disabled_by_default() -> None:
-    # Server-side memory is off by default (in-process MemorySaver isn't shared
-    # across Fargate tasks; tracked in #34). A session_id request returns 501.
+    # Local/test settings keep shared Postgres memory opt-in. A session_id
+    # request must fail explicitly rather than pretending to retain context.
     client = _agent_test_client()
     resp = client.post(
         "/chat", json={"persona_id": "captain_sinclair", "session_id": "demo-1", "message": "Hi?"}
@@ -467,13 +493,50 @@ def test_chat_endpoint_session_id_path_when_enabled() -> None:
     from app.main import create_app
 
     get_settings.cache_clear()
-    app_with_memory = create_app(Settings(enable_session_memory=True), retriever=EmptyRetriever())
-    client = TestClient(app_with_memory)
+    memory = InMemorySessionBackend()
+    app_with_memory = create_app(
+        Settings(enable_session_memory=True),
+        retriever=EmptyRetriever(),
+        session_memory_backend=memory,
+    )
     body = {"persona_id": "captain_sinclair", "session_id": "demo-1"}
-    r1 = client.post("/chat", json={**body, "message": "First question?"})
-    r2 = client.post("/chat", json={**body, "message": "Second question?"})
+    with TestClient(app_with_memory) as client:
+        r1 = client.post("/chat", json={**body, "message": "First question?"})
+        r2 = client.post("/chat", json={**body, "message": "Second question?"})
     assert r1.status_code == 200 and r2.status_code == 200
     assert r2.json()["persona_id"] == "captain_sinclair"
+    assert memory.refreshes == ["demo-1", "demo-1"]
+    assert memory.opened is False
+
+
+@pytest.mark.parametrize("session_id", ["", "x" * 129])
+def test_chat_endpoint_rejects_invalid_session_id(session_id: str) -> None:
+    client = _agent_test_client()
+    response = client.post(
+        "/chat",
+        json={"persona_id": "captain_sinclair", "session_id": session_id, "message": "Hi"},
+    )
+    assert response.status_code == 422
+
+
+def test_chat_endpoint_returns_503_when_session_store_is_unavailable() -> None:
+    memory = FailingSessionBackend()
+    app = create_app(
+        Settings(enable_session_memory=True),
+        retriever=EmptyRetriever(),
+        session_memory_backend=memory,
+    )
+    with TestClient(app) as client:
+        response = client.post(
+            "/chat",
+            json={
+                "persona_id": "captain_sinclair",
+                "session_id": "demo-1",
+                "message": "Hi",
+            },
+        )
+    assert response.status_code == 503
+    assert response.json()["detail"] == "session memory is unavailable"
 
 
 def test_chat_endpoint_happy_path() -> None:

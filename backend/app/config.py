@@ -9,6 +9,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import URL, make_url
 
@@ -54,11 +55,12 @@ class Settings(BaseSettings):
     # calls use the US cross-Region inference profile from infra/bedrock.tf.
     bedrock_chat_model: str = "us.anthropic.claude-sonnet-4-6"
 
-    # Server-side session memory (the `session_id` chat path) uses an in-process
-    # MemorySaver, which is NOT shared across Fargate tasks and is lost on restart.
-    # Off until #34 provides a shared (Postgres) checkpointer; until then the
-    # supported path is the client-provided `history` (stateless). See PR #71 / #42.
+    # Server-side short-term memory is shared through Postgres when enabled.
+    # Local/test callers can leave it off and send compact `history` instead.
     enable_session_memory: bool = False
+    session_memory_ttl_seconds: int = Field(default=1800, gt=0)
+    session_cleanup_interval_seconds: int = Field(default=60, gt=0)
+    session_cleanup_batch_size: int = Field(default=100, gt=0)
 
     # Optional extra donor-name blocklist file for free-text PII redaction
     # (one name per line). Built primarily in-memory from the source's donor
@@ -136,6 +138,13 @@ class Settings(BaseSettings):
             )
 
         return make_url(self._normalise_driver(LOCAL_DATABASE_URL))
+
+    @property
+    def psycopg_conninfo(self) -> str:
+        """Return the database URL in the driver-neutral form psycopg expects."""
+        return self.sqlalchemy_url.set(drivername="postgresql").render_as_string(
+            hide_password=False
+        )
 
     @property
     def _has_db_parts(self) -> bool:

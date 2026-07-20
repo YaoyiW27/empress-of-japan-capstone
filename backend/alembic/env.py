@@ -27,6 +27,19 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
+# These tables are created and migrated by langgraph-checkpoint-postgres.setup().
+# Keep Alembic autogenerate from treating package-owned tables as removable extras.
+LANGGRAPH_CHECKPOINT_TABLES = {
+    "checkpoint_migrations",
+    "checkpoints",
+    "checkpoint_blobs",
+    "checkpoint_writes",
+}
+
+
+def include_name(name: str | None, type_: str, _parent_names) -> bool:
+    return not (type_ == "table" and name in LANGGRAPH_CHECKPOINT_TABLES)
+
 
 def run_migrations_offline() -> None:
     context.configure(
@@ -35,6 +48,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
+        include_name=include_name,
     )
     with context.begin_transaction():
         context.run_migrations()
@@ -47,6 +61,7 @@ def run_migrations_online() -> None:
             connection=connection,
             target_metadata=target_metadata,
             compare_type=True,
+            include_name=include_name,
         )
         with context.begin_transaction():
             context.run_migrations()

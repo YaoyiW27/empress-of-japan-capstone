@@ -8,10 +8,22 @@
 -- (mounted into /docker-entrypoint-initdb.d/). Can also be run directly:
 --   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f schema.sql
 --
--- NOTE: when the backend app adds Alembic, generate the INITIAL migration from
--- this file so the two do not diverge (this stays the canonical DDL until then).
+-- Alembic migrations cumulatively mirror this file. A fresh database can be
+-- created from either this DDL or `alembic upgrade head`.
 
 CREATE EXTENSION IF NOT EXISTS vector;
+
+-- ============================================================
+-- agent_sessions — lifecycle metadata for LangGraph threads.
+-- LangGraph owns its checkpoint_* tables; this table owns expiry only.
+-- ============================================================
+CREATE TABLE agent_sessions (
+    session_id      TEXT PRIMARY KEY,
+    last_active_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at      TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX idx_agent_sessions_expires_at ON agent_sessions (expires_at);
 
 -- ============================================================
 -- Enums
