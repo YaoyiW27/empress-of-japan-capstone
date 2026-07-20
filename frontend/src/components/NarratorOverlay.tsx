@@ -56,8 +56,9 @@ export default function NarratorOverlay({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
-      isMountedRef.current = true;
+      isMountedRef.current = false;
       audioRef.current?.pause();
     };
   }, []);
