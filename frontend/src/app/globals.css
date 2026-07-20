@@ -6,16 +6,42 @@
  * Tokens here generate Tailwind utilities (bg-ivory, text-navy, border-brass…).
  */
 @theme {
-  --color-ivory: #f4ecd8; /* page background — warm cream paper */
-  --color-card: #fbf6ea; /* panels / cards */
-  --color-navy: #1c2e4a; /* primary text, frames, button fill */
-  --color-navy-soft: #51617c; /* secondary / muted text */
-  --color-brass: #b8860b; /* accent, borders, hairline rules */
-  --color-vermilion: #b23a2e; /* sparing accent */
-  --color-ink: #14202e; /* strong headings */
+  /* --- Core palette (aligned to Figma "Empress of Japan" design system) --- */
+  --color-ivory: #f2efe8; /* page background — Figma: Light */
+  --color-card: #fbf6ea; /* panels / cards — local, no Figma token */
+  --color-navy: #101c3c; /* primary text, frames, button fill — Figma: Dark */
+  --color-navy-soft: #4c556d; /* secondary / muted text — Figma: Dark-f1 */
+  --color-brass: #c89b5a; /* accent, borders, hairline rules — Figma: Gold */
+  --color-vermilion: #b91d0b; /* sparing accent — Figma: Attention-Red */
+  --color-ink: #14202e; /* strong headings — local, slightly deeper than navy */
 
-  --font-display: var(--font-playfair); /* Playfair Display — headings */
-  --font-sans: var(--font-libre); /* Libre Franklin — body */
+  /* --- Neutral ramp (Figma Dark-f1…f3) --- */
+  --color-navy-muted: #878d9d; /* Figma: Dark-f2 */
+  --color-navy-faint: #c3c6ce; /* Figma: Dark-f3 */
+
+  /* --- Variant / lighter shades (Figma "V" tokens) --- */
+  --color-brass-soft: #e3cdac; /* Figma: Gold V */
+  --color-vermilion-soft: #dc8e85; /* Figma: Attention-Red V1 */
+
+  /* --- AI accents (Figma) --- */
+  --color-ai: #65fffa; /* Figma: Light-AI */
+  --color-ai-soft: #b2fffc; /* Figma: Light-AI V */
+  --color-ai-bg: #195dca; /* Figma: Background-AI */
+
+  /* --- Attention purple (Figma) --- */
+  --color-purple: #6e0bb9; /* Figma: Attention-Purple */
+  --color-purple-soft: #b685dc; /* Figma: Attention-Purple V1 */
+
+  /* --- Type scale (Figma typography tokens) --- */
+  --text-ig-header: 40px; /* Figma: IG_Header_darkBG — Playfair Display ExtraBold */
+  --text-ui-section: 24px; /* Figma: UI_section_header — Mplus 1p Thin */
+  --text-ui-hero: 20px; /* Figma: UI_hero_header — Mplus 1p ExtraBold */
+  --text-ui: 14px; /* Figma: UI_text_description / UI_interaction — Mplus 1p */
+  --text-ig: 12px; /* Figma: IG_text — Playfair Display Italic */
+
+  /* --- Fonts --- */
+  --font-display: var(--font-playfair); /* Playfair Display — headings (matches Figma IG_*) */
+  --font-sans: var(--font-libre); /* Libre Franklin — body (Figma UI uses "Mplus 1p"; see note) */
 }
 
 body {
