@@ -54,6 +54,11 @@ export default function NarratorOverlay({
   const [isLoading, setIsLoading] = useState(false);
   const isMountedRef = useRef(true);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const historyEndRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    historyEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [history]);
   
   useEffect(() => {
     isMountedRef.current = true;
@@ -177,13 +182,33 @@ export default function NarratorOverlay({
             {narrator.name}
           </p>
 
-          {transcript && (
-            <p className="mt-1 text-xs text-navy-soft">You: {transcript}</p>
-          )}
+          <div className="mt-2 max-h-64 space-y-2 overflow-y-auto pr-1">
+              {history.length === 0 && (
+                <p className="text-sm leading-relaxed text-navy">{response}</p>
+              )}
 
-          <p className="mt-2 max-w-xs text-sm leading-relaxed text-navy">
-            {isLoading ? "Thinking..." : response}
-          </p>
+              {history.map((turn, i) => (
+                <p
+                  key={i}
+                  className={
+                    turn.role === "user"
+                      ? "text-xs text-navy-soft"
+                      : "text-sm leading-relaxed text-navy"
+                  }
+                >
+                  {turn.role === "user" ? "You: " : ""}
+                  {turn.content}
+                </p>
+              ))}
+
+              {isLoading && (
+                <p className="text-sm italic leading-relaxed text-navy-soft">
+                  Thinking...
+                </p>
+              )}
+
+              <div ref={historyEndRef} />
+            </div>
 
           <button
             type="button"
