@@ -125,6 +125,8 @@ export default function NarratorOverlay({
   }
   
   function startListening() {
+    audioRef.current?.pause();
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
     const Recognition =
       window.SpeechRecognition ?? window.webkitSpeechRecognition;
 
