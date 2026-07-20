@@ -96,7 +96,7 @@ export default function NarratorOverlay({
     setTranscript(message);
 
     try {
-      const { sessionId, isNew } = getOrCreateTabChatSession();
+      const { sessionId, isNew } = getOrCreateTabChatSession(narrator.id);
       if (isNew && history.length > 0) {
         setHistory([]);
       }

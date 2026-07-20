@@ -10,21 +10,25 @@ type StoredChatSession = {
   lastActivityAt: number;
 };
 
-const CHAT_SESSION_STORAGE_KEY = "empress.chat.session.v1";
+const CHAT_SESSION_STORAGE_KEY_PREFIX = "empress.chat.session.v2";
 const CHAT_SESSION_IDLE_TTL_MS = 30 * 60 * 1000;
 
 // Used only when sessionStorage is unavailable (for example, strict privacy
 // settings). A module instance belongs to one browser tab.
-let fallbackSession: StoredChatSession | null = null;
+const fallbackSessions = new Map<string, StoredChatSession>();
 
-export function getOrCreateTabChatSession(now = Date.now()): {
+export function getOrCreateTabChatSession(
+  narratorId: string,
+  now = Date.now(),
+): {
   sessionId: string;
   isNew: boolean;
 } {
-  let stored = fallbackSession;
+  const storageKey = `${CHAT_SESSION_STORAGE_KEY_PREFIX}:${encodeURIComponent(narratorId)}`;
+  let stored = fallbackSessions.get(narratorId) ?? null;
 
   try {
-    const raw = window.sessionStorage.getItem(CHAT_SESSION_STORAGE_KEY);
+    const raw = window.sessionStorage.getItem(storageKey);
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<StoredChatSession>;
       if (
@@ -52,10 +56,10 @@ export function getOrCreateTabChatSession(now = Date.now()): {
     sessionId: activeSession?.sessionId ?? crypto.randomUUID(),
     lastActivityAt: now,
   };
-  fallbackSession = next;
+  fallbackSessions.set(narratorId, next);
 
   try {
-    window.sessionStorage.setItem(CHAT_SESSION_STORAGE_KEY, JSON.stringify(next));
+    window.sessionStorage.setItem(storageKey, JSON.stringify(next));
   } catch {
     // The in-memory fallback still keeps this tab consistent until reload.
   }
