@@ -49,3 +49,65 @@ body {
   color: var(--color-navy);
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
 }
+.ui-button {
+  width: 168px;
+  height: 42px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  border: 2px solid;
+  border-radius: 8px;
+
+  font-size: var(--text-ui);
+  font-family: var(--font-sans);
+  font-weight: 600;
+
+  cursor: pointer;
+  box-shadow:
+    0 0 8px rgb(from var(--color-navy) r g b / 50%);
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.ui-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* ---------- Overview ---------- */
+
+.ui-button--overview {
+  --button-bg: var(--color-ivory);
+  --button-border: var(--color-ivory);
+  --button-fg: var(--color-brass);
+  --button-accent: var(--color-brass);
+}
+
+.ui-button--overview[aria-pressed="true"] {
+  --button-bg: var(--color-brass);
+  --button-border: var(--color-brass);
+  --button-fg: var(--color-ivory);
+  --button-accent: var(--color-ivory);
+}
+
+/* ---------- Panorama ---------- */
+
+.ui-button--panorama {
+  --button-bg: var(--color-ai-bg);
+  --button-border: var(--color-ai);
+  --button-fg: var(--color-ai);
+  --button-accent: var(--color-ai);
+}
+
+.ui-button--panorama[aria-pressed="true"] {
+  --button-bg: var(--color-ai);
+  --button-border: var(--color-ai);
+  --button-fg: var(--color-ai-bg);
+  --button-accent: var(--color-ai-bg);
+}

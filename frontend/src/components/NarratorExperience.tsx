@@ -126,6 +126,7 @@ export default function NarratorExperience({
             scenes={narrator.scenes}
             currentId={currentId}
             onSelect={setCurrentId}
+            variant="panorama"
           />
         </div>
       </div>
