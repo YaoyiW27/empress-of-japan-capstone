@@ -7,6 +7,7 @@ import PanoramaScene, { type LookMode } from "@/components/three/PanoramaScene";
 import NarratorOverlay from "@/components/NarratorOverlay";
 import SceneRail from "@/components/SceneRail";
 import { ButtonLink } from "@/components/ui/Button";
+import { NavButtonLink } from "@/components/ui/NavButtons";
 import type { Narrator } from "@/lib/narrators";
 
 /** iOS 13+ exposes requestPermission on the DeviceOrientationEvent constructor. */
@@ -98,20 +99,14 @@ export default function NarratorExperience({
       </div>
 
       {/* Top-left: back to guides + current scene title */}
-      <div className="pointer-events-none absolute left-3 top-3 sm:left-6 sm:top-6">
-        <div className="pointer-events-auto inline-flex flex-col items-start gap-1.5 rounded-md border border-brass/40 bg-card/85 px-3 py-2 shadow-lg backdrop-blur-sm lg:gap-2 lg:px-4 lg:py-3">
-          <ButtonLink href="/explore" variant="ghost">
-            ← Guides
-          </ButtonLink>
-          <div>
-            <p className="text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-brass">
-              {narrator.role}
-            </p>
-            <h1 className="font-display text-lg font-bold text-navy lg:text-xl">
-              {current.title}
-            </h1>
-          </div>
-        </div>
+      <div className="pointer-events-auto absolute left-3 top-3 sm:left-6 sm:top-6">
+
+        <NavButtonLink
+          href="/explore"
+          icon="back"
+          label="Return to ship overview"
+        />
+
       </div>
 
       {/* Right edge: look-mode toggle on top (tilt ↔ drag; on iOS the first tap

@@ -6,6 +6,8 @@ import Link from "next/link";
 import Scene from "@/components/three/Scene";
 import { narrators } from "@/lib/narrators";
 import { ButtonLink, Button } from "@/components/ui/Button";
+import { NavButtonLink } from "@/components/ui/NavButtons";
+
 
 /**
  * Guided hub: pick a narrator on the left, see the 3D ship in the center, and
@@ -23,11 +25,13 @@ export default function ExploreHub() {
 
   return (
     <main className="flex h-dvh w-full flex-col bg-ivory px-4 py-3 lg:px-8 lg:py-6">
-      <header>
-        <ButtonLink href="/" variant="ghost">
-          ← Home
-        </ButtonLink>
-      </header>
+      <div className="pointer-events-auto absolute left-3 top-3 sm:left-6 sm:top-6">
+      <NavButtonLink
+        href="/"
+        icon="back"
+        label="Return to ship overview"
+      />
+      </div>
 
       <div className="mt-3 flex min-h-0 flex-1 gap-3 lg:mt-4 lg:gap-5">
         {/* Left: guides as circular portrait options */}

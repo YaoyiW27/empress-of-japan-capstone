@@ -114,3 +114,13 @@ body {
   --button-fg: var(--color-ai-bg);
   --button-accent: var(--color-ai-bg);
 }
+
+.ui-nav-button img {
+  display: block;
+  width: 42px;
+  height: 42px;
+}
+
+.ui-nav-button:hover {
+  transform: scale(1.05);
+}
