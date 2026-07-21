@@ -102,10 +102,10 @@ body {
 /* ---------- Panorama ---------- */
 
 .ui-button--panorama {
-  --button-bg: var(--color-ai-bg);
-  --button-border: var(--color-ai);
-  --button-fg: var(--color-ai);
-  --button-accent: var(--color-ai);
+  --button-bg: rgb(from var(--color-ai-bg) r g b / 50%);
+  --button-border: rgb(from var(--color-ai) r g b / 50%);
+  --button-fg: rgb(from var(--color-ai) r g b / 50%);
+  --button-accent: rgb(from var(--color-ai) r g b / 50%);
 }
 
 .ui-button--panorama[aria-pressed="true"] {
