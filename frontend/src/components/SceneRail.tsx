@@ -22,7 +22,7 @@ export default function SceneRail({
   return (
     <nav
       aria-label="Ship scenes"
-      className="flex max-h-full flex-col gap-3 overflow-y-auto"
+      className="pointer-events-auto flex max-h-full flex-col gap-3 overflow-y-auto"
     >
       {scenes.map((scene) => (
         <SelectToggle

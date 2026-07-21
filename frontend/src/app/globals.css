@@ -52,7 +52,10 @@ body {
 .ui-button {
   width: 168px;
   height: 42px;
-
+  background-color: var(--button-bg);
+  border-color: var(--button-border);
+  color: var(--button-fg);
+  
   display: inline-flex;
   align-items: center;
   justify-content: center;

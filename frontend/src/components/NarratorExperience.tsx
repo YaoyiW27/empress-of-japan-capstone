@@ -45,19 +45,27 @@ export default function NarratorExperience({
   // Device-orientation support + default look mode, computed once. Reading
   // window here is safe: the route wraps this component in <Suspense> (for
   // useSearchParams), so it renders on the client.
-  const [gyroSupported] = useState(
-    () => typeof window !== "undefined" && Boolean(getDeviceOrientationEvent()),
-  );
-  const [lookMode, setLookMode] = useState<LookMode>(() => {
-    if (typeof window === "undefined") return "drag";
+  const [gyroSupported, setGyroSupported] = useState(false);
+  const [lookMode, setLookMode] = useState<LookMode>("drag");
+
+  useEffect(() => {
     const doe = getDeviceOrientationEvent();
-    if (!doe) return "drag";
-    // iOS needs a permission tap (handled in toggleLook) → start in drag.
-    // Touch devices without that requirement (Android) default to gyro.
+
+    if (!doe) {
+      setGyroSupported(false);
+      return;
+    }
+
+    setGyroSupported(true);
+
     const needsPermission = typeof doe.requestPermission === "function";
-    const isTouch = window.matchMedia?.("(pointer: coarse)").matches ?? false;
-    return isTouch && !needsPermission ? "gyro" : "drag";
-  });
+    const isTouch =
+      window.matchMedia?.("(pointer: coarse)").matches ?? false;
+
+    if (isTouch && !needsPermission) {
+      setLookMode("gyro");
+    }
+  }, []);
 
   // Warm the texture cache so switching scenes is instant (no reload flash).
   useEffect(() => {
