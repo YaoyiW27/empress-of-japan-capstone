@@ -18,10 +18,9 @@ import { NavButtonLink } from "@/components/ui/NavButtons";
  * kicks in on real desktops/tablets (>=1024px).
  */
 export default function ExploreHub() {
-  const [selectedId, setSelectedId] = useState(narrators[0].id);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
-  const selected =
-    narrators.find((narrator) => narrator.id === selectedId) ?? narrators[0];
+  const selected = narrators.find((narrator) => narrator.id === selectedId);
 
   return (
     <main className="flex h-dvh w-full flex-col bg-ivory px-4 py-3 lg:px-8 lg:py-6">
@@ -78,66 +77,86 @@ export default function ExploreHub() {
 
         {/* Right: bio preview, then scenes — contained in a panel */}
         <aside className="flex w-64 shrink-0 flex-col lg:w-[24rem]">
-          <div className="flex min-h-0 flex-1 flex-col rounded-lg border border-brass/40 bg-card p-4 shadow-sm ring-1 ring-brass/10 lg:p-6">
-            {!confirmed ? (
-              <>
-                <div className="min-h-0 flex-1 overflow-y-auto">
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brass lg:text-base">
-                    {selected.role}
-                  </p>
-                  <h2 className="mt-1 font-display text-2xl font-bold text-navy lg:mt-2 lg:text-4xl">
-                    {selected.name}
-                  </h2>
-                  <p className="mt-3 text-sm leading-relaxed text-navy-soft lg:mt-4 lg:text-lg">
-                    {selected.bio}
-                  </p>
-                </div>
-                <div className="mt-4 shrink-0 lg:mt-6">
-                  <Button
-                    onClick={() => setConfirmed(true)}
-                    className="w-full justify-center"
-                  >
-                    Confirm →
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <>
-                <p className="shrink-0 text-xs font-semibold uppercase tracking-[0.22em] text-brass lg:text-base">
-                  {selected.name} · Scenes
+        <div className="flex min-h-0 flex-1 flex-col rounded-lg border border-brass/40 bg-card p-4 shadow-sm ring-1 ring-brass/10 lg:p-6">
+
+          {!selected ? (
+            <div className="flex h-full flex-1 items-center justify-center text-center">
+              <div>
+                <h2 className="font-display text-2xl font-bold text-navy lg:text-4xl">
+                  Choose a Narrator
+                </h2>
+
+                <p className="mt-4 text-sm leading-relaxed text-navy-soft lg:text-lg">
+                  Select one of the three guides to begin exploring the Empress of
+                  Japan.
                 </p>
-                <ul className="mt-3 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-1 lg:gap-3">
-                  {selected.scenes.map((scene) => (
-                    <li key={scene.id}>
-                      <Link
-                        href={`/explore/${selected.id}?scene=${scene.id}`}
-                        className="group flex items-center gap-3 rounded-md border border-brass/40 bg-ivory p-2 shadow-sm transition-all hover:-translate-y-0.5 hover:border-brass hover:shadow-md lg:gap-4 lg:p-2.5"
-                      >
-                        <span className="relative block h-11 w-20 shrink-0 overflow-hidden rounded-sm border border-brass/30 lg:h-14 lg:w-24">
-                          <Image
-                            src={scene.photoSrc}
-                            alt={scene.title}
-                            fill
-                            sizes="96px"
-                            className="object-cover"
-                          />
-                        </span>
-                        <span className="font-display text-base font-semibold text-navy transition-colors group-hover:text-brass lg:text-xl">
-                          {scene.title}
-                        </span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-                <div className="mt-4 shrink-0">
-                  <Button variant="ghost" onClick={() => setConfirmed(false)}>
-                    ← Change guide
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
-        </aside>
+              </div>
+            </div>
+          ) : !confirmed ? (
+            <>
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brass lg:text-base">
+                  {selected.role}
+                </p>
+
+                <h2 className="mt-1 font-display text-2xl font-bold text-navy lg:mt-2 lg:text-4xl">
+                  {selected.name}
+                </h2>
+
+                <p className="mt-3 text-sm leading-relaxed text-navy-soft lg:mt-4 lg:text-lg">
+                  {selected.bio}
+                </p>
+              </div>
+
+              <div className="mt-4 shrink-0 lg:mt-6">
+                <Button
+                  onClick={() => setConfirmed(true)}
+                  className="w-full justify-center"
+                >
+                  Confirm →
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="shrink-0 text-xs font-semibold uppercase tracking-[0.22em] text-brass lg:text-base">
+                {selected.name} · Scenes
+              </p>
+
+              <ul className="mt-3 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-1 lg:gap-3">
+                {selected.scenes.map((scene) => (
+                  <li key={scene.id}>
+                    <Link
+                      href={`/explore/${selected.id}?scene=${scene.id}`}
+                      className="group flex items-center gap-3 rounded-md border border-brass/40 bg-ivory p-2 shadow-sm transition-all hover:-translate-y-0.5 hover:border-brass hover:shadow-md lg:gap-4 lg:p-2.5"
+                    >
+                      <span className="relative block h-11 w-20 shrink-0 overflow-hidden rounded-sm border border-brass/30 lg:h-14 lg:w-24">
+                        <Image
+                          src={scene.photoSrc}
+                          alt={scene.title}
+                          fill
+                          sizes="96px"
+                          className="object-cover"
+                        />
+                      </span>
+
+                      <span className="font-display text-base font-semibold text-navy transition-colors group-hover:text-brass lg:text-xl">
+                        {scene.title}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="mt-4 shrink-0">
+                <Button variant="ghost" onClick={() => setConfirmed(false)}>
+                  ← Change guide
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      </aside>
       </div>
     </main>
   );
