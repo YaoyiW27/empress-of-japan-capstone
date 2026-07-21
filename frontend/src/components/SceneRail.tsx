@@ -4,7 +4,7 @@ import type { Scene } from "@/lib/narrators";
 import {
   SelectToggle,
   type ButtonVariant,
-} from "./SelectToggle";
+} from "./ui/SelectToggle";
 
 type SceneRailProps = {
   scenes: Scene[];

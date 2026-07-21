@@ -94,37 +94,48 @@ export default function NarratorExperience({
 
   return (
     <main className="relative h-dvh w-full overflow-hidden bg-navy">
+      {/* Panorama */}
       <div className="absolute inset-0">
         <PanoramaScene scene={current} mode={lookMode} />
       </div>
-
-      {/* Top-left: back to guides + current scene title */}
-      <div className="pointer-events-auto absolute left-3 top-3 sm:left-6 sm:top-6">
-
-        <NavButtonLink
-          href="/explore"
-          icon="back"
-          label="Return to ship overview"
-        />
-
-      </div>
-
-      {/* Right edge: look-mode toggle on top (tilt ↔ drag; on iOS the first tap
-          also requests motion permission), scene switcher below. Stacking them
-          means a long scene list never covers the toggle — the rail scrolls
-          within its own space instead. */}
-      <div className="pointer-events-none absolute bottom-3 right-3 top-3 flex flex-col items-end gap-3 sm:bottom-5 sm:right-5 sm:top-5">
+  
+      {/* UI overlay */}
+      <div className="pointer-events-none absolute inset-0 z-10">
+        {/* Back button */}
+        <div className="pointer-events-auto absolute left-5 top-5">
+          <NavButtonLink
+            href="/explore"
+            icon="back"
+            label="Return to ship overview"
+          />
+        </div>
+  
+        {/* Current scene title */}
+        <h1
+          className="text-ig-header absolute left-1/2 top-5 -translate-x-1/2 whitespace-nowrap text-center"
+        >
+          {current.title}
+        </h1>
+  
+        {/* View control */}
         {gyroSupported && (
           <button
             type="button"
             onClick={toggleLook}
+            aria-label={
+              lookMode === "gyro"
+                ? "Switch to drag view"
+                : "Switch to phone view"
+            }
             aria-pressed={lookMode === "gyro"}
-            className="pointer-events-auto shrink-0 rounded-full border border-brass/40 bg-card/90 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-navy shadow-md backdrop-blur-sm transition-colors hover:border-brass"
+            className="pointer-events-auto absolute right-5 top-5 flex h-11 w-11 items-center justify-center rounded-full border-2 border-navy/40 bg-slate-300 text-xl text-navy shadow-lg transition-transform hover:scale-105 active:scale-95"
           >
-            {lookMode === "gyro" ? "🖐 Drag view" : "🧭 Phone view"}
+            {lookMode === "gyro" ? "✋" : "⌖"}
           </button>
         )}
-        <div className="flex min-h-0 flex-1 items-start">
+  
+        {/* Scene navigation */}
+        <div className="pointer-events-auto absolute right-5 top-1/2 max-h-[68vh] -translate-y-1/2">
           <SceneRail
             scenes={narrator.scenes}
             currentId={currentId}
@@ -132,10 +143,15 @@ export default function NarratorExperience({
             variant="panorama"
           />
         </div>
+  
+        {/* Transcript placeholder */}
+        <button
+          type="button"
+          className="pointer-events-auto absolute bottom-5 left-1/2 -translate-x-1/2 rounded-lg border-2 border-ai bg-ai-bg/90 px-5 py-2 font-semibold text-ai shadow-lg backdrop-blur-sm transition-transform hover:scale-105 active:scale-95"
+        >
+          Chat Transcript ▼
+        </button>
       </div>
-
-      {/* Bottom-left: narrator */}
-      <NarratorOverlay narrator={narrator} scene={current} />
     </main>
   );
 }

@@ -25,6 +25,7 @@ export function SelectToggle({
       aria-pressed={selected}
       className={[
         "ui-button",
+        "text-ui-interaction",
         `ui-button--${variant}`,
         className,
       ].join(" ")}

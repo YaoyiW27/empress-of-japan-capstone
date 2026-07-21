@@ -49,6 +49,55 @@ body {
   color: var(--color-navy);
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
 }
+
+/* ---------- Typography ---------- */
+.text-ig-header {
+  font-family: var(--font-display);
+  font-size: var(--text-ig-header);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-ivory);
+  text-shadow: 0 0 12px var(--color-navy);
+}
+.text-ig {
+  font-family: var(--font-display);
+  font-size: var(--text-ig);
+  font-style: italic;
+  font-weight: 400;
+  line-height: 30px;
+  letter-spacing: 0.08em;
+}
+.text-ui-description {
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+  font-weight: 400;
+  line-height: normal;
+  letter-spacing: 0;
+}
+.text-ui-hero-header {
+  font-family: var(--font-sans);
+  font-size: var(--text-ui-hero);
+  font-weight: 800;
+  line-height: normal;
+  letter-spacing: 0;
+}
+.text-ui-interaction {
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+  font-weight: 800;
+  line-height: normal;
+  letter-spacing: 0;
+}
+.text-ui-section-header {
+  font-family: var(--font-sans);
+  font-size: var(--text-ui-section);
+  font-weight: 100;
+  line-height: normal;
+  letter-spacing: 0;
+}
+
 .ui-button {
   width: 168px;
   height: 42px;
@@ -64,9 +113,6 @@ body {
   border: 2px solid;
   border-radius: 8px;
 
-  font-size: var(--text-ui);
-  font-family: var(--font-sans);
-  font-weight: 600;
 
   cursor: pointer;
   box-shadow:
