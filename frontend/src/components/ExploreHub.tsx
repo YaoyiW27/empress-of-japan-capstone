@@ -87,7 +87,12 @@ export default function ExploreHub() {
         </section>
 
         {/* Right: bio preview, then scenes — contained in a panel */}
-       <aside className="flex w-64 shrink-0 flex-col lg:w-[24rem]">
+       <aside className="absolute
+        right-6
+        top-24
+        md:top-1/3
+        flex
+        flex-col">
        <SceneRail
           scenes={allScenes}
           variant="overview"

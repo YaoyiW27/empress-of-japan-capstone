@@ -323,7 +323,7 @@ export default function NarratorExperience({
         </div>
 
         {/* Scene navigation */}
-        <div className="pointer-events-auto absolute right-6 top-1/2 max-h-[68vh] -translate-y-1/2">
+        <div className="pointer-events-auto absolute right-6 top-24 md:top-1/3 max-h-[68vh] -translate-y-1/2">
           <SceneRail
             scenes={narrator.scenes}
             currentId={currentId}
