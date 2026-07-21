@@ -8,6 +8,9 @@ import NarratorOverlay from "@/components/NarratorOverlay";
 import SceneRail from "@/components/SceneRail";
 import { ButtonLink } from "@/components/ui/Button";
 import { NavButtonLink } from "@/components/ui/NavButtons";
+import ChatTranscript, {
+  type TranscriptMessage,
+} from "@/components/ui/ChatTranscript";
 import type { Narrator } from "@/lib/narrators";
 
 /** iOS 13+ exposes requestPermission on the DeviceOrientationEvent constructor. */
@@ -48,6 +51,7 @@ export default function NarratorExperience({
   // useSearchParams), so it renders on the client.
   const [gyroSupported, setGyroSupported] = useState(false);
   const [lookMode, setLookMode] = useState<LookMode>("drag");
+  const transcriptMessages: TranscriptMessage[] = [];
 
   useEffect(() => {
     const doe = getDeviceOrientationEvent();
@@ -155,12 +159,7 @@ export default function NarratorExperience({
         </div>
   
         {/* Transcript placeholder */}
-        <button
-          type="button"
-          className="pointer-events-auto absolute bottom-5 left-1/2 -translate-x-1/2 rounded-lg border-2 border-ai bg-ai-bg/90 px-5 py-2 font-semibold text-ai shadow-lg backdrop-blur-sm transition-transform hover:scale-105 active:scale-95"
-        >
-          Chat Transcript ▼
-        </button>
+        <ChatTranscript messages={transcriptMessages} />
       </div>
     </main>
   );
