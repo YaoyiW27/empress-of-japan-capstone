@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import Scene from "@/components/three/Scene";
@@ -21,7 +22,7 @@ import { NavButtonLink } from "@/components/ui/NavButtons";
 export default function ExploreHub() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
-  const selected = narrators.find((narrator) => narrator.id === selectedId);
+  const [selectedSceneId, setSelectedSceneId] = useState<string | undefined>(undefined);
   const allScenes = Array.from(
     new Map(
       narrators
@@ -90,8 +91,10 @@ export default function ExploreHub() {
        <SceneRail
           scenes={allScenes}
           variant="overview"
-          currentId={undefined}
-          onSelect={() => {}}
+          currentId={selectedSceneId}
+          onSelect={(sceneId) => {
+            setSelectedSceneId(sceneId);
+          }}
         />
       </aside>
       </div>
