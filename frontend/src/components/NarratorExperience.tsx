@@ -116,24 +116,34 @@ export default function NarratorExperience({
         >
           {current.title}
         </h1>
-  
+
         {/* View control */}
         {gyroSupported && (
           <button
             type="button"
             onClick={toggleLook}
+            aria-pressed={lookMode === "gyro"}
             aria-label={
               lookMode === "gyro"
                 ? "Switch to drag view"
                 : "Switch to phone view"
             }
-            aria-pressed={lookMode === "gyro"}
-            className="pointer-events-auto absolute right-5 top-5 flex h-11 w-11 items-center justify-center rounded-full border-2 border-navy/40 bg-slate-300 text-xl text-navy shadow-lg transition-transform hover:scale-105 active:scale-95"
+            className="ui-view-toggle pointer-events-auto absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
           >
-            {lookMode === "gyro" ? "✋" : "⌖"}
+            {lookMode === "gyro" ? "Drag View" : "Phone View"}
           </button>
         )}
-  
+        {/* Map button */}
+        <div className="pointer-events-auto absolute right-5 top-5">
+          <NavButtonLink
+            href="/"
+            icon="map"
+            label="Open ship map"
+            onClick={() => {
+              // Map behavior goes here.
+            }}
+          />
+        </div>
         {/* Scene navigation */}
         <div className="pointer-events-auto absolute right-5 top-1/2 max-h-[68vh] -translate-y-1/2">
           <SceneRail
