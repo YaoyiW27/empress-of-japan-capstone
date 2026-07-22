@@ -32,13 +32,13 @@ type NarratorStates = Record<
 
 const narratorOrder: NarratorId[] = [
   "whitmore",
-  "captain",
+  "sinclair",
   "ming",
 ];
 
 const initialNarratorStates: NarratorStates = {
   whitmore: "default",
-  captain: "default",
+  sinclair: "default",
   ming: "default",
 };
 
@@ -164,10 +164,10 @@ export default function NarratorExperience({
             ? "disabled"
             : "default",
 
-      captain:
-        narratorId === "captain"
+      sinclair:
+        narratorId === "sinclair"
           ? "listening"
-          : previous.captain === "disabled"
+          : previous.sinclair === "disabled"
             ? "disabled"
             : "default",
 

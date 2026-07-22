@@ -7,7 +7,7 @@ import {
   useState,
 } from "react";
 
-export type NarratorId = "captain" | "whitmore" | "ming";
+export type NarratorId = "sinclair" | "whitmore" | "ming";
 
 export type HubNarratorState =
   | "default"
@@ -52,7 +52,7 @@ type NarratorButtonState =
   | SceneNarratorState;
 
 const narratorNames: Record<NarratorId, string> = {
-  captain: "Captain Sinclair",
+  sinclair: "sinclair Sinclair",
   whitmore: "Ms. Whitmore",
   ming: "Ming",
 };
@@ -61,34 +61,35 @@ const narratorIcons: Record<
   NarratorId,
   Record<NarratorButtonState, string>
 > = {
-  captain: {
-    default: "/images/narrators/captain/default.svg",
-    recommended: "/images/narrators/captain/recommended.svg",
-    selected: "/images/narrators/captain/selected.svg",
-    listening: "/images/narrators/captain/listening.svg",
-    thinking: "/images/narrators/captain/thinking.svg",
-    speaking: "/images/narrators/captain/speaking.svg",
-    disabled: "/images/narrators/captain/disabled.svg",
+  sinclair: {
+    default: "/narrators/sinclair/default.svg",
+    recommended: "/narrators/sinclair/recommended.svg",
+    selected: "/narrators/sinclair/selected.svg",
+    listening: "/narrators/sinclair/listening.svg",
+    thinking: "/narrators/sinclair/thinking.svg",
+    speaking: "/narrators/sinclair/speaking.svg",
+    disabled: "/narrators/sinclair/disabled.svg",
   },
 
   whitmore: {
-    default: "/images/narrators/whitmore/default.svg",
-    recommended: "/images/narrators/whitmore/recommended.svg",
-    selected: "/images/narrators/whitmore/selected.svg",
-    listening: "/images/narrators/whitmore/listening.svg",
-    thinking: "/images/narrators/whitmore/thinking.svg",
-    speaking: "/images/narrators/whitmore/speaking.svg",
-    disabled: "/images/narrators/whitmore/disabled.svg",
+    default: "/narrators/whitmore/narrator_active.svg",
+    recommended: "/narrators/whitmore/narrator_Primary.svg",
+    selected: "/narrators/whitmore/narrator_selected.svg",
+    listening: "/narrators/whitmore/narrator_listening.svg",
+    thinking: "/narrators/whitmore/narrator_thinking.svg",
+    speaking: "/narrators/whitmore/narrator_speaking.svg",
+    // Temporary fallback
+    disabled: "/narrators/whitmore/narrator_Primary.svg",
   },
 
   ming: {
-    default: "/images/narrators/ming/default.svg",
-    recommended: "/images/narrators/ming/recommended.svg",
-    selected: "/images/narrators/ming/selected.svg",
-    listening: "/images/narrators/ming/listening.svg",
-    thinking: "/images/narrators/ming/thinking.svg",
-    speaking: "/images/narrators/ming/speaking.svg",
-    disabled: "/images/narrators/ming/disabled.svg",
+    default: "/narrators/ming/default.svg",
+    recommended: "/narrators/ming/recommended.svg",
+    selected: "/narrators/ming/selected.svg",
+    listening: "/narrators/ming/listening.svg",
+    thinking: "/narrators/ming/thinking.svg",
+    speaking: "/narrators/ming/speaking.svg",
+    disabled: "/narrators/ming/disabled.svg",
   },
 };
 
@@ -305,19 +306,41 @@ export default function NarratorButton(props: NarratorButtonProps) {
         }
       }}
       className={joinClasses(
-        "narrator-button",
-        `narrator-button--${variant}`,
-        `narrator-button--${state}`,
-        `narrator-button--${narrator}`,
+        "relative h-32 w-46 shrink-0 border-0 bg-transparent p-0",
+        variant === "hub" && "h-20 w-20",
         className,
       )}
     >
-      <img
-        src={iconSrc}
-        alt=""
-        draggable={false}
-        className="narrator-button__icon"
-      />
+    <img
+    src={iconSrc}
+    alt=""
+    draggable={false}
+    className={joinClasses(
+        "absolute block max-w-none pointer-events-none",
+
+        variant === "hub" &&
+        "left-0 top-0 h-20 w-20",
+
+        variant === "scene" &&
+        (state === "selected" ||
+            state === "recommended") &&
+        "left-6 top-6 h-20 w-20",
+
+        variant === "scene" &&
+        state === "default" &&
+        "left-6 top-6 h-20 w-20",
+
+        variant === "scene" &&
+        (state === "listening" ||
+            state === "thinking" ||
+            state === "disabled") &&
+        "left-0 top-0 h-32 w-32",
+
+        variant === "scene" &&
+        state === "speaking" &&
+        "left-0 top-0 h-32 w-46",
+    )}
+    />
 
       <span className="sr-only">{narratorName}</span>
     </button>

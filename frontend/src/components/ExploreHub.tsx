@@ -20,6 +20,7 @@ import { NavButtonLink } from "@/components/ui/NavButtons";
  * kicks in on real desktops/tablets (>=1024px).
  */
 export default function ExploreHub() {
+  const router = useRouter();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   const [selectedSceneId, setSelectedSceneId] = useState<string | undefined>(undefined);
@@ -84,6 +85,21 @@ export default function ExploreHub() {
           <p className="pointer-events-none absolute inset-x-0 bottom-2 text-center text-[0.65rem] uppercase tracking-[0.2em] text-navy-soft lg:bottom-3 lg:text-xs">
             Drag to rotate · scroll to zoom
           </p>
+          {selectedId && selectedSceneId && (
+            <div className="pointer-events-auto absolute bottom-16 left-1/2 -translate-x-1/2">
+              <Button
+                className="w-80 justify-center"
+                variant="primary"
+                onClick={() => {
+                  router.push(
+                    `/explore/${selectedId}?scene=${selectedSceneId}`,
+                  );
+                }}
+              >
+                Start Voyage
+              </Button>
+            </div>
+          )}
         </section>
 
         {/* Right: bio preview, then scenes — contained in a panel */}
