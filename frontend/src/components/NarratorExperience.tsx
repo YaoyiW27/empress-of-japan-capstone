@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTexture } from "@react-three/drei";
 
@@ -17,6 +17,49 @@ import NarratorButton, {
   type SceneNarratorState,
 } from "@/components/ui/NarratorButton";
 import type { Narrator } from "@/lib/narrators";
+import {
+  getOrCreateTabChatSession,
+  sendChatMessage,
+  type ChatHistoryTurn,
+} from "@/lib/chat";
+import { synthesizeNarratorVoice } from "@/lib/voice";
+
+type SpeechRecognitionConstructor = new () => SpeechRecognition;
+
+type SpeechRecognition = {
+  lang: string;
+  interimResults: boolean;
+  maxAlternatives: number;
+  start: () => void;
+  stop: () => void;
+  onresult: ((event: SpeechRecognitionEvent) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+};
+
+type SpeechRecognitionEvent = {
+  results: {
+    [index: number]: {
+      [index: number]: {
+        transcript: string;
+      };
+    };
+  };
+};
+
+declare global {
+  interface Window {
+    SpeechRecognition?: SpeechRecognitionConstructor;
+    webkitSpeechRecognition?: SpeechRecognitionConstructor;
+  }
+}
+
+/** UI-only narrator id (button/asset naming) -> real backend persona id. */
+const uiIdToPersonaId: Record<NarratorId, string> = {
+  sinclair: "captain_sinclair",
+  whitmore: "eleanor_whitmore",
+  ming: "ming_chen",
+};
 
 /** iOS 13+ exposes requestPermission on the DeviceOrientationEvent constructor. */
 type DeviceOrientationEventStatic = {
@@ -91,7 +134,104 @@ export default function NarratorExperience({
       initialNarratorStates,
     );
 
-  const transcriptMessages: TranscriptMessage[] = [];
+  // Real conversation state for the current page's narrator only — the
+  // other two narrator buttons don't have their own Narrator data (bio,
+  // backend scene id) passed into this component yet, so they stay on the
+  // placeholder simulation below until that's wired up.
+  const [history, setHistory] = useState<ChatHistoryTurn[]>([]);
+  const isMountedRef = useRef(true);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+
+  const currentNarratorUiId = (
+    Object.keys(uiIdToPersonaId) as NarratorId[]
+  ).find((uiId) => uiIdToPersonaId[uiId] === narrator.id);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      audioRef.current?.pause();
+    };
+  }, []);
+
+  const transcriptMessages: TranscriptMessage[] = history.map(
+    (turn, i) => ({
+      id: `${i}`,
+      speaker: turn.role === "user" ? "You" : narrator.name,
+      text: turn.content,
+    }),
+  );
+
+  function speakWithBrowserFallback(text: string) {
+    if (!("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+  }
+
+  async function speak(text: string) {
+    audioRef.current?.pause();
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+
+    try {
+      const { audio_url } = await synthesizeNarratorVoice({
+        narratorId: narrator.id,
+        text,
+      });
+      if (!isMountedRef.current) return;
+      const audio = new Audio(audio_url);
+      audioRef.current = audio;
+      await audio.play();
+    } catch (error) {
+      if (!isMountedRef.current) return;
+      console.error(
+        "Polly synthesis failed, falling back to browser TTS",
+        error,
+      );
+      speakWithBrowserFallback(text);
+    }
+  }
+
+  async function submitMessage(message: string) {
+    setNarratorStates((previous) => ({
+      ...previous,
+      [currentNarratorUiId!]: "thinking",
+    }));
+
+    try {
+      const { sessionId, isNew } = getOrCreateTabChatSession(narrator.id);
+      if (isNew && history.length > 0) {
+        setHistory([]);
+      }
+
+      const result = await sendChatMessage({
+        personaId: narrator.id,
+        scene: current.backendSceneId,
+        message,
+        sessionId,
+      });
+
+      setHistory((prev) => [
+        ...(isNew ? [] : prev),
+        { role: "user", content: message },
+        { role: "assistant", content: result.response },
+      ]);
+
+      setNarratorStates((previous) => ({
+        ...previous,
+        [currentNarratorUiId!]: "speaking",
+      }));
+
+      await speak(result.response);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setNarratorStates((previous) => ({
+        ...previous,
+        [currentNarratorUiId!]: "selected",
+      }));
+    }
+  }
 
   useEffect(() => {
     const doe = getDeviceOrientationEvent();
@@ -179,60 +319,79 @@ export default function NarratorExperience({
             : "default",
     }));
 
-    /*
-     * Connect microphone start here:
-     *
-     * startRecording({
-     *   narratorId,
-     *   sceneId: current.id,
-     * });
-     */
+    // Real mic capture only exists for the narrator this page was loaded
+    // for — the other two don't have their own Narrator data here yet, so
+    // holding their buttons just shows the "listening" visual state.
+    if (narratorId !== currentNarratorUiId) return;
+
+    audioRef.current?.pause();
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+
+    const Recognition =
+      window.SpeechRecognition ?? window.webkitSpeechRecognition;
+
+    if (!Recognition) {
+      setNarratorStates((previous) => ({
+        ...previous,
+        [narratorId]: "default",
+      }));
+      return;
+    }
+
+    const recognition = new Recognition();
+    recognition.lang = "en-US";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onresult = (event) => {
+      void submitMessage(event.results[0][0].transcript);
+    };
+
+    recognition.onerror = () => {
+      setNarratorStates((previous) => ({
+        ...previous,
+        [narratorId]: "default",
+      }));
+    };
+
+    recognition.onend = () => {
+      recognitionRef.current = null;
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
   }
 
   function endNarratorInteraction(
     narratorId: NarratorId,
   ) {
-    setNarratorStates((previous) => ({
-      ...previous,
-      [narratorId]: "thinking",
-    }));
-
-    /*
-     * Replace this simulation with the real voice pipeline:
-     *
-     * const audio = await stopRecording();
-     * const response = await sendVoiceMessage({
-     *   narratorId,
-     *   sceneId: current.id,
-     *   audio,
-     * });
-     *
-     * setNarratorStates((previous) => ({
-     *   ...previous,
-     *   [narratorId]: "speaking",
-     * }));
-     *
-     * await playAudio(response.audio);
-     *
-     * setNarratorStates((previous) => ({
-     *   ...previous,
-     *   [narratorId]: "selected",
-     * }));
-     */
-
-    window.setTimeout(() => {
+    if (narratorId !== currentNarratorUiId) {
+      // Placeholder simulation for the two narrators not yet wired up.
       setNarratorStates((previous) => ({
         ...previous,
-        [narratorId]: "speaking",
+        [narratorId]: "thinking",
       }));
 
       window.setTimeout(() => {
         setNarratorStates((previous) => ({
           ...previous,
-          [narratorId]: "selected",
+          [narratorId]: "speaking",
         }));
-      }, 2000);
-    }, 1200);
+
+        window.setTimeout(() => {
+          setNarratorStates((previous) => ({
+            ...previous,
+            [narratorId]: "selected",
+          }));
+        }, 2000);
+      }, 1200);
+      return;
+    }
+
+    // Releasing the button stops recognition; the final transcript arrives
+    // via recognition.onresult above, which calls submitMessage and drives
+    // narratorStates through "thinking" -> "speaking" -> "selected" itself.
+    recognitionRef.current?.stop();
   }
 
   return (
