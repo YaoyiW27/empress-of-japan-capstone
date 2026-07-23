@@ -22,6 +22,7 @@
   /* --- Variant / lighter shades (Figma "V" tokens) --- */
   --color-brass-soft: #e3cdac; /* Figma: Gold V */
   --color-vermilion-soft: #dc8e85; /* Figma: Attention-Red V1 */
+  --color-vermilion-faint: #EEC6C2; /* Figma: Attention-Red V2 */
 
   /* --- AI accents (Figma) --- */
   --color-ai: #65fffa; /* Figma: Light-AI */
@@ -31,6 +32,7 @@
   /* --- Attention purple (Figma) --- */
   --color-purple: #6e0bb9; /* Figma: Attention-Purple */
   --color-purple-soft: #b685dc; /* Figma: Attention-Purple V1 */
+  --color-purple-faint: #DBC2EE; /* Figma: Attention-Purple V2 */ 
 
   /* --- Type scale (Figma typography tokens) --- */
   --text-ig-header: 40px; /* Figma: IG_Header_darkBG — Playfair Display ExtraBold */
@@ -166,6 +168,18 @@ body {
   margin-bottom: 0;
 }
 
+.chat-transcript__message--sinclair {
+  color: var(--color-brass-soft);
+}
+
+.chat-transcript__message--whitmore {
+  color: var(--color-purple-faint);
+}
+
+.chat-transcript__message--ming {
+  color: var(--color-vermilion-faint);
+}
+
 /* ---------- Typography ---------- */
 .text-ig-header {
   font-family: var(--font-display);
@@ -180,7 +194,7 @@ body {
 .text-ig {
   font-family: var(--font-display);
   font-size: var(--text-ig);
-  font-style: italic;
+  font-style: black;
   font-weight: 400;
   line-height: 30px;
   letter-spacing: 0.08em;

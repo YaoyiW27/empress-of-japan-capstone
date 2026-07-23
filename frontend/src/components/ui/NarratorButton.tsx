@@ -62,13 +62,14 @@ const narratorIcons: Record<
   Record<NarratorButtonState, string>
 > = {
   sinclair: {
-    default: "/narrators/sinclair/default.svg",
-    recommended: "/narrators/sinclair/recommended.svg",
-    selected: "/narrators/sinclair/selected.svg",
-    listening: "/narrators/sinclair/listening.svg",
-    thinking: "/narrators/sinclair/thinking.svg",
-    speaking: "/narrators/sinclair/speaking.svg",
-    disabled: "/narrators/sinclair/disabled.svg",
+    default: "/narrators/sinclair/narrator_active.svg",
+    recommended: "/narrators/sinclair/narrator_Primary.svg",
+    selected: "/narrators/sinclair/narrator_selected.svg",
+    listening: "/narrators/sinclair/narrator_listening.svg",
+    thinking: "/narrators/sinclair/narrator_thinking.svg",
+    speaking: "/narrators/sinclair/narrator_speaking.svg",
+    // Temporary fallback
+    disabled: "/narrators/sinclair/narrator_Primary.svg",
   },
 
   whitmore: {
@@ -83,13 +84,14 @@ const narratorIcons: Record<
   },
 
   ming: {
-    default: "/narrators/ming/default.svg",
-    recommended: "/narrators/ming/recommended.svg",
-    selected: "/narrators/ming/selected.svg",
-    listening: "/narrators/ming/listening.svg",
-    thinking: "/narrators/ming/thinking.svg",
-    speaking: "/narrators/ming/speaking.svg",
-    disabled: "/narrators/ming/disabled.svg",
+    default: "/narrators/ming/narrator_active.svg",
+    recommended: "/narrators/ming/narrator_Primary.svg",
+    selected: "/narrators/ming/narrator_selected.svg",
+    listening: "/narrators/ming/narrator_listening.svg",
+    thinking: "/narrators/ming/narrator_thinking.svg",
+    speaking: "/narrators/ming/narrator_speaking.svg",
+    // Temporary fallback
+    disabled: "/narrators/ming/narrator_Primary.svg",
   },
 };
 

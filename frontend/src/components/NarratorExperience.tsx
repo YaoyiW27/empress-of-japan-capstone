@@ -160,6 +160,8 @@ export default function NarratorExperience({
       id: `${i}`,
       speaker: turn.role === "user" ? "You" : narrator.name,
       text: turn.content,
+      narratorId:
+        turn.role === "assistant" ? currentNarratorUiId : undefined,
     }),
   );
 

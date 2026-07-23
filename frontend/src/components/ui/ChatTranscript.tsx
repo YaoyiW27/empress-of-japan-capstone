@@ -1,11 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import type { NarratorId } from "@/components/ui/NarratorButton";
 
 export type TranscriptMessage = {
   id: string;
   speaker: string;
   text: string;
+  /** Which narrator said this line; omitted/undefined for the visitor's own lines. */
+  narratorId?: NarratorId;
 };
 
 type ChatTranscriptProps = {
@@ -35,7 +38,12 @@ export default function ChatTranscript({
             {messages.map((message) => (
               <p
                 key={message.id}
-                className="chat-transcript__message text-ig"
+                className={[
+                  "chat-transcript__message text-ig",
+                  message.narratorId
+                    ? `chat-transcript__message--${message.narratorId}`
+                    : "",
+                ].join(" ")}
               >
                 <strong>{message.speaker}:</strong>{" "}
                 {message.text}
