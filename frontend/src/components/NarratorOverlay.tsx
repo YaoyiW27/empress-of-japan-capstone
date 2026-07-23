@@ -106,11 +106,13 @@ export default function NarratorOverlay({
       if (isNew && history.length > 0) {
         setHistory([]);
       }
+      const priorHistory = isNew ? [] : history;
       const result = await sendChatMessage({
         personaId: narrator.id,
         scene: scene.backendSceneId,
         message,
         sessionId,
+        history: priorHistory,
       });
 
       setHistory((current) => [
