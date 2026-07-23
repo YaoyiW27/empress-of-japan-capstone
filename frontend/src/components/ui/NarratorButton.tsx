@@ -3,11 +3,14 @@
 import {
   type KeyboardEvent,
   type PointerEvent,
+  useEffect,
   useRef,
-  useState,
 } from "react";
 
-export type NarratorId = "sinclair" | "whitmore" | "ming";
+export type NarratorId =
+  | "sinclair"
+  | "whitmore"
+  | "ming";
 
 export type HubNarratorState =
   | "default"
@@ -39,7 +42,20 @@ type HubNarratorButtonProps = SharedProps & {
 type SceneNarratorButtonProps = SharedProps & {
   variant: "scene";
   state: SceneNarratorState;
+
+  /**
+   * A quick press and release selects the narrator.
+   */
+  onClick?: () => void;
+
+  /**
+   * Called after the button has been held for HOLD_DELAY.
+   */
   onHoldStart?: () => void;
+
+  /**
+   * Called when the user releases the button after holding.
+   */
   onHoldEnd?: () => void;
 };
 
@@ -51,8 +67,10 @@ type NarratorButtonState =
   | HubNarratorState
   | SceneNarratorState;
 
+const HOLD_DELAY = 250;
+
 const narratorNames: Record<NarratorId, string> = {
-  sinclair: "sinclair Sinclair",
+  sinclair: "Captain Sinclair",
   whitmore: "Ms. Whitmore",
   ming: "Ming",
 };
@@ -62,44 +80,66 @@ const narratorIcons: Record<
   Record<NarratorButtonState, string>
 > = {
   sinclair: {
-    default: "/narrators/sinclair/narrator_active.svg",
-    recommended: "/narrators/sinclair/narrator_Primary.svg",
-    selected: "/narrators/sinclair/narrator_selected.svg",
-    listening: "/narrators/sinclair/narrator_listening.svg",
-    thinking: "/narrators/sinclair/narrator_thinking.svg",
-    speaking: "/narrators/sinclair/narrator_speaking.svg",
-    // Temporary fallback
-    disabled: "/narrators/sinclair/narrator_Primary.svg",
+    default:
+      "/narrators/sinclair/narrator_active.svg",
+    recommended:
+      "/narrators/sinclair/narrator_Primary.svg",
+    selected:
+      "/narrators/sinclair/narrator_selected.svg",
+    listening:
+      "/narrators/sinclair/narrator_listening.svg",
+    thinking:
+      "/narrators/sinclair/narrator_thinking.svg",
+    speaking:
+      "/narrators/sinclair/narrator_speaking.svg",
+    disabled:
+      "/narrators/sinclair/narrator_Primary.svg",
   },
 
   whitmore: {
-    default: "/narrators/whitmore/narrator_active.svg",
-    recommended: "/narrators/whitmore/narrator_Primary.svg",
-    selected: "/narrators/whitmore/narrator_selected.svg",
-    listening: "/narrators/whitmore/narrator_listening.svg",
-    thinking: "/narrators/whitmore/narrator_thinking.svg",
-    speaking: "/narrators/whitmore/narrator_speaking.svg",
-    // Temporary fallback
-    disabled: "/narrators/whitmore/narrator_Primary.svg",
+    default:
+      "/narrators/whitmore/narrator_active.svg",
+    recommended:
+      "/narrators/whitmore/narrator_Primary.svg",
+    selected:
+      "/narrators/whitmore/narrator_selected.svg",
+    listening:
+      "/narrators/whitmore/narrator_listening.svg",
+    thinking:
+      "/narrators/whitmore/narrator_thinking.svg",
+    speaking:
+      "/narrators/whitmore/narrator_speaking.svg",
+    disabled:
+      "/narrators/whitmore/narrator_Primary.svg",
   },
 
   ming: {
-    default: "/narrators/ming/narrator_active.svg",
-    recommended: "/narrators/ming/narrator_Primary.svg",
-    selected: "/narrators/ming/narrator_selected.svg",
-    listening: "/narrators/ming/narrator_listening.svg",
-    thinking: "/narrators/ming/narrator_thinking.svg",
-    speaking: "/narrators/ming/narrator_speaking.svg",
-    // Temporary fallback
-    disabled: "/narrators/ming/narrator_Primary.svg",
+    default:
+      "/narrators/ming/narrator_active.svg",
+    recommended:
+      "/narrators/ming/narrator_Primary.svg",
+    selected:
+      "/narrators/ming/narrator_selected.svg",
+    listening:
+      "/narrators/ming/narrator_listening.svg",
+    thinking:
+      "/narrators/ming/narrator_thinking.svg",
+    speaking:
+      "/narrators/ming/narrator_speaking.svg",
+    disabled:
+      "/narrators/ming/narrator_Primary.svg",
   },
 };
 
-function joinClasses(...classes: Array<string | false | undefined>) {
+function joinClasses(
+  ...classes: Array<string | false | undefined>
+) {
   return classes.filter(Boolean).join(" ");
 }
 
-function canStartSpeaking(state: SceneNarratorState) {
+function canStartSpeaking(
+  state: SceneNarratorState,
+) {
   return (
     state === "default" ||
     state === "recommended" ||
@@ -107,41 +147,100 @@ function canStartSpeaking(state: SceneNarratorState) {
   );
 }
 
-export default function NarratorButton(props: NarratorButtonProps) {
-  const { narrator, variant, state, className } = props;
+export default function NarratorButton(
+  props: NarratorButtonProps,
+) {
+  const {
+    narrator,
+    variant,
+    state,
+    className,
+  } = props;
 
-  const [isHeld, setIsHeld] = useState(false);
-  const activePointerId = useRef<number | null>(null);
+  const activePointerId =
+    useRef<number | null>(null);
+
+  const holdTimerRef =
+    useRef<ReturnType<typeof setTimeout> | null>(
+      null,
+    );
+
+  const didHoldRef = useRef(false);
+  const keyboardPressedRef = useRef(false);
 
   const narratorName = narratorNames[narrator];
   const disabled = state === "disabled";
-  const iconSrc = narratorIcons[narrator][state];
+  const iconSrc =
+    narratorIcons[narrator][state];
+
+  function clearHoldTimer() {
+    if (holdTimerRef.current !== null) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+  }
 
   function startHolding() {
     if (
       props.variant !== "scene" ||
       disabled ||
       !canStartSpeaking(props.state) ||
-      isHeld
+      didHoldRef.current
     ) {
       return;
     }
 
-    setIsHeld(true);
+    didHoldRef.current = true;
     props.onHoldStart?.();
   }
 
   function stopHolding() {
-    if (props.variant !== "scene" || !isHeld) {
+    if (
+      props.variant !== "scene" ||
+      !didHoldRef.current
+    ) {
       return;
     }
 
-    setIsHeld(false);
+    didHoldRef.current = false;
     props.onHoldEnd?.();
   }
 
+  function beginHoldTimer() {
+    clearHoldTimer();
+    didHoldRef.current = false;
+
+    holdTimerRef.current = setTimeout(() => {
+      holdTimerRef.current = null;
+      startHolding();
+    }, HOLD_DELAY);
+  }
+
+  function finishPress() {
+    clearHoldTimer();
+
+    if (props.variant !== "scene") {
+      return;
+    }
+
+    if (didHoldRef.current) {
+      stopHolding();
+    } else {
+      props.onClick?.();
+    }
+  }
+
+  function cancelPress() {
+    clearHoldTimer();
+    stopHolding();
+    didHoldRef.current = false;
+  }
+
   function handleClick() {
-    if (props.variant !== "hub" || disabled) {
+    if (
+      props.variant !== "hub" ||
+      disabled
+    ) {
       return;
     }
 
@@ -159,12 +258,24 @@ export default function NarratorButton(props: NarratorButtonProps) {
       return;
     }
 
+    // Only respond to the main mouse button.
+    if (
+      event.pointerType === "mouse" &&
+      event.button !== 0
+    ) {
+      return;
+    }
+
     event.preventDefault();
 
-    activePointerId.current = event.pointerId;
-    event.currentTarget.setPointerCapture(event.pointerId);
+    activePointerId.current =
+      event.pointerId;
 
-    startHolding();
+    event.currentTarget.setPointerCapture(
+      event.pointerId,
+    );
+
+    beginHoldTimer();
   }
 
   function handlePointerUp(
@@ -172,18 +283,25 @@ export default function NarratorButton(props: NarratorButtonProps) {
   ) {
     if (
       props.variant !== "scene" ||
-      activePointerId.current !== event.pointerId
+      activePointerId.current !==
+        event.pointerId
     ) {
       return;
     }
 
     activePointerId.current = null;
 
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
+    finishPress();
 
-    stopHolding();
+    if (
+      event.currentTarget.hasPointerCapture(
+        event.pointerId,
+      )
+    ) {
+      event.currentTarget.releasePointerCapture(
+        event.pointerId,
+      );
+    }
   }
 
   function handlePointerCancel(
@@ -191,13 +309,38 @@ export default function NarratorButton(props: NarratorButtonProps) {
   ) {
     if (
       props.variant !== "scene" ||
-      activePointerId.current !== event.pointerId
+      activePointerId.current !==
+        event.pointerId
     ) {
       return;
     }
 
     activePointerId.current = null;
-    stopHolding();
+    cancelPress();
+
+    if (
+      event.currentTarget.hasPointerCapture(
+        event.pointerId,
+      )
+    ) {
+      event.currentTarget.releasePointerCapture(
+        event.pointerId,
+      );
+    }
+  }
+
+  function handleLostPointerCapture() {
+    /*
+     * A normal pointer-up sets activePointerId to null
+     * before releasing capture, so this block only runs
+     * when capture is lost unexpectedly.
+     */
+    if (activePointerId.current === null) {
+      return;
+    }
+
+    activePointerId.current = null;
+    cancelPress();
   }
 
   function handleKeyDown(
@@ -206,13 +349,25 @@ export default function NarratorButton(props: NarratorButtonProps) {
     if (
       props.variant !== "scene" ||
       disabled ||
-      (event.key !== " " && event.key !== "Enter")
+      !canStartSpeaking(props.state) ||
+      (event.key !== " " &&
+        event.key !== "Enter")
     ) {
       return;
     }
 
     event.preventDefault();
-    startHolding();
+
+    /*
+     * Ignore repeated keydown events while the key
+     * remains pressed.
+     */
+    if (keyboardPressedRef.current) {
+      return;
+    }
+
+    keyboardPressedRef.current = true;
+    beginHoldTimer();
   }
 
   function handleKeyUp(
@@ -220,13 +375,17 @@ export default function NarratorButton(props: NarratorButtonProps) {
   ) {
     if (
       props.variant !== "scene" ||
-      (event.key !== " " && event.key !== "Enter")
+      (event.key !== " " &&
+        event.key !== "Enter") ||
+      !keyboardPressedRef.current
     ) {
       return;
     }
 
     event.preventDefault();
-    stopHolding();
+
+    keyboardPressedRef.current = false;
+    finishPress();
   }
 
   function getAccessibleLabel() {
@@ -252,7 +411,7 @@ export default function NarratorButton(props: NarratorButtonProps) {
 
     switch (state) {
       case "recommended":
-        return `${narratorName}, recommended. Hold to speak.`;
+        return `${narratorName}, recommended. Click to select or hold to speak.`;
 
       case "selected":
         return `${narratorName}, selected. Hold to speak.`;
@@ -270,9 +429,15 @@ export default function NarratorButton(props: NarratorButtonProps) {
         return `${narratorName} is unavailable.`;
 
       default:
-        return `Hold to speak to ${narratorName}.`;
+        return `Click to select ${narratorName}, or hold to speak.`;
     }
   }
+
+  useEffect(() => {
+    return () => {
+      clearHoldTimer();
+    };
+  }, []);
 
   return (
     <button
@@ -296,55 +461,63 @@ export default function NarratorButton(props: NarratorButtonProps) {
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerCancel}
-      onLostPointerCapture={() => {
-        activePointerId.current = null;
-        stopHolding();
-      }}
+      onLostPointerCapture={
+        handleLostPointerCapture
+      }
       onKeyDown={handleKeyDown}
       onKeyUp={handleKeyUp}
+      onBlur={() => {
+        if (
+          variant === "scene" &&
+          keyboardPressedRef.current
+        ) {
+          keyboardPressedRef.current = false;
+          cancelPress();
+        }
+      }}
       onContextMenu={(event) => {
         if (variant === "scene") {
           event.preventDefault();
         }
       }}
       className={joinClasses(
-        "relative h-32 w-46 shrink-0 border-0 bg-transparent p-0",
-        variant === "hub" && "h-20 w-20",
+        "relative h-32 w-46 shrink-0 select-none border-0 bg-transparent p-0",
+        variant === "hub" &&
+          "h-20 w-20",
         className,
       )}
     >
-    <img
-    src={iconSrc}
-    alt=""
-    draggable={false}
-    className={joinClasses(
-        "absolute block max-w-none pointer-events-none",
+      <img
+        src={iconSrc}
+        alt=""
+        draggable={false}
+        className={joinClasses(
+          "pointer-events-none absolute block max-w-none",
 
-        variant === "hub" &&
-        "left-0 top-0 h-20 w-20",
+          variant === "hub" &&
+            "left-0 top-0 h-20 w-20",
 
-        variant === "scene" &&
-        (state === "selected" ||
-            state === "recommended") &&
-        "left-6 top-6 h-20 w-20",
+          variant === "scene" &&
+            (state === "default" ||
+              state === "recommended" ||
+              state === "selected") &&
+            "left-6 top-6 h-20 w-20",
 
-        variant === "scene" &&
-        state === "default" &&
-        "left-6 top-6 h-20 w-20",
+          variant === "scene" &&
+            (state === "listening" ||
+              state === "thinking" ||
+              state === "disabled") &&
+            "left-0 top-0 h-32 w-32",
 
-        variant === "scene" &&
-        (state === "listening" ||
-            state === "thinking" ||
-            state === "disabled") &&
-        "left-0 top-0 h-32 w-32",
+          variant === "scene" &&
+            state === "speaking" &&
+            "left-0 top-0 h-32 w-46",
+        )}
+      />
 
-        variant === "scene" &&
-        state === "speaking" &&
-        "left-0 top-0 h-32 w-46",
-    )}
-    />
-
-      <span className="sr-only">{narratorName}</span>
+      <span className="sr-only">
+        {narratorName}
+      </span>
     </button>
   );
 }

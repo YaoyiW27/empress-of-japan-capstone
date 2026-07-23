@@ -138,70 +138,176 @@ export default function NarratorExperience({
   // other two narrator buttons don't have their own Narrator data (bio,
   // backend scene id) passed into this component yet, so they stay on the
   // placeholder simulation below until that's wired up.
-  const [history, setHistory] = useState<ChatHistoryTurn[]>([]);
+  const [history, setHistory] =
+    useState<ChatHistoryTurn[]>([]);
+
   const isMountedRef = useRef(true);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const audioRef =
+    useRef<HTMLAudioElement | null>(null);
+  const recognitionRef =
+    useRef<SpeechRecognition | null>(null);
 
   const currentNarratorUiId = (
     Object.keys(uiIdToPersonaId) as NarratorId[]
-  ).find((uiId) => uiIdToPersonaId[uiId] === narrator.id);
+  ).find(
+    (uiId) =>
+      uiIdToPersonaId[uiId] === narrator.id,
+  );
 
   useEffect(() => {
     isMountedRef.current = true;
+
     return () => {
       isMountedRef.current = false;
+
+      recognitionRef.current?.stop();
+      recognitionRef.current = null;
+
       audioRef.current?.pause();
+      audioRef.current = null;
+
+      if ("speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
     };
   }, []);
 
-  const transcriptMessages: TranscriptMessage[] = history.map(
-    (turn, i) => ({
-      id: `${i}`,
-      speaker: turn.role === "user" ? "You" : narrator.name,
+  const transcriptMessages: TranscriptMessage[] =
+    history.map((turn, index) => ({
+      id: `${index}`,
+      speaker:
+        turn.role === "user"
+          ? "You"
+          : narrator.name,
       text: turn.content,
       narratorId:
-        turn.role === "assistant" ? currentNarratorUiId : undefined,
-    }),
-  );
+        turn.role === "assistant"
+          ? currentNarratorUiId
+          : undefined,
+    }));
 
-  function speakWithBrowserFallback(text: string) {
-    if (!("speechSynthesis" in window)) return;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+  function speakWithBrowserFallback(
+    text: string,
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!("speechSynthesis" in window)) {
+        resolve();
+        return;
+      }
+
+      window.speechSynthesis.cancel();
+
+      const utterance =
+        new SpeechSynthesisUtterance(text);
+
+      utterance.onend = () => {
+        resolve();
+      };
+
+      utterance.onerror = () => {
+        reject(
+          new Error(
+            "Browser speech synthesis failed.",
+          ),
+        );
+      };
+
+      window.speechSynthesis.speak(utterance);
+    });
   }
 
-  async function speak(text: string) {
+  async function speak(
+    text: string,
+  ): Promise<void> {
     audioRef.current?.pause();
-    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    audioRef.current = null;
+
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
 
     try {
-      const { audio_url } = await synthesizeNarratorVoice({
-        narratorId: narrator.id,
-        text,
-      });
-      if (!isMountedRef.current) return;
+      const { audio_url } =
+        await synthesizeNarratorVoice({
+          narratorId: narrator.id,
+          text,
+        });
+
+      if (!isMountedRef.current) {
+        return;
+      }
+
       const audio = new Audio(audio_url);
       audioRef.current = audio;
-      await audio.play();
+
+      await new Promise<void>(
+        (resolve, reject) => {
+          const cleanup = () => {
+            audio.onended = null;
+            audio.onerror = null;
+
+            if (audioRef.current === audio) {
+              audioRef.current = null;
+            }
+          };
+
+          audio.onended = () => {
+            cleanup();
+            resolve();
+          };
+
+          audio.onerror = () => {
+            cleanup();
+
+            reject(
+              new Error(
+                "Narrator audio playback failed.",
+              ),
+            );
+          };
+
+          audio.play().catch((error) => {
+            cleanup();
+            reject(error);
+          });
+        },
+      );
     } catch (error) {
-      if (!isMountedRef.current) return;
+      if (!isMountedRef.current) {
+        return;
+      }
+
       console.error(
         "Polly synthesis failed, falling back to browser TTS",
         error,
       );
-      speakWithBrowserFallback(text);
+
+      await speakWithBrowserFallback(text);
     }
   }
 
-  async function submitMessage(message: string) {
+  async function submitMessage(
+    message: string,
+  ): Promise<void> {
+    if (!currentNarratorUiId) {
+      console.error(
+        `No UI narrator ID found for persona "${narrator.id}".`,
+      );
+      return;
+    }
+
+    const activeNarratorId =
+      currentNarratorUiId;
+
     setNarratorStates((previous) => ({
       ...previous,
-      [currentNarratorUiId!]: "thinking",
+      [activeNarratorId]: "thinking",
     }));
 
     try {
-      const { sessionId, isNew } = getOrCreateTabChatSession(narrator.id);
+      const { sessionId, isNew } =
+        getOrCreateTabChatSession(narrator.id);
+
       if (isNew && history.length > 0) {
         setHistory([]);
       }
@@ -213,32 +319,48 @@ export default function NarratorExperience({
         sessionId,
       });
 
-      setHistory((prev) => [
-        ...(isNew ? [] : prev),
-        { role: "user", content: message },
-        { role: "assistant", content: result.response },
+      if (!isMountedRef.current) {
+        return;
+      }
+
+      setHistory((previous) => [
+        ...(isNew ? [] : previous),
+        {
+          role: "user",
+          content: message,
+        },
+        {
+          role: "assistant",
+          content: result.response,
+        },
       ]);
 
       setNarratorStates((previous) => ({
         ...previous,
-        [currentNarratorUiId!]: "speaking",
+        [activeNarratorId]: "speaking",
       }));
 
+      // This resolves only after Polly audio or browser TTS finishes.
       await speak(result.response);
     } catch (error) {
       console.error(error);
     } finally {
+      if (!isMountedRef.current) {
+        return;
+      }
+
       setNarratorStates((previous) => ({
         ...previous,
-        [currentNarratorUiId!]: "selected",
+        [activeNarratorId]: "selected",
       }));
     }
   }
 
   useEffect(() => {
-    const doe = getDeviceOrientationEvent();
+    const deviceOrientationEvent =
+      getDeviceOrientationEvent();
 
-    if (!doe) {
+    if (!deviceOrientationEvent) {
       setGyroSupported(false);
       return;
     }
@@ -246,7 +368,8 @@ export default function NarratorExperience({
     setGyroSupported(true);
 
     const needsPermission =
-      typeof doe.requestPermission === "function";
+      typeof deviceOrientationEvent
+        .requestPermission === "function";
 
     const isTouch =
       window.matchMedia?.("(pointer: coarse)")
@@ -272,18 +395,20 @@ export default function NarratorExperience({
       return;
     }
 
-    const doe = getDeviceOrientationEvent();
+    const deviceOrientationEvent =
+      getDeviceOrientationEvent();
 
     if (
-      doe &&
-      typeof doe.requestPermission === "function"
+      deviceOrientationEvent &&
+      typeof deviceOrientationEvent
+        .requestPermission === "function"
     ) {
       try {
-        const res =
-          await doe.requestPermission();
+        const permission =
+          await deviceOrientationEvent.requestPermission();
 
         setLookMode(
-          res === "granted"
+          permission === "granted"
             ? "gyro"
             : "drag",
         );
@@ -293,6 +418,33 @@ export default function NarratorExperience({
     } else {
       setLookMode("gyro");
     }
+  }
+
+  function selectNarrator(
+    narratorId: NarratorId,
+  ) {
+    setNarratorStates((previous) => ({
+      whitmore:
+        narratorId === "whitmore"
+          ? "selected"
+          : previous.whitmore === "disabled"
+            ? "disabled"
+            : "default",
+
+      sinclair:
+        narratorId === "sinclair"
+          ? "selected"
+          : previous.sinclair === "disabled"
+            ? "disabled"
+            : "default",
+
+      ming:
+        narratorId === "ming"
+          ? "selected"
+          : previous.ming === "disabled"
+            ? "disabled"
+            : "default",
+    }));
   }
 
   function startNarratorInteraction(
@@ -324,18 +476,25 @@ export default function NarratorExperience({
     // Real mic capture only exists for the narrator this page was loaded
     // for — the other two don't have their own Narrator data here yet, so
     // holding their buttons just shows the "listening" visual state.
-    if (narratorId !== currentNarratorUiId) return;
+    if (narratorId !== currentNarratorUiId) {
+      return;
+    }
 
     audioRef.current?.pause();
-    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    audioRef.current = null;
+
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
 
     const Recognition =
-      window.SpeechRecognition ?? window.webkitSpeechRecognition;
+      window.SpeechRecognition ??
+      window.webkitSpeechRecognition;
 
     if (!Recognition) {
       setNarratorStates((previous) => ({
         ...previous,
-        [narratorId]: "default",
+        [narratorId]: "selected",
       }));
       return;
     }
@@ -346,13 +505,25 @@ export default function NarratorExperience({
     recognition.maxAlternatives = 1;
 
     recognition.onresult = (event) => {
-      void submitMessage(event.results[0][0].transcript);
+      const transcript =
+        event.results[0]?.[0]?.transcript?.trim();
+
+      if (transcript) {
+        void submitMessage(transcript);
+      } else {
+        setNarratorStates((previous) => ({
+          ...previous,
+          [narratorId]: "selected",
+        }));
+      }
     };
 
     recognition.onerror = () => {
+      recognitionRef.current = null;
+
       setNarratorStates((previous) => ({
         ...previous,
-        [narratorId]: "default",
+        [narratorId]: "selected",
       }));
     };
 
@@ -375,24 +546,33 @@ export default function NarratorExperience({
       }));
 
       window.setTimeout(() => {
+        if (!isMountedRef.current) {
+          return;
+        }
+
         setNarratorStates((previous) => ({
           ...previous,
           [narratorId]: "speaking",
         }));
 
         window.setTimeout(() => {
+          if (!isMountedRef.current) {
+            return;
+          }
+
           setNarratorStates((previous) => ({
             ...previous,
             [narratorId]: "selected",
           }));
         }, 2000);
       }, 1200);
+
       return;
     }
 
-    // Releasing the button stops recognition; the final transcript arrives
-    // via recognition.onresult above, which calls submitMessage and drives
-    // narratorStates through "thinking" -> "speaking" -> "selected" itself.
+    // Releasing the button stops recognition. The final transcript arrives
+    // through recognition.onresult, which calls submitMessage and drives the
+    // state through thinking -> speaking -> selected.
     recognitionRef.current?.stop();
   }
 
@@ -431,9 +611,10 @@ export default function NarratorExperience({
                 variant="scene"
                 narrator={narratorId}
                 state={
-                  narratorStates[
-                    narratorId
-                  ]
+                  narratorStates[narratorId]
+                }
+                onClick={() =>
+                  selectNarrator(narratorId)
                 }
                 onHoldStart={() =>
                   startNarratorInteraction(
@@ -484,7 +665,7 @@ export default function NarratorExperience({
         </div>
 
         {/* Scene navigation */}
-        <div className="pointer-events-auto absolute right-6 top-24 md:top-1/3 max-h-[68vh] -translate-y-1/2">
+        <div className="pointer-events-auto absolute right-6 top-24 max-h-[68vh] -translate-y-1/2 md:top-1/3">
           <SceneRail
             scenes={narrator.scenes}
             currentId={currentId}
