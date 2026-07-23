@@ -197,6 +197,27 @@ jobs:
             mv task-definition-with-cors.json task-definition.json
           fi
 
+          # Keep the deploy-time task definition aligned with the Terraform
+          # runtime config for Postgres-backed short-term session memory. The
+          # deploy workflow starts from the live ECS task definition, so env vars
+          # added in Terraform are otherwise missed until a separate apply.
+          jq --arg container "$CONTAINER_NAME" '
+            def upsert_env($name; $value):
+              .environment = (((.environment // []) | map(select(.name != $name))) + [
+                {"name": $name, "value": $value}
+              ]);
+
+            .containerDefinitions |= map(
+              if .name == $container then
+                upsert_env("ENABLE_SESSION_MEMORY"; "true")
+                | upsert_env("SESSION_MEMORY_TTL_SECONDS"; "1800")
+                | upsert_env("SESSION_CLEANUP_INTERVAL_SECONDS"; "60")
+                | upsert_env("SESSION_CLEANUP_BATCH_SIZE"; "100")
+              else . end
+            )
+          ' task-definition.json > task-definition-with-session-memory.json
+          mv task-definition-with-session-memory.json task-definition.json
+
           echo "Using task definition baseline: $SELECTED_TASKDEF"
 
       - name: Render task definition with new image
