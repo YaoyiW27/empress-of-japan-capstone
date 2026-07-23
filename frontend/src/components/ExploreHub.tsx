@@ -1,11 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import Scene from "@/components/three/Scene";
+import SceneRail from "./SceneRail";
 import { narrators } from "@/lib/narrators";
 import { ButtonLink, Button } from "@/components/ui/Button";
+import { NavButtonLink } from "@/components/ui/NavButtons";
+
 
 /**
  * Guided hub: pick a narrator on the left, see the 3D ship in the center, and
@@ -16,18 +20,29 @@ import { ButtonLink, Button } from "@/components/ui/Button";
  * kicks in on real desktops/tablets (>=1024px).
  */
 export default function ExploreHub() {
-  const [selectedId, setSelectedId] = useState(narrators[0].id);
+  const router = useRouter();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
-  const selected =
-    narrators.find((narrator) => narrator.id === selectedId) ?? narrators[0];
+  const [selectedSceneId, setSelectedSceneId] = useState<string | undefined>(undefined);
+  const allScenes = Array.from(
+    new Map(
+      narrators
+        .flatMap((n) => n.scenes)
+        .map((scene) => [scene.id, scene]),
+    ).values(),
+  ).sort((a, b) =>
+    a.title.localeCompare(b.title),
+  );
 
   return (
     <main className="flex h-dvh w-full flex-col bg-ivory px-4 py-3 lg:px-8 lg:py-6">
-      <header>
-        <ButtonLink href="/" variant="ghost">
-          ← Home
-        </ButtonLink>
-      </header>
+      <div className="pointer-events-auto absolute left-3 top-3 sm:left-6 sm:top-6">
+      <NavButtonLink
+        href="/"
+        icon="back"
+        label="Return to ship overview"
+      />
+      </div>
 
       <div className="mt-3 flex min-h-0 flex-1 gap-3 lg:mt-4 lg:gap-5">
         {/* Left: guides as circular portrait options */}
@@ -70,70 +85,39 @@ export default function ExploreHub() {
           <p className="pointer-events-none absolute inset-x-0 bottom-2 text-center text-[0.65rem] uppercase tracking-[0.2em] text-navy-soft lg:bottom-3 lg:text-xs">
             Drag to rotate · scroll to zoom
           </p>
+          {selectedId && selectedSceneId && (
+            <div className="pointer-events-auto absolute bottom-16 left-1/2 -translate-x-1/2">
+              <Button
+                className="w-80 justify-center"
+                variant="primary"
+                onClick={() => {
+                  router.push(
+                    `/explore/${selectedId}?scene=${selectedSceneId}`,
+                  );
+                }}
+              >
+                Start Voyage
+              </Button>
+            </div>
+          )}
         </section>
 
         {/* Right: bio preview, then scenes — contained in a panel */}
-        <aside className="flex w-64 shrink-0 flex-col lg:w-[24rem]">
-          <div className="flex min-h-0 flex-1 flex-col rounded-lg border border-brass/40 bg-card p-4 shadow-sm ring-1 ring-brass/10 lg:p-6">
-            {!confirmed ? (
-              <>
-                <div className="min-h-0 flex-1 overflow-y-auto">
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brass lg:text-base">
-                    {selected.role}
-                  </p>
-                  <h2 className="mt-1 font-display text-2xl font-bold text-navy lg:mt-2 lg:text-4xl">
-                    {selected.name}
-                  </h2>
-                  <p className="mt-3 text-sm leading-relaxed text-navy-soft lg:mt-4 lg:text-lg">
-                    {selected.bio}
-                  </p>
-                </div>
-                <div className="mt-4 shrink-0 lg:mt-6">
-                  <Button
-                    onClick={() => setConfirmed(true)}
-                    className="w-full justify-center"
-                  >
-                    Confirm →
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <>
-                <p className="shrink-0 text-xs font-semibold uppercase tracking-[0.22em] text-brass lg:text-base">
-                  {selected.name} · Scenes
-                </p>
-                <ul className="mt-3 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-1 lg:gap-3">
-                  {selected.scenes.map((scene) => (
-                    <li key={scene.id}>
-                      <Link
-                        href={`/explore/${selected.id}?scene=${scene.id}`}
-                        className="group flex items-center gap-3 rounded-md border border-brass/40 bg-ivory p-2 shadow-sm transition-all hover:-translate-y-0.5 hover:border-brass hover:shadow-md lg:gap-4 lg:p-2.5"
-                      >
-                        <span className="relative block h-11 w-20 shrink-0 overflow-hidden rounded-sm border border-brass/30 lg:h-14 lg:w-24">
-                          <Image
-                            src={scene.photoSrc}
-                            alt={scene.title}
-                            fill
-                            sizes="96px"
-                            className="object-cover"
-                          />
-                        </span>
-                        <span className="font-display text-base font-semibold text-navy transition-colors group-hover:text-brass lg:text-xl">
-                          {scene.title}
-                        </span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-                <div className="mt-4 shrink-0">
-                  <Button variant="ghost" onClick={() => setConfirmed(false)}>
-                    ← Change guide
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
-        </aside>
+       <aside className="absolute
+        right-6
+        top-24
+        md:top-1/3
+        flex
+        flex-col">
+       <SceneRail
+          scenes={allScenes}
+          variant="overview"
+          currentId={selectedSceneId}
+          onSelect={(sceneId) => {
+            setSelectedSceneId(sceneId);
+          }}
+        />
+      </aside>
       </div>
     </main>
   );
