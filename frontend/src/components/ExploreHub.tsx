@@ -71,9 +71,9 @@ export default function ExploreHub() {
   }
 
   return (
-    <main className="flex h-dvh w-full flex-col bg-ivory px-4 py-3 lg:px-8 lg:py-6">
+    <main className="relative flex h-dvh w-full flex-col bg-ivory px-4 py-3 lg:px-8 lg:py-6">
       {/* Back button */}
-      <div className="pointer-events-auto absolute left-3 top-3 sm:left-6 sm:top-6">
+      <div className="pointer-events-auto absolute z-20 left-3 top-3 sm:left-6 sm:top-6">
         <NavButtonLink
           href="/"
           icon="back"
@@ -83,7 +83,23 @@ export default function ExploreHub() {
 
       <div className="mt-3 flex min-h-0 flex-1 gap-3 lg:mt-4 lg:gap-5">
         {/* Narrator selection */}
-        <aside className="flex w-20 shrink-0 flex-col items-center justify-center gap-3 lg:w-32 lg:gap-5">
+        <aside className="
+            pointer-events-auto
+            absolute
+            z-20
+            left-27
+            top-18
+            flex
+            w-20
+            flex-col
+            items-center
+            -space-y-7
+        
+            md:top-2/7
+            md:-translate-y-1/3
+            md:space-y-4
+            md:gap-0"
+            >
           {narrators.map((narrator) => {
             const selected =
               narrator.id ===
@@ -139,6 +155,7 @@ export default function ExploreHub() {
         <aside
           className="
             absolute
+            z-20
             right-6
             top-24
             flex

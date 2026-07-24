@@ -93,8 +93,8 @@ type SceneExperienceProps = {
 };
 
 const narratorOrder: NarratorId[] = [
-  "whitmore",
   "sinclair",
+  "whitmore",
   "ming",
 ];
 
@@ -708,7 +708,25 @@ export default function SceneExperience({
         </h1>
 
         {/* Narrator controls */}
-        <div className="pointer-events-auto absolute left-6 top-1/2 flex -translate-y-1/2 flex-col items-center gap-4">
+        <div
+            className="
+            pointer-events-auto
+            absolute
+        
+            left-21
+            top-18
+            flex
+            w-20
+            flex-col
+            items-center
+            -space-y-7
+        
+            md:top-2/7
+            md:-translate-y-1/3
+            md:space-y-4
+            md:gap-0
+            "
+          >
           {narratorOrder.map(
             (narratorId) => {
               const isAvailable =
