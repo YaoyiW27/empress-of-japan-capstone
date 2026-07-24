@@ -25,6 +25,7 @@ type ChatRequestBody = {
 
 const CHAT_SESSION_STORAGE_KEY_PREFIX = "empress.chat.session.v2";
 const CHAT_SESSION_IDLE_TTL_MS = 30 * 60 * 1000;
+const CHAT_HISTORY_FALLBACK_TURN_LIMIT = 8;
 
 // Used only when sessionStorage is unavailable (for example, strict privacy
 // settings). A module instance belongs to one browser tab.
@@ -115,11 +116,13 @@ export async function sendChatMessage({
 
   const errorText = await res.text();
   if (res.status === 501 && errorText.includes("session_id memory is not enabled")) {
+    // Compatibility path for deployments that have the session-memory schema
+    // but have not rolled ENABLE_SESSION_MEMORY into the live ECS task yet.
     const fallbackRes = await send({
       persona_id: personaId,
       scene,
       message,
-      history,
+      history: history.slice(-CHAT_HISTORY_FALLBACK_TURN_LIMIT),
     });
 
     if (fallbackRes.ok) {
