@@ -1,16 +1,16 @@
 "use client";
 
-import type { Scene } from "@/lib/narrators";
+import type { ExperienceScene } from "@/lib/scenes";
 import {
   SelectToggle,
   type ButtonVariant,
 } from "./ui/SelectToggle";
 
 type SceneRailProps = {
-  scenes: Scene[];
+  scenes: ExperienceScene[];
   currentId?: string;
-  onSelect: (id: string) => void;
-  variant: ButtonVariant;
+  onSelect: (sceneId: string) => void;
+  variant: "overview" | "panorama";
 };
 
 export default function SceneRail({

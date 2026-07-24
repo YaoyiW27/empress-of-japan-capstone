@@ -1,7 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import {
+  useRouter,
+  useSearchParams,
+} from "next/navigation";
 import { useTexture } from "@react-three/drei";
 
 import PanoramaScene, {
@@ -16,7 +23,14 @@ import NarratorButton, {
   type NarratorId,
   type SceneNarratorState,
 } from "@/components/ui/NarratorButton";
-import type { Narrator } from "@/lib/narrators";
+
+import {
+  getNarrator,
+  getNarratorByUiId,
+  scenes,
+  type ExperienceScene,
+  type SceneNarrator,
+} from "@/lib/scenes";
 import {
   getOrCreateTabChatSession,
   sendChatMessage,
@@ -24,7 +38,8 @@ import {
 } from "@/lib/chat";
 import { synthesizeNarratorVoice } from "@/lib/voice";
 
-type SpeechRecognitionConstructor = new () => SpeechRecognition;
+type SpeechRecognitionConstructor =
+  new () => SpeechRecognition;
 
 type SpeechRecognition = {
   lang: string;
@@ -32,7 +47,9 @@ type SpeechRecognition = {
   maxAlternatives: number;
   start: () => void;
   stop: () => void;
-  onresult: ((event: SpeechRecognitionEvent) => void) | null;
+  onresult:
+    | ((event: SpeechRecognitionEvent) => void)
+    | null;
   onerror: (() => void) | null;
   onend: (() => void) | null;
 };
@@ -49,19 +66,17 @@ type SpeechRecognitionEvent = {
 
 declare global {
   interface Window {
-    SpeechRecognition?: SpeechRecognitionConstructor;
-    webkitSpeechRecognition?: SpeechRecognitionConstructor;
+    SpeechRecognition?:
+      SpeechRecognitionConstructor;
+    webkitSpeechRecognition?:
+      SpeechRecognitionConstructor;
   }
 }
 
-/** UI-only narrator id (button/asset naming) -> real backend persona id. */
-const uiIdToPersonaId: Record<NarratorId, string> = {
-  sinclair: "captain_sinclair",
-  whitmore: "eleanor_whitmore",
-  ming: "ming_chen",
-};
-
-/** iOS 13+ exposes requestPermission on the DeviceOrientationEvent constructor. */
+/**
+ * iOS 13+ exposes requestPermission on the
+ * DeviceOrientationEvent constructor.
+ */
 type DeviceOrientationEventStatic = {
   requestPermission?: () => Promise<
     "granted" | "denied" | "default"
@@ -72,6 +87,10 @@ type NarratorStates = Record<
   NarratorId,
   SceneNarratorState
 >;
+
+type SceneExperienceProps = {
+  scene: ExperienceScene;
+};
 
 const narratorOrder: NarratorId[] = [
   "whitmore",
@@ -90,38 +109,57 @@ function getDeviceOrientationEvent():
   | undefined {
   return (
     window as unknown as {
-      DeviceOrientationEvent?: DeviceOrientationEventStatic;
+      DeviceOrientationEvent?:
+        DeviceOrientationEventStatic;
     }
   ).DeviceOrientationEvent;
 }
 
-/**
- * A narrator's storyline: one persistent panorama viewer whose scene swaps in
- * place (no remount), with a rail to move between that narrator's scenes freely.
- * On mobile you can look around by tilting the phone; drag-to-look works
- * everywhere as a fallback.
- */
-export default function NarratorExperience({
-  narrator,
-}: {
-  narrator: Narrator;
-}) {
-  // ?scene= opens at a specific panorama from the hub.
-  const initialSceneId =
-    useSearchParams().get("scene") ?? undefined;
+export default function SceneExperience({
+  scene,
+}: SceneExperienceProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const [currentId, setCurrentId] = useState(() =>
-    narrator.scenes.some(
-      (scene) => scene.id === initialSceneId,
-    )
-      ? initialSceneId!
-      : narrator.scenes[0].id,
+  /**
+   * Convert this scene's persona IDs into complete
+   * narrator objects.
+   */
+  const sceneNarrators = scene.narratorIds
+    .map((id) => getNarrator(id))
+    .filter(
+      (
+        narrator,
+      ): narrator is SceneNarrator =>
+        narrator !== undefined,
+    );
+
+  /**
+   * The hub sends a backend persona ID, for example:
+   *
+   * ?narrator=eleanor_whitmore
+   */
+  const initialPersonaId =
+    searchParams.get("narrator");
+
+  const initialNarrator =
+    sceneNarrators.find(
+      (narrator) =>
+        narrator.id === initialPersonaId,
+    ) ?? sceneNarrators[0];
+
+  const [
+    activeNarratorId,
+    setActiveNarratorId,
+  ] = useState<NarratorId>(
+    initialNarrator?.uiId ?? "whitmore",
   );
 
-  const current =
-    narrator.scenes.find(
-      (scene) => scene.id === currentId,
-    ) ?? narrator.scenes[0];
+  const activeNarrator =
+    sceneNarrators.find(
+      (narrator) =>
+        narrator.uiId === activeNarratorId,
+    ) ?? sceneNarrators[0];
 
   const [gyroSupported, setGyroSupported] =
     useState(false);
@@ -129,30 +167,36 @@ export default function NarratorExperience({
   const [lookMode, setLookMode] =
     useState<LookMode>("drag");
 
-  const [narratorStates, setNarratorStates] =
-    useState<NarratorStates>(
-      initialNarratorStates,
-    );
+  const [
+    narratorStates,
+    setNarratorStates,
+  ] = useState<NarratorStates>(() => {
+    const initialStates = {
+      ...initialNarratorStates,
+    };
 
-  // Real conversation state for the current page's narrator only — the
-  // other two narrator buttons don't have their own Narrator data (bio,
-  // backend scene id) passed into this component yet, so they stay on the
-  // placeholder simulation below until that's wired up.
+    if (initialNarrator) {
+      initialStates[initialNarrator.uiId] =
+        "selected";
+    }
+
+    return initialStates;
+  });
+
+  /**
+   * This remains one shared history for now.
+   * Per-narrator histories can be added later.
+   */
   const [history, setHistory] =
     useState<ChatHistoryTurn[]>([]);
 
   const isMountedRef = useRef(true);
+
   const audioRef =
     useRef<HTMLAudioElement | null>(null);
+
   const recognitionRef =
     useRef<SpeechRecognition | null>(null);
-
-  const currentNarratorUiId = (
-    Object.keys(uiIdToPersonaId) as NarratorId[]
-  ).find(
-    (uiId) =>
-      uiIdToPersonaId[uiId] === narrator.id,
-  );
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -172,19 +216,22 @@ export default function NarratorExperience({
     };
   }, []);
 
-  const transcriptMessages: TranscriptMessage[] =
-    history.map((turn, index) => ({
+  const transcriptMessages:
+    TranscriptMessage[] = history.map(
+    (turn, index) => ({
       id: `${index}`,
       speaker:
         turn.role === "user"
           ? "You"
-          : narrator.name,
+          : activeNarrator?.name ??
+            "Narrator",
       text: turn.content,
       narratorId:
         turn.role === "assistant"
-          ? currentNarratorUiId
+          ? activeNarrator?.uiId
           : undefined,
-    }));
+    }),
+  );
 
   function speakWithBrowserFallback(
     text: string,
@@ -212,12 +259,15 @@ export default function NarratorExperience({
         );
       };
 
-      window.speechSynthesis.speak(utterance);
+      window.speechSynthesis.speak(
+        utterance,
+      );
     });
   }
 
   async function speak(
     text: string,
+    narrator: SceneNarrator,
   ): Promise<void> {
     audioRef.current?.pause();
     audioRef.current = null;
@@ -246,7 +296,9 @@ export default function NarratorExperience({
             audio.onended = null;
             audio.onerror = null;
 
-            if (audioRef.current === audio) {
+            if (
+              audioRef.current === audio
+            ) {
               audioRef.current = null;
             }
           };
@@ -288,36 +340,59 @@ export default function NarratorExperience({
 
   async function submitMessage(
     message: string,
+    narratorUiId: NarratorId,
   ): Promise<void> {
-    if (!currentNarratorUiId) {
+    /**
+     * Resolve the narrator from the ID of the button
+     * that started this interaction.
+     *
+     * This avoids using stale React state if the user
+     * switches narrators quickly.
+     */
+    const narrator =
+      getNarratorByUiId(narratorUiId);
+
+    if (!narrator) {
       console.error(
-        `No UI narrator ID found for persona "${narrator.id}".`,
+        `No narrator found for UI ID "${narratorUiId}".`,
       );
       return;
     }
 
-    const activeNarratorId =
-      currentNarratorUiId;
+    const narratorIsAvailable =
+      scene.narratorIds.includes(
+        narrator.id,
+      );
+
+    if (!narratorIsAvailable) {
+      console.error(
+        `${narrator.name} is not available in ${scene.title}.`,
+      );
+      return;
+    }
 
     setNarratorStates((previous) => ({
       ...previous,
-      [activeNarratorId]: "thinking",
+      [narratorUiId]: "thinking",
     }));
 
     try {
       const { sessionId, isNew } =
-        getOrCreateTabChatSession(narrator.id);
+        getOrCreateTabChatSession(
+          narrator.id,
+        );
 
       if (isNew && history.length > 0) {
         setHistory([]);
       }
 
-      const result = await sendChatMessage({
-        personaId: narrator.id,
-        scene: current.backendSceneId,
-        message,
-        sessionId,
-      });
+      const result =
+        await sendChatMessage({
+          personaId: narrator.id,
+          scene: scene.backendSceneId,
+          message,
+          sessionId,
+        });
 
       if (!isMountedRef.current) {
         return;
@@ -337,11 +412,13 @@ export default function NarratorExperience({
 
       setNarratorStates((previous) => ({
         ...previous,
-        [activeNarratorId]: "speaking",
+        [narratorUiId]: "speaking",
       }));
 
-      // This resolves only after Polly audio or browser TTS finishes.
-      await speak(result.response);
+      await speak(
+        result.response,
+        narrator,
+      );
     } catch (error) {
       console.error(error);
     } finally {
@@ -351,7 +428,7 @@ export default function NarratorExperience({
 
       setNarratorStates((previous) => ({
         ...previous,
-        [activeNarratorId]: "selected",
+        [narratorUiId]: "selected",
       }));
     }
   }
@@ -372,22 +449,27 @@ export default function NarratorExperience({
         .requestPermission === "function";
 
     const isTouch =
-      window.matchMedia?.("(pointer: coarse)")
-        .matches ?? false;
+      window.matchMedia?.(
+        "(pointer: coarse)",
+      ).matches ?? false;
 
     if (isTouch && !needsPermission) {
       setLookMode("gyro");
     }
   }, []);
 
-  // Warm the texture cache so switching scenes is instant.
+  /**
+   * Preload every panorama so moving between scene
+   * routes is faster.
+   */
   useEffect(() => {
     useTexture.preload(
-      narrator.scenes.map(
-        (scene) => scene.photoSrc,
+      scenes.map(
+        (availableScene) =>
+          availableScene.photoSrc,
       ),
     );
-  }, [narrator]);
+  }, []);
 
   async function toggleLook() {
     if (lookMode === "gyro") {
@@ -423,25 +505,42 @@ export default function NarratorExperience({
   function selectNarrator(
     narratorId: NarratorId,
   ) {
+    const narrator =
+      getNarratorByUiId(narratorId);
+
+    if (
+      !narrator ||
+      !scene.narratorIds.includes(
+        narrator.id,
+      )
+    ) {
+      return;
+    }
+
+    setActiveNarratorId(narratorId);
+
     setNarratorStates((previous) => ({
       whitmore:
         narratorId === "whitmore"
           ? "selected"
-          : previous.whitmore === "disabled"
+          : previous.whitmore ===
+              "disabled"
             ? "disabled"
             : "default",
 
       sinclair:
         narratorId === "sinclair"
           ? "selected"
-          : previous.sinclair === "disabled"
+          : previous.sinclair ===
+              "disabled"
             ? "disabled"
             : "default",
 
       ming:
         narratorId === "ming"
           ? "selected"
-          : previous.ming === "disabled"
+          : previous.ming ===
+              "disabled"
             ? "disabled"
             : "default",
     }));
@@ -450,35 +549,45 @@ export default function NarratorExperience({
   function startNarratorInteraction(
     narratorId: NarratorId,
   ) {
+    const narrator =
+      getNarratorByUiId(narratorId);
+
+    if (
+      !narrator ||
+      !scene.narratorIds.includes(
+        narrator.id,
+      )
+    ) {
+      return;
+    }
+
+    setActiveNarratorId(narratorId);
+
     setNarratorStates((previous) => ({
       whitmore:
         narratorId === "whitmore"
           ? "listening"
-          : previous.whitmore === "disabled"
+          : previous.whitmore ===
+              "disabled"
             ? "disabled"
             : "default",
 
       sinclair:
         narratorId === "sinclair"
           ? "listening"
-          : previous.sinclair === "disabled"
+          : previous.sinclair ===
+              "disabled"
             ? "disabled"
             : "default",
 
       ming:
         narratorId === "ming"
           ? "listening"
-          : previous.ming === "disabled"
+          : previous.ming ===
+              "disabled"
             ? "disabled"
             : "default",
     }));
-
-    // Real mic capture only exists for the narrator this page was loaded
-    // for — the other two don't have their own Narrator data here yet, so
-    // holding their buttons just shows the "listening" visual state.
-    if (narratorId !== currentNarratorUiId) {
-      return;
-    }
 
     audioRef.current?.pause();
     audioRef.current = null;
@@ -499,7 +608,9 @@ export default function NarratorExperience({
       return;
     }
 
-    const recognition = new Recognition();
+    const recognition =
+      new Recognition();
+
     recognition.lang = "en-US";
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
@@ -509,7 +620,10 @@ export default function NarratorExperience({
         event.results[0]?.[0]?.transcript?.trim();
 
       if (transcript) {
-        void submitMessage(transcript);
+        void submitMessage(
+          transcript,
+          narratorId,
+        );
       } else {
         setNarratorStates((previous) => ({
           ...previous,
@@ -531,57 +645,48 @@ export default function NarratorExperience({
       recognitionRef.current = null;
     };
 
-    recognitionRef.current = recognition;
+    recognitionRef.current =
+      recognition;
+
     recognition.start();
   }
 
   function endNarratorInteraction(
     narratorId: NarratorId,
   ) {
-    if (narratorId !== currentNarratorUiId) {
-      // Placeholder simulation for the two narrators not yet wired up.
-      setNarratorStates((previous) => ({
-        ...previous,
-        [narratorId]: "thinking",
-      }));
+    const narrator =
+      getNarratorByUiId(narratorId);
 
-      window.setTimeout(() => {
-        if (!isMountedRef.current) {
-          return;
-        }
-
-        setNarratorStates((previous) => ({
-          ...previous,
-          [narratorId]: "speaking",
-        }));
-
-        window.setTimeout(() => {
-          if (!isMountedRef.current) {
-            return;
-          }
-
-          setNarratorStates((previous) => ({
-            ...previous,
-            [narratorId]: "selected",
-          }));
-        }, 2000);
-      }, 1200);
-
+    if (
+      !narrator ||
+      !scene.narratorIds.includes(
+        narrator.id,
+      )
+    ) {
       return;
     }
 
-    // Releasing the button stops recognition. The final transcript arrives
-    // through recognition.onresult, which calls submitMessage and drives the
-    // state through thinking -> speaking -> selected.
+    /**
+     * Releasing the button stops recognition.
+     * The final transcript arrives through onresult,
+     * which calls submitMessage.
+     */
     recognitionRef.current?.stop();
   }
+
+  const availableNarratorUiIds =
+    new Set<NarratorId>(
+      sceneNarrators.map(
+        (narrator) => narrator.uiId,
+      ),
+    );
 
   return (
     <main className="relative h-dvh w-full overflow-hidden bg-navy">
       {/* Panorama */}
       <div className="absolute inset-0">
         <PanoramaScene
-          scene={current}
+          scene={scene}
           mode={lookMode}
         />
       </div>
@@ -599,35 +704,57 @@ export default function NarratorExperience({
 
         {/* Current scene title */}
         <h1 className="text-ig-header absolute left-1/2 top-5 -translate-x-1/2 whitespace-nowrap text-center">
-          {current.title}
+          {scene.title}
         </h1>
 
         {/* Narrator controls */}
         <div className="pointer-events-auto absolute left-6 top-1/2 flex -translate-y-1/2 flex-col items-center gap-4">
           {narratorOrder.map(
-            (narratorId) => (
-              <NarratorButton
-                key={narratorId}
-                variant="scene"
-                narrator={narratorId}
-                state={
-                  narratorStates[narratorId]
-                }
-                onClick={() =>
-                  selectNarrator(narratorId)
-                }
-                onHoldStart={() =>
-                  startNarratorInteraction(
-                    narratorId,
-                  )
-                }
-                onHoldEnd={() =>
-                  endNarratorInteraction(
-                    narratorId,
-                  )
-                }
-              />
-            ),
+            (narratorId) => {
+              const isAvailable =
+                availableNarratorUiIds.has(
+                  narratorId,
+                );
+
+              return (
+                <NarratorButton
+                  key={narratorId}
+                  variant="scene"
+                  narrator={narratorId}
+                  state={
+                    isAvailable
+                      ? narratorStates[
+                          narratorId
+                        ]
+                      : "disabled"
+                  }
+                  onClick={
+                    isAvailable
+                      ? () =>
+                          selectNarrator(
+                            narratorId,
+                          )
+                      : undefined
+                  }
+                  onHoldStart={
+                    isAvailable
+                      ? () =>
+                          startNarratorInteraction(
+                            narratorId,
+                          )
+                      : undefined
+                  }
+                  onHoldEnd={
+                    isAvailable
+                      ? () =>
+                          endNarratorInteraction(
+                            narratorId,
+                          )
+                      : undefined
+                  }
+                />
+              );
+            },
           )}
         </div>
 
@@ -658,18 +785,26 @@ export default function NarratorExperience({
             href="/"
             icon="map"
             label="Open ship map"
-            onClick={() => {
-              // Map behavior goes here.
-            }}
           />
         </div>
 
         {/* Scene navigation */}
         <div className="pointer-events-auto absolute right-6 top-24 max-h-[68vh] -translate-y-1/2 md:top-1/3">
           <SceneRail
-            scenes={narrator.scenes}
-            currentId={currentId}
-            onSelect={setCurrentId}
+            scenes={scenes}
+            currentId={scene.id}
+            onSelect={(
+              nextSceneId,
+            ) => {
+              const narratorQuery =
+                activeNarrator
+                  ? `?narrator=${activeNarrator.id}`
+                  : "";
+
+              router.push(
+                `/explore/${nextSceneId}${narratorQuery}`,
+              );
+            }}
             variant="panorama"
           />
         </div>

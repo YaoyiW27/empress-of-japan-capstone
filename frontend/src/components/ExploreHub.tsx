@@ -2,122 +2,157 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
-import Link from "next/link";
+
 import Scene from "@/components/three/Scene";
-import SceneRail from "./SceneRail";
-import { narrators } from "@/lib/narrators";
-import { ButtonLink, Button } from "@/components/ui/Button";
+import SceneRail from "@/components/SceneRail";
+import NarratorButton, {
+  type NarratorId,
+} from "@/components/ui/NarratorButton";
+import { Button } from "@/components/ui/Button";
 import { NavButtonLink } from "@/components/ui/NavButtons";
 
+import {
+  narrators,
+  scenes,
+  type PersonaId,
+} from "@/lib/scenes";
 
 /**
- * Guided hub: pick a narrator on the left, see the 3D ship in the center, and
- * read the selected narrator's bio on the right. Confirm to reveal that
- * narrator's scenes; picking one opens the experience at that panorama.
+ * Explore hub flow:
  *
- * Sized compact for phone landscape (short viewport); the roomier `lg:` sizing
- * kicks in on real desktops/tablets (>=1024px).
+ * 1. Select a narrator on the left.
+ * 2. Select a scene on the right.
+ * 3. Start the voyage after both choices are made.
+ *
+ * The scene owns the destination route.
+ * The narrator query parameter determines which narrator is initially selected
+ * when the visitor enters that scene.
  */
 export default function ExploreHub() {
   const router = useRouter();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [confirmed, setConfirmed] = useState(false);
-  const [selectedSceneId, setSelectedSceneId] = useState<string | undefined>(undefined);
-  const allScenes = Array.from(
-    new Map(
-      narrators
-        .flatMap((n) => n.scenes)
-        .map((scene) => [scene.id, scene]),
-    ).values(),
-  ).sort((a, b) =>
+
+  const [
+    selectedNarratorId,
+    setSelectedNarratorId,
+  ] = useState<PersonaId | null>(null);
+
+  const [
+    selectedSceneId,
+    setSelectedSceneId,
+  ] = useState<string | undefined>(
+    undefined,
+  );
+
+  const allScenes = [...scenes].sort((a, b) =>
     a.title.localeCompare(b.title),
   );
 
+  function selectNarrator(
+    narratorId: PersonaId,
+  ) {
+    setSelectedNarratorId(narratorId);
+  }
+
+  function selectScene(sceneId: string) {
+    setSelectedSceneId(sceneId);
+  }
+
+  function startVoyage() {
+    if (
+      !selectedNarratorId ||
+      !selectedSceneId
+    ) {
+      return;
+    }
+
+    router.push(
+      `/explore/${selectedSceneId}?narrator=${selectedNarratorId}`,
+    );
+  }
+
   return (
     <main className="flex h-dvh w-full flex-col bg-ivory px-4 py-3 lg:px-8 lg:py-6">
+      {/* Back button */}
       <div className="pointer-events-auto absolute left-3 top-3 sm:left-6 sm:top-6">
-      <NavButtonLink
-        href="/"
-        icon="back"
-        label="Return to ship overview"
-      />
+        <NavButtonLink
+          href="/"
+          icon="back"
+          label="Return to ship overview"
+        />
       </div>
 
       <div className="mt-3 flex min-h-0 flex-1 gap-3 lg:mt-4 lg:gap-5">
-        {/* Left: guides as circular portrait options */}
+        {/* Narrator selection */}
         <aside className="flex w-20 shrink-0 flex-col items-center justify-center gap-3 lg:w-32 lg:gap-5">
           {narrators.map((narrator) => {
-            const active = narrator.id === selectedId;
+            const selected =
+              narrator.id ===
+              selectedNarratorId;
+
             return (
-              <button
+              <NarratorButton
                 key={narrator.id}
-                type="button"
-                onClick={() => {
-                  setSelectedId(narrator.id);
-                  setConfirmed(false);
-                }}
-                aria-current={active}
-                aria-label={`${narrator.name}, ${narrator.role}`}
-                title={`${narrator.name} · ${narrator.role}`}
-                className={`relative aspect-square w-16 shrink-0 overflow-hidden rounded-full border-2 transition-all lg:w-24 ${
-                  active
-                    ? "border-brass ring-2 ring-brass/50"
-                    : "border-brass/40 opacity-70 hover:scale-105 hover:opacity-100"
-                }`}
-              >
-                <Image
-                  src={narrator.portraitSrc}
-                  alt={narrator.name}
-                  fill
-                  sizes="(min-width: 1024px) 96px, 64px"
-                  className="object-cover object-top"
-                />
-              </button>
+                variant="hub"
+                narrator={
+                  narrator.uiId as NarratorId
+                }
+                state={
+                  selected
+                    ? "selected"
+                    : "default"
+                }
+                label={`${narrator.name}, ${narrator.role}`}
+                onClick={() =>
+                  selectNarrator(
+                    narrator.id,
+                  )
+                }
+              />
             );
           })}
         </aside>
 
-        {/* Center: the ship (no background). min-w-0 lets it shrink so the right
-            panel never gets pushed off a narrow (phone-landscape) screen. */}
+        {/* 3D ship */}
         <section className="relative min-h-0 min-w-0 flex-1">
           <Scene />
+
           <p className="pointer-events-none absolute inset-x-0 bottom-2 text-center text-[0.65rem] uppercase tracking-[0.2em] text-navy-soft lg:bottom-3 lg:text-xs">
             Drag to rotate · scroll to zoom
           </p>
-          {selectedId && selectedSceneId && (
-            <div className="pointer-events-auto absolute bottom-16 left-1/2 -translate-x-1/2">
-              <Button
-                className="w-80 justify-center"
-                variant="primary"
-                onClick={() => {
-                  router.push(
-                    `/explore/${selectedId}?scene=${selectedSceneId}`,
-                  );
-                }}
-              >
-                Start Voyage
-              </Button>
-            </div>
-          )}
+
+          {/* Start only after both choices are made */}
+          {selectedNarratorId &&
+            selectedSceneId && (
+              <div className="pointer-events-auto absolute bottom-16 left-1/2 -translate-x-1/2">
+                <Button
+                  className="w-80 justify-center"
+                  variant="primary"
+                  onClick={startVoyage}
+                >
+                  Start Voyage
+                </Button>
+              </div>
+            )}
         </section>
 
-        {/* Right: bio preview, then scenes — contained in a panel */}
-       <aside className="absolute
-        right-6
-        top-24
-        md:top-1/3
-        flex
-        flex-col">
-       <SceneRail
-          scenes={allScenes}
-          variant="overview"
-          currentId={selectedSceneId}
-          onSelect={(sceneId) => {
-            setSelectedSceneId(sceneId);
-          }}
-        />
-      </aside>
+        {/* Scene selection */}
+        <aside
+          className="
+            absolute
+            right-6
+            top-24
+            flex
+            flex-col
+            md:top-1/3
+          "
+        >
+          <SceneRail
+            scenes={allScenes}
+            variant="overview"
+            currentId={selectedSceneId}
+            onSelect={selectScene}
+          />
+        </aside>
       </div>
     </main>
   );
