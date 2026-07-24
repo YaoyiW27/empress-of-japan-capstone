@@ -386,12 +386,15 @@ export default function SceneExperience({
         setHistory([]);
       }
 
+      const priorHistory = isNew ? [] : history;
+
       const result =
         await sendChatMessage({
           personaId: narrator.id,
           scene: scene.backendSceneId,
           message,
           sessionId,
+          history: priorHistory,
         });
 
       if (!isMountedRef.current) {
