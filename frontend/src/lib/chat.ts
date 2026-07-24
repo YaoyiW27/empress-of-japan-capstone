@@ -10,8 +10,22 @@ type StoredChatSession = {
   lastActivityAt: number;
 };
 
+type ChatResponse = {
+  persona_id: string;
+  response: string;
+};
+
+type ChatRequestBody = {
+  persona_id: string;
+  scene?: string;
+  message: string;
+  session_id?: string;
+  history?: ChatHistoryTurn[];
+};
+
 const CHAT_SESSION_STORAGE_KEY_PREFIX = "empress.chat.session.v2";
 const CHAT_SESSION_IDLE_TTL_MS = 30 * 60 * 1000;
+const CHAT_HISTORY_FALLBACK_TURN_LIMIT = 8;
 
 // Used only when sessionStorage is unavailable (for example, strict privacy
 // settings). A module instance belongs to one browser tab.
@@ -72,31 +86,51 @@ export async function sendChatMessage({
   scene,
   message,
   sessionId,
+  history = [],
 }: {
   personaId: string;
   scene?: string;
   message: string;
   sessionId: string;
+  history?: ChatHistoryTurn[];
 }) {
-  const res = await fetch(`${API_BASE_URL}/chat`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
+  const send = (body: ChatRequestBody) =>
+    fetch(`${API_BASE_URL}/chat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+  const res = await send({
+    persona_id: personaId,
+    scene,
+    message,
+    session_id: sessionId,
+  });
+
+  if (res.ok) {
+    return res.json() as Promise<ChatResponse>;
+  }
+
+  const errorText = await res.text();
+  if (res.status === 501 && errorText.includes("session_id memory is not enabled")) {
+    // Compatibility path for deployments that have the session-memory schema
+    // but have not rolled ENABLE_SESSION_MEMORY into the live ECS task yet.
+    const fallbackRes = await send({
       persona_id: personaId,
       scene,
       message,
-      session_id: sessionId,
-    }),
-  });
+      history: history.slice(-CHAT_HISTORY_FALLBACK_TURN_LIMIT),
+    });
 
-  if (!res.ok) {
-    throw new Error(await res.text());
+    if (fallbackRes.ok) {
+      return fallbackRes.json() as Promise<ChatResponse>;
+    }
+
+    throw new Error(await fallbackRes.text());
   }
 
-  return res.json() as Promise<{
-    persona_id: string;
-    response: string;
-  }>;
+  throw new Error(errorText);
 }
