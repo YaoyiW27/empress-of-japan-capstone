@@ -228,6 +228,14 @@ jobs:
           container-name: ${{ env.CONTAINER_NAME }}
           image: "${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}"
 
+      - name: Extend backend health check grace period
+        run: |
+          set -euo pipefail
+          aws ecs update-service \
+            --cluster "$ECS_CLUSTER" \
+            --service "$ECS_SERVICE" \
+            --health-check-grace-period-seconds 180 >/dev/null
+
       # Apply DB migrations on the freshly built image BEFORE rolling the service
       # over, so new code never runs against an un-migrated schema. A failed
       # migration aborts the deploy.

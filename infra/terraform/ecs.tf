@@ -321,7 +321,7 @@ resource "aws_ecs_task_definition" "backend" {
         interval    = 30
         timeout     = 5
         retries     = 3
-        startPeriod = 30
+        startPeriod = 120
       }
     },
     {
@@ -398,7 +398,7 @@ resource "aws_ecs_service" "backend" {
 
   platform_version = "LATEST"
 
-  health_check_grace_period_seconds = 60
+  health_check_grace_period_seconds = 180
 
   deployment_circuit_breaker {
     enable   = true
