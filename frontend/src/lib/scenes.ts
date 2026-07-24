@@ -101,8 +101,6 @@ export const scenes: ExperienceScene[] = [
     vFovDeg: 180,
     narratorIds: [
       "captain_sinclair",
-      "eleanor_whitmore",
-      "ming_chen",
     ],
   },
   {
@@ -113,8 +111,6 @@ export const scenes: ExperienceScene[] = [
     hFovDeg: 360,
     vFovDeg: 180,
     narratorIds: [
-      "captain_sinclair",
-      "eleanor_whitmore",
       "ming_chen",
     ],
   },
@@ -152,9 +148,7 @@ export const scenes: ExperienceScene[] = [
     hFovDeg: 360,
     vFovDeg: 180,
     narratorIds: [
-      "captain_sinclair",
       "eleanor_whitmore",
-      "ming_chen",
     ],
   },
   {
@@ -180,7 +174,6 @@ export const scenes: ExperienceScene[] = [
     narratorIds: [
       "captain_sinclair",
       "eleanor_whitmore",
-      "ming_chen",
     ],
   },
   {
@@ -193,7 +186,6 @@ export const scenes: ExperienceScene[] = [
     narratorIds: [
       "captain_sinclair",
       "eleanor_whitmore",
-      "ming_chen",
     ],
   },
   {
@@ -205,7 +197,6 @@ export const scenes: ExperienceScene[] = [
     vFovDeg: 180,
     narratorIds: [
       "captain_sinclair",
-      "eleanor_whitmore",
       "ming_chen",
     ],
   },
@@ -218,7 +209,6 @@ export const scenes: ExperienceScene[] = [
     vFovDeg: 180,
     narratorIds: [
       "captain_sinclair",
-      "eleanor_whitmore",
       "ming_chen",
     ],
   },
@@ -230,9 +220,7 @@ export const scenes: ExperienceScene[] = [
     hFovDeg: 360,
     vFovDeg: 180,
     narratorIds: [
-      "captain_sinclair",
       "eleanor_whitmore",
-      "ming_chen",
     ],
   },
 ];

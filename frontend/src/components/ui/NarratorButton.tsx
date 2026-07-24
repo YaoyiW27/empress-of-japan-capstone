@@ -93,7 +93,7 @@ const narratorIcons: Record<
     speaking:
       "/narrators/sinclair/narrator_speaking.svg",
     disabled:
-      "/narrators/sinclair/narrator_Primary.svg",
+      "/narrators/sinclair/narrator_disabled.svg",
   },
 
   whitmore: {
@@ -110,7 +110,7 @@ const narratorIcons: Record<
     speaking:
       "/narrators/whitmore/narrator_speaking.svg",
     disabled:
-      "/narrators/whitmore/narrator_Primary.svg",
+      "/narrators/whitmore/narrator_disabled.svg",
   },
 
   ming: {
@@ -127,7 +127,7 @@ const narratorIcons: Record<
     speaking:
       "/narrators/ming/narrator_speaking.svg",
     disabled:
-      "/narrators/ming/narrator_Primary.svg",
+      "/narrators/ming/narrator_disabled.svg",
   },
 };
 
@@ -500,13 +500,13 @@ export default function NarratorButton(
           variant === "scene" &&
             (state === "default" ||
               state === "recommended" ||
-              state === "selected") &&
+              state === "selected" ||
+              state === "disabled") &&
             "left-6 top-6 h-20 w-20",
 
           variant === "scene" &&
             (state === "listening" ||
-              state === "thinking" ||
-              state === "disabled") &&
+              state === "thinking") &&
             "left-0 top-0 h-32 w-32",
 
           variant === "scene" &&
