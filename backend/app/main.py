@@ -113,7 +113,13 @@ class VoiceSynthesizeResponse(BaseModel):
 
 
 def _resolve_persona(persona_id: str | None, scene: str | None) -> str:
-    """Pick the persona: explicit id wins; a scene is a hint, ambiguous if shared."""
+    """Pick the persona: explicit id wins; a scene is a hint, ambiguous if shared.
+
+    When ``persona_id`` is explicit, ``scene`` is treated purely as a context hint
+    (scene-first UX, #161): any narrator can visit any scene. We keep the 404 for
+    unknown scenes but no longer reject a persona for being outside its home scenes —
+    ``graph.py`` injects an out-of-scene instruction so the reply stays in character.
+    """
     personas = load_personas()
     scenes = load_scenes()
     if scene is not None and scene not in scenes:
@@ -121,11 +127,6 @@ def _resolve_persona(persona_id: str | None, scene: str | None) -> str:
     if persona_id is not None:
         if persona_id not in personas:
             raise HTTPException(status_code=404, detail=f"unknown persona_id: {persona_id!r}")
-        if scene is not None and scene not in personas[persona_id].scenes:
-            raise HTTPException(
-                status_code=400,
-                detail=f"persona {persona_id!r} is not available in scene {scene!r}",
-            )
         return persona_id
     if scene is not None:
         candidates = scene_to_personas().get(scene, ())
