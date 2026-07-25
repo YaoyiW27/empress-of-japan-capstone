@@ -13,7 +13,12 @@ import {
   sendChatMessage,
   type ChatHistoryTurn,
 } from "@/lib/chat";
-import { synthesizeNarratorVoice } from "@/lib/voice";
+import {
+  isLiveTranscriptionSupported,
+  startLiveTranscription,
+  synthesizeNarratorVoice,
+  type LiveTranscriptionHandle,
+} from "@/lib/voice";
 
 type SpeechRecognitionConstructor = new () => SpeechRecognition;
 
@@ -73,8 +78,20 @@ function subscribeToNothing() {
   return () => {};
 }
 
-function readSpeechRecognitionSupport() {
-  return Boolean(window.SpeechRecognition ?? window.webkitSpeechRecognition);
+/**
+ * How this browser can capture a question, best first:
+ * - native: the built-in Web Speech API (iOS Safari, Android Chrome).
+ * - recorder: mic capture streamed to the backend's /voice/transcribe
+ *   WebSocket (third-party iOS browsers, which never get SpeechRecognition).
+ * - text: typed input (WebViews that block the microphone entirely).
+ */
+type VoiceInputMode = "native" | "recorder" | "text";
+
+function readVoiceInputMode(): VoiceInputMode {
+  if (window.SpeechRecognition ?? window.webkitSpeechRecognition) {
+    return "native";
+  }
+  return isLiveTranscriptionSupported() ? "recorder" : "text";
 }
 
 export default function NarratorOverlay({
@@ -91,17 +108,23 @@ export default function NarratorOverlay({
   const [isListening, setIsListening] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [draft, setDraft] = useState("");
-  // No SpeechRecognition on iOS third-party browsers (Chrome/Edge/Firefox for
-  // iOS), in-app WebViews (WeChat, Instagram…), Android Firefox, or Samsung
-  // Internet — those visitors get the typed input instead. The server
-  // snapshot assumes support so the first paint matches the SSR mic button.
-  const speechSupported = useSyncExternalStore(
+  // Downgrade to typed input if recording breaks mid-session (permission
+  // denied, socket refused…) so the visitor is never stuck with a dead mic.
+  const [recorderFailed, setRecorderFailed] = useState(false);
+  // The server snapshot assumes "native" so the first paint matches the SSR
+  // mic button; the real mode replaces it right after hydration.
+  const detectedVoiceMode = useSyncExternalStore(
     subscribeToNothing,
-    readSpeechRecognitionSupport,
-    () => true,
+    readVoiceInputMode,
+    () => "native" as const,
   );
+  const voiceMode: VoiceInputMode =
+    detectedVoiceMode === "recorder" && recorderFailed
+      ? "text"
+      : detectedVoiceMode;
   const isMountedRef = useRef(true);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const liveTranscriptionRef = useRef<LiveTranscriptionHandle | null>(null);
   const historyEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -113,6 +136,7 @@ export default function NarratorOverlay({
     return () => {
       isMountedRef.current = false;
       audioRef.current?.pause();
+      liveTranscriptionRef.current?.cancel();
     };
   }, []);
 
@@ -243,6 +267,53 @@ export default function NarratorOverlay({
     recognition.start();
   }
 
+  function failRecording() {
+    setIsListening(false);
+    liveTranscriptionRef.current = null;
+    setRecorderFailed(true);
+    setNotice("Could not access the microphone — type your question instead.");
+    setOpen(true);
+  }
+
+  /** Recorder mode: no end-of-speech detection, so the mic button toggles —
+      tap to start, tap again (or the 14 s cap) to stop and send. */
+  async function startRecording() {
+    unlockAudioOutput();
+    setIsListening(true);
+    try {
+      liveTranscriptionRef.current = await startLiveTranscription({
+        onDone: (transcript) => {
+          if (!isMountedRef.current) return;
+          setIsListening(false);
+          liveTranscriptionRef.current = null;
+          if (transcript) {
+            void submitMessage(transcript);
+          } else {
+            setNotice("Sorry, I could not hear that clearly.");
+            setOpen(true);
+          }
+        },
+        onError: (error) => {
+          if (!isMountedRef.current) return;
+          console.error("live transcription failed", error);
+          failRecording();
+        },
+      });
+    } catch (error) {
+      if (!isMountedRef.current) return;
+      console.error("live transcription failed to start", error);
+      failRecording();
+    }
+  }
+
+  function toggleRecording() {
+    if (liveTranscriptionRef.current) {
+      liveTranscriptionRef.current.stop();
+      return;
+    }
+    void startRecording();
+  }
+
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-2 p-4 sm:p-6">
       {open && (
@@ -291,33 +362,54 @@ export default function NarratorOverlay({
       {/* Split capsule: mic (or typed input) on the left, transcript chevron
           on the right. */}
       <div className="pointer-events-auto flex items-stretch overflow-hidden rounded-full border border-brass/40 bg-card/90 shadow-lg backdrop-blur-sm">
-        {speechSupported ? (
+        {voiceMode !== "text" ? (
           <button
             type="button"
-            onClick={startListening}
-            disabled={isListening || isLoading}
-            aria-label={isListening ? "Listening" : "Talk to the narrator"}
+            onClick={voiceMode === "native" ? startListening : toggleRecording}
+            disabled={
+              voiceMode === "native" ? isListening || isLoading : isLoading
+            }
+            aria-label={
+              voiceMode === "recorder" && isListening
+                ? "Stop and send"
+                : isListening
+                  ? "Listening"
+                  : "Talk to the narrator"
+            }
             className={`flex h-14 w-16 items-center justify-center transition-colors disabled:cursor-not-allowed ${
               isListening
                 ? "animate-pulse bg-vermilion text-ivory"
                 : "text-navy hover:bg-ivory"
             }`}
           >
-            <svg
-              aria-hidden="true"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-6 w-6"
-            >
-              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3Z" />
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-              <path d="M12 19v4" />
-              <path d="M8 23h8" />
-            </svg>
+            {voiceMode === "recorder" && isListening ? (
+              /* Recorder mode has no end-of-speech detection: while it runs
+                 the button is a stop control. */
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                className="h-5 w-5"
+              >
+                <rect x="5" y="5" width="14" height="14" rx="2" />
+              </svg>
+            ) : (
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-6 w-6"
+              >
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3Z" />
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                <path d="M12 19v4" />
+                <path d="M8 23h8" />
+              </svg>
+            )}
           </button>
         ) : (
           /* No SpeechRecognition (iOS Chrome/Edge/Firefox, in-app browsers,
