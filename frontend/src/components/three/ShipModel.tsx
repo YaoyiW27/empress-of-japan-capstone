@@ -10,7 +10,7 @@ import { useGLTF } from "@react-three/drei";
  *
  * Transform/framing is handled by the <Bounds>/<Center> wrappers in Scene.tsx.
  */
-const SHIP_MODEL = "/models/empress_hunyuan3d.glb";
+export const SHIP_MODEL = "/models/empress_hunyuan3d.glb";
 
 export default function ShipModel() {
   const { scene } = useGLTF(SHIP_MODEL);

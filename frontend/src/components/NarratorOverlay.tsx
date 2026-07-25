@@ -1,8 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
-import type { Narrator, Scene } from "@/lib/narrators";
+import type { Narrator, Scene } from "@/lib/scenes";
 import {
   getOrCreateTabChatSession,
   sendChatMessage,
@@ -48,7 +47,6 @@ export default function NarratorOverlay({
 }) {
   const [open, setOpen] = useState(false);
   const [history, setHistory] = useState<ChatHistoryTurn[]>([]);
-  const [transcript, setTranscript] = useState("");
   const [response, setResponse] = useState(narrator.bio);
   const [isListening, setIsListening] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -99,7 +97,6 @@ export default function NarratorOverlay({
 
   async function submitMessage(message: string) {
     setIsLoading(true);
-    setTranscript(message);
 
     try {
       const { sessionId, isNew } = getOrCreateTabChatSession(narrator.id);
@@ -163,65 +160,96 @@ export default function NarratorOverlay({
   }
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end gap-3 p-4 sm:p-6">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="pointer-events-auto shrink-0"
-      >
-        <Image
-          src={narrator.cutoutSrc ?? narrator.portraitSrc}
-          alt={narrator.name}
-          width={400}
-          height={600}
-          className="h-[46vh] w-auto object-contain drop-shadow-[0_8px_24px_rgba(0,0,0,0.45)]"
-        />
-      </button>
-
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-2 p-4 sm:p-6">
       {open && (
-        <div className="pointer-events-auto mb-2 max-w-md rounded-md border border-brass/40 bg-card/90 px-4 py-3 shadow-lg backdrop-blur-sm">
+        /* Transcript panel, rising from the capsule below. */
+        <div className="pointer-events-auto w-full max-w-md rounded-md border border-brass/40 bg-card/90 px-4 py-3 shadow-lg backdrop-blur-sm">
           <p className="font-display text-sm font-bold uppercase tracking-[0.18em] text-brass">
             {narrator.name}
           </p>
 
-          <div className="mt-2 max-h-64 space-y-2 overflow-y-auto pr-1">
-              {history.length === 0 && (
-                <p className="text-sm leading-relaxed text-navy">{response}</p>
-              )}
+          <div className="mt-2 max-h-48 space-y-2 overflow-y-auto pr-1">
+            {history.length === 0 && (
+              <p className="text-sm leading-relaxed text-navy">{response}</p>
+            )}
 
-              {history.map((turn, i) => (
-                <p
-                  key={i}
-                  className={
-                    turn.role === "user"
-                      ? "text-xs text-navy-soft"
-                      : "text-sm leading-relaxed text-navy"
-                  }
-                >
-                  {turn.role === "user" ? "You: " : ""}
-                  {turn.content}
-                </p>
-              ))}
+            {history.map((turn, i) => (
+              <p
+                key={i}
+                className={
+                  turn.role === "user"
+                    ? "text-xs text-navy-soft"
+                    : "text-sm leading-relaxed text-navy"
+                }
+              >
+                {turn.role === "user" ? "You: " : ""}
+                {turn.content}
+              </p>
+            ))}
 
-              {isLoading && (
-                <p className="text-sm italic leading-relaxed text-navy-soft">
-                  Thinking...
-                </p>
-              )}
+            {isLoading && (
+              <p className="text-sm italic leading-relaxed text-navy-soft">
+                Thinking...
+              </p>
+            )}
 
-              <div ref={historyEndRef} />
-            </div>
-
-          <button
-            type="button"
-            onClick={startListening}
-            disabled={isListening || isLoading}
-            className="mt-3 inline-flex items-center gap-1.5 rounded-sm border border-brass/40 bg-ivory px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-navy-soft"
-          >
-            🎤 {isListening ? "Listening..." : "Talk"}
-          </button>
+            <div ref={historyEndRef} />
+          </div>
         </div>
       )}
+
+      {/* Split capsule: mic on the left, transcript chevron on the right. */}
+      <div className="pointer-events-auto flex items-stretch overflow-hidden rounded-full border border-brass/40 bg-card/90 shadow-lg backdrop-blur-sm">
+        <button
+          type="button"
+          onClick={startListening}
+          disabled={isListening || isLoading}
+          aria-label={isListening ? "Listening" : "Talk to the narrator"}
+          className={`flex h-14 w-16 items-center justify-center transition-colors disabled:cursor-not-allowed ${
+            isListening
+              ? "animate-pulse bg-vermilion text-ivory"
+              : "text-navy hover:bg-ivory"
+          }`}
+        >
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-6 w-6"
+          >
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3Z" />
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+            <path d="M12 19v4" />
+            <path d="M8 23h8" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-label={open ? "Hide transcript" : "Show transcript"}
+          className="flex w-11 items-center justify-center border-l border-brass/40 text-navy transition-colors hover:bg-ivory"
+        >
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={`h-4 w-4 transition-transform duration-300 ${
+              open ? "rotate-180" : ""
+            }`}
+          >
+            <path d="M6 15l6-6 6 6" />
+          </svg>
+        </button>
+      </div>
     </div>
   );
 }
