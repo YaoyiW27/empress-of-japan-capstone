@@ -135,9 +135,12 @@ resource "aws_iam_role" "rds_stop_scheduler" {
 
 data "aws_iam_policy_document" "rds_stop_scheduler" {
   statement {
-    sid       = "StopKnowledgeBaseDb"
-    effect    = "Allow"
-    actions   = ["rds:StopDBInstance"]
+    sid    = "ManageKnowledgeBaseDbSchedule"
+    effect = "Allow"
+    actions = [
+      "rds:StartDBInstance",
+      "rds:StopDBInstance",
+    ]
     resources = [aws_db_instance.knowledge_base.arn]
   }
 }
@@ -150,7 +153,7 @@ resource "aws_iam_role_policy" "rds_stop_scheduler" {
 
 resource "aws_scheduler_schedule" "knowledge_base_stop" {
   name                         = "empress-knowledge-base-stop"
-  description                  = "Stops the sandbox RDS instance on a weekday evening schedule to limit idle spend."
+  description                  = "Stops the sandbox RDS instance each night to limit idle spend."
   schedule_expression          = var.kb_db_stop_schedule
   schedule_expression_timezone = var.kb_db_stop_schedule_timezone
 
@@ -160,6 +163,26 @@ resource "aws_scheduler_schedule" "knowledge_base_stop" {
 
   target {
     arn      = "arn:aws:scheduler:::aws-sdk:rds:stopDBInstance"
+    role_arn = aws_iam_role.rds_stop_scheduler.arn
+
+    input = jsonencode({
+      DbInstanceIdentifier = aws_db_instance.knowledge_base.identifier
+    })
+  }
+}
+
+resource "aws_scheduler_schedule" "knowledge_base_start" {
+  name                         = "empress-knowledge-base-start"
+  description                  = "Starts the sandbox RDS instance each morning so visitor chat can use RAG and session memory."
+  schedule_expression          = var.kb_db_start_schedule
+  schedule_expression_timezone = var.kb_db_stop_schedule_timezone
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  target {
+    arn      = "arn:aws:scheduler:::aws-sdk:rds:startDBInstance"
     role_arn = aws_iam_role.rds_stop_scheduler.arn
 
     input = jsonencode({

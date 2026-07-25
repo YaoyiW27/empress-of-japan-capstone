@@ -206,10 +206,16 @@ variable "kb_db_max_allocated_storage_gb" {
   default     = 50
 }
 
+variable "kb_db_start_schedule" {
+  description = "EventBridge Scheduler expression that starts the RDS instance before daily team work."
+  type        = string
+  default     = "cron(0 5 ? * * *)"
+}
+
 variable "kb_db_stop_schedule" {
   description = "EventBridge Scheduler expression that stops the RDS instance when the team is unlikely to use it."
   type        = string
-  default     = "cron(0 22 ? * MON-FRI *)"
+  default     = "cron(0 22 ? * * *)"
 }
 
 variable "kb_db_stop_schedule_timezone" {
