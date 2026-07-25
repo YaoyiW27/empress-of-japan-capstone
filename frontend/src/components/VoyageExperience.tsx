@@ -351,7 +351,10 @@ export default function VoyageExperience() {
           className="absolute inset-0 z-30 bg-navy/70 backdrop-blur-[2px]"
           onClick={dismissHints}
         >
-          <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-4 text-center">
+          {/* Phones are too narrow for the side callouts and this block to
+              share the middle band — below sm they stagger vertically
+              (centerpiece 35%, scene callout 58%) instead. */}
+          <div className="absolute left-1/2 top-[35%] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-4 text-center sm:top-1/2">
             <p className="font-display text-2xl font-bold text-ivory drop-shadow-[0_2px_6px_rgba(0,0,0,0.6)] lg:text-3xl">
               Drag to Look Around
             </p>
@@ -368,7 +371,7 @@ export default function VoyageExperience() {
             </p>
           )}
 
-          <p className="absolute right-12 top-1/2 -translate-y-1/2 whitespace-nowrap rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-xs font-semibold text-navy shadow-lg sm:right-14">
+          <p className="absolute right-12 top-[58%] -translate-y-1/2 whitespace-nowrap rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-xs font-semibold text-navy shadow-lg sm:right-14 sm:top-1/2">
             Browse Ship&apos;s Scenes Here
           </p>
 
