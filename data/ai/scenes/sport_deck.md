@@ -1,10 +1,10 @@
 ---
-id: open_deck
-name: Open Deck
+id: sport_deck
+name: Sport Deck
 ship: Empress of Japan
 era: 1930–1950s
 deck: upper
-version: 1.0
+version: 1.2
 ---
 
 # Open Deck — Scene File
