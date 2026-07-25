@@ -64,17 +64,36 @@ class PostgresSessionMemory:
 
     def open(self) -> None:
         self._pool.open(wait=True)
-        # All API instances use the same advisory lock so package-owned migrations
-        # cannot race during a rolling deployment.
+        # The application-owned expiry migration must be present before the
+        # service accepts traffic; do not silently start with partial memory.
         with self._engine.begin() as conn:
-            # The application-owned expiry migration must be present before the
-            # service accepts traffic; do not silently start with partial memory.
             conn.execute(text("SELECT 1 FROM agent_sessions LIMIT 1"))
+        self._run_checkpointer_setup()
+
+    def _run_checkpointer_setup(self) -> None:
+        # PostgresSaver.setup() issues CREATE INDEX CONCURRENTLY, which blocks
+        # until every concurrent transaction finishes. It must therefore run
+        # with NO long-lived transaction open on this instance — running it
+        # inside a pg_advisory_xact_lock txn self-deadlocks (the index build
+        # waits on the very transaction holding the lock). All API instances
+        # still serialize package-owned migrations with a *session-level*
+        # advisory lock on a dedicated autocommit connection so they cannot
+        # race during a rolling deployment.
+        conn = self._engine.connect().execution_options(isolation_level="AUTOCOMMIT")
+        try:
             conn.execute(
-                text("SELECT pg_advisory_xact_lock(hashtext(:lock_name))"),
+                text("SELECT pg_advisory_lock(hashtext(:lock_name))"),
                 {"lock_name": _SETUP_LOCK_NAME},
             )
-            self._checkpointer.setup()
+            try:
+                self._checkpointer.setup()
+            finally:
+                conn.execute(
+                    text("SELECT pg_advisory_unlock(hashtext(:lock_name))"),
+                    {"lock_name": _SETUP_LOCK_NAME},
+                )
+        finally:
+            conn.close()
 
     def close(self) -> None:
         self._pool.close()
