@@ -7,6 +7,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.agents.graph import (
+    OUT_OF_SCENE_INSTRUCTION,
     InvalidGroundedResponseError,
     RetrievalUnavailableError,
     build_graph,
@@ -330,6 +331,37 @@ def test_switching_scenes_changes_scene_context() -> None:
     assert load_scenes()["bridge"].context_prompt not in dock_model.system_prompt
 
 
+def test_out_of_scene_injects_attitude_instruction() -> None:
+    # The captain has no engine_room in his home scenes (#161): the prompt should
+    # carry the out-of-scene nudge alongside the engine_room context.
+    model = LongResponseChatModel("Not my usual post.")
+    build_graph(model).invoke(
+        {
+            "persona_id": "captain_sinclair",
+            "scene": "engine_room",
+            "messages": [{"role": "user", "content": "Where are we?"}],
+        }
+    )
+
+    assert "engine_room" not in load_personas()["captain_sinclair"].scenes
+    assert load_scenes()["engine_room"].context_prompt in model.system_prompt
+    assert OUT_OF_SCENE_INSTRUCTION in model.system_prompt
+
+
+def test_home_scene_omits_out_of_scene_instruction() -> None:
+    model = LongResponseChatModel("On the bridge.")
+    build_graph(model).invoke(
+        {
+            "persona_id": "captain_sinclair",
+            "scene": "bridge",
+            "messages": [{"role": "user", "content": "Where are we?"}],
+        }
+    )
+
+    assert "bridge" in load_personas()["captain_sinclair"].scenes
+    assert OUT_OF_SCENE_INSTRUCTION not in model.system_prompt
+
+
 def test_grounded_answer_returns_only_selected_deduplicated_citations() -> None:
     model = ScriptedChatModel(
         [
@@ -631,13 +663,13 @@ def test_chat_endpoint_unknown_scene_with_explicit_persona() -> None:
     assert resp.json()["detail"] == "unknown scene: 'nope'"
 
 
-def test_chat_endpoint_rejects_persona_unavailable_in_scene() -> None:
+def test_chat_endpoint_allows_persona_outside_home_scene() -> None:
+    # Scene-first UX (#161): an explicit persona can visit any known scene; the
+    # scene is a hint, not a membership gate.
     client = _agent_test_client()
     resp = client.post(
         "/chat",
         json={"persona_id": "captain_sinclair", "scene": "engine_room", "message": "hi"},
     )
-    assert resp.status_code == 400
-    assert resp.json()["detail"] == (
-        "persona 'captain_sinclair' is not available in scene 'engine_room'"
-    )
+    assert resp.status_code == 200
+    assert resp.json()["persona_id"] == "captain_sinclair"
