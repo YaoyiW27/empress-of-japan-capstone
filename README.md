@@ -57,15 +57,18 @@ Everything runs in a ~$1,000 AWS sandbox in `us-west-2`.
 
 ## Repo layout
 
-| Path | Owner | Contents |
-|---|---|---|
-| `frontend/` | Kelly | Next.js + R3F app (panorama experience, narrator overlay, voice) |
-| `backend/` | Alina | FastAPI + LangGraph agents, RAG retrieval, ingest pipeline |
-| `infra/` | Yaoyi | Terraform (`infra/terraform/`), AWS, observability |
-| `.github/workflows/` | Yaoyi | Terraform plan/apply, backend deploy, security scans |
-| `data/` | Alina | pgvector schema, persona/scene definitions (`data/ai/`) |
-| `dev-log/` | all | Weekly AI-assisted dev logs |
-| `docs/` | all | Architecture and project plan *(in progress)* |
+This repo is organized by delivery surface rather than strict ownership:
+
+| Path | Contents |
+|---|---|
+| `frontend/` | Next.js + React Three Fiber visitor experience, including Steven's scene-first UX, narrator overlay, and voice interaction work |
+| `backend/` | FastAPI + LangGraph agents, RAG retrieval, session memory, ingest pipeline |
+| `data/` | pgvector schema plus persona and scene definitions used by the experience |
+| `infra/` and `.github/workflows/` | Terraform-managed AWS infrastructure, deploy workflows, observability, and security scans |
+| `dev-log/` and `docs/` | Weekly AI-assisted dev logs, architecture notes, and project planning |
+
+Track ownership and review expectations are documented in
+[`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ---
 
