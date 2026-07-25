@@ -27,6 +27,20 @@ export type Narrator = {
   cutoutSrc?: string;
 };
 
+/**
+ * Where a scene sits on the hub's 3D ship, as fractions of the hull's
+ * bounding box — robust to model swaps and unknown glTF scale:
+ * - `length`: 0 → 1 along the ship's long axis
+ * - `height`: 0 (keel) → 1 (highest point)
+ * - `beam`: -1 → 1 across the hull; 0 (default) = centerline
+ * Tuned by eye against the current model; adjust freely.
+ */
+export type ShipSpot = {
+  length: number;
+  height: number;
+  beam?: number;
+};
+
 export type Scene = {
   /** URL-ish id, unique across the app. */
   id: string;
@@ -37,6 +51,8 @@ export type Scene = {
   photoSrc: string;
   /** Narrators available in this scene (currently: everyone, everywhere). */
   narratorIds: string[];
+  /** Marker position on the hub's 3D ship. */
+  shipSpot: ShipSpot;
 };
 
 export const narrators: Narrator[] = [
@@ -78,6 +94,7 @@ export const scenes: Scene[] = [
     title: "Bridge",
     photoSrc: "/scenes/captain/bridge.png",
     narratorIds: allNarratorIds,
+    shipSpot: { length: 0.7, height: 0.35 },
   },
   {
     id: "loading-dock",
@@ -85,6 +102,7 @@ export const scenes: Scene[] = [
     title: "Loading Dock",
     photoSrc: "/scenes/captain/loading-dock.png",
     narratorIds: allNarratorIds,
+    shipSpot: { length: 0.5, height: 0.1, beam: 2.4 },
   },
   {
     id: "promenade-deck",
@@ -92,6 +110,7 @@ export const scenes: Scene[] = [
     title: "Promenade Deck",
     photoSrc: "/scenes/first-class/promenade-deck.png",
     narratorIds: allNarratorIds,
+    shipSpot: { length: 0.5, height: 0.35, beam: 0.7 },
   },
   {
     id: "deck",
@@ -99,6 +118,7 @@ export const scenes: Scene[] = [
     title: "Boat Deck",
     photoSrc: "/scenes/first-class/deck.png",
     narratorIds: allNarratorIds,
+    shipSpot: { length: 0.78, height: 0.35 },
   },
   {
     id: "first-class-dining-saloon",
@@ -106,6 +126,7 @@ export const scenes: Scene[] = [
     title: "Dining Saloon",
     photoSrc: "/scenes/first-class/first-class-dining-saloon.png",
     narratorIds: allNarratorIds,
+    shipSpot: { length: 0.6, height: 0.5 },
   },
   {
     id: "first-class-suite",
@@ -113,6 +134,7 @@ export const scenes: Scene[] = [
     title: "First-Class Suite",
     photoSrc: "/scenes/first-class/first-class-suite.png",
     narratorIds: allNarratorIds,
+    shipSpot: { length: 0.6, height: 0.35 },
   },
   {
     id: "swimming-pool",
@@ -120,6 +142,7 @@ export const scenes: Scene[] = [
     title: "Swimming Pool",
     photoSrc: "/scenes/first-class/swimming-pool.png",
     narratorIds: allNarratorIds,
+    shipSpot: { length: 0.35, height: 0.32 },
   },
   {
     id: "engine-room",
@@ -127,6 +150,7 @@ export const scenes: Scene[] = [
     title: "Engine Room",
     photoSrc: "/scenes/crew/engine-room.png",
     narratorIds: allNarratorIds,
+    shipSpot: { length: 0.45, height: 0.16 },
   },
   {
     id: "crew-bedroom",
@@ -134,6 +158,7 @@ export const scenes: Scene[] = [
     title: "Crew Quarters",
     photoSrc: "/scenes/crew/crew-bedroom.png",
     narratorIds: allNarratorIds,
+    shipSpot: { length: 0.12, height: 0.35 },
   },
 ];
 

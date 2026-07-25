@@ -116,9 +116,13 @@ export default function ExploreHub() {
         {/* Center: the ship (no background). min-w-0 lets it shrink so the right
             panel never gets pushed off a narrow (phone-landscape) screen. */}
         <section className="relative min-h-0 min-w-0 flex-1">
-          <Scene />
+          <Scene
+            scenes={scenes}
+            selectedSceneId={sceneId}
+            onSelectScene={setSceneId}
+          />
           <p className="pointer-events-none absolute inset-x-0 bottom-2 text-center text-[0.65rem] uppercase tracking-[0.2em] text-navy-soft lg:bottom-3 lg:text-xs">
-            Drag to rotate · scroll to zoom
+            Drag to rotate · scroll to zoom · tap a glowing dot to pick a scene
           </p>
         </section>
 
