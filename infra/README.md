@@ -233,8 +233,9 @@ does not yet emit a dedicated log line, span, or metric for those rejections.
 - [ ] Budget status is green: Billing → **Budgets** → `empress-monthly-cost`.
 - [ ] No open anomaly in **Cost Anomaly Detection**, and everyone confirmed the
   `empress-budget-alerts` SNS subscription.
-- [ ] **RDS is started only if the demo needs RAG/ingest** — and stopped again
-  afterward (`aws rds stop-db-instance --db-instance-identifier empress-knowledge-base`).
+- [ ] **RDS schedule is appropriate for the demo window** — by default the
+  knowledge-base DB starts daily at 5:00 AM and stops daily at 10:00 PM
+  `America/Vancouver`; disable or extend the schedule for all-day demos.
 - [ ] Fargate desired counts / autoscaling floor are at steady-state, not left
   scaled up from load testing.
 - [ ] CloudWatch log retention hasn't been bumped to something expensive.
