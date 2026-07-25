@@ -1,0 +1,13 @@
+# Gitleaks configuration. Extends the built-in ruleset; we only add narrowly
+# scoped allowlist entries for confirmed false positives so real secrets keep
+# tripping the scan. See .github/workflows/gitleaks.yml.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Confirmed false positives (client-side storage key names, not secrets)"
+regexes = [
+  # sessionStorage flag in frontend/src/components/VoyageExperience.tsx - the
+  # generic-api-key rule mistakes this literal key name for a credential.
+  '''empress\.voyage\.hints\.v1''',
+]
