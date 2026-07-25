@@ -4,12 +4,7 @@ import { useRef, useState } from "react";
 import Image from "next/image";
 import Scene from "@/components/three/Scene";
 import { narrators, scenes } from "@/lib/scenes";
-import {
-  ArrowRightIcon,
-  Button,
-  ButtonLink,
-  CircleBackLink,
-} from "@/components/ui/Button";
+import { Button, ButtonLink, CircleBackLink } from "@/components/ui/Button";
 
 /** How long a touch press must last before the bio pops up. */
 const LONG_PRESS_MS = 450;
@@ -37,12 +32,15 @@ export default function ExploreHub() {
   }
 
   return (
-    <main className="flex h-dvh w-full flex-col bg-ivory px-4 py-3 lg:px-8 lg:py-6">
-      <header>
-        <CircleBackLink href="/" label="Back to home" />
-      </header>
+    <main className="relative flex h-dvh w-full flex-col bg-ivory px-4 py-3 lg:px-8 lg:py-6">
+      {/* Same spot as the voyage page's back button, for cross-page consistency. */}
+      <CircleBackLink
+        href="/"
+        label="Back to home"
+        className="absolute left-3 top-3 z-10 sm:left-6 sm:top-6"
+      />
 
-      <div className="mt-3 flex min-h-0 flex-1 gap-3 lg:mt-4 lg:gap-5">
+      <div className="mt-14 flex min-h-0 flex-1 gap-3 lg:mt-16 lg:gap-5">
         {/* Left: guides as circular portrait options. Hover (mouse) or
             long-press (touch) reveals the bio beside the portrait. */}
         <aside className="flex w-20 shrink-0 flex-col items-center justify-center gap-3 lg:w-32 lg:gap-5">
@@ -177,12 +175,10 @@ export default function ExploreHub() {
                   className="w-full justify-center"
                 >
                   Start voyage
-                  <ArrowRightIcon />
                 </ButtonLink>
               ) : (
                 <Button disabled className="w-full justify-center">
                   Start voyage
-                  <ArrowRightIcon />
                 </Button>
               )}
             </div>
