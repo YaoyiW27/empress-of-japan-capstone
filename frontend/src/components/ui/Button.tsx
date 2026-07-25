@@ -48,3 +48,64 @@ export function Button({
     </button>
   );
 }
+
+/** Right arrow for CTA labels ("Start voyage", "Step aboard") — matches the
+ * stroke style of CircleBackLink so text arrows aren't mixed with SVG ones. */
+export function ArrowRightIcon({
+  className = "h-4 w-4",
+}: {
+  className?: string;
+}) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <path d="M5 12h14" />
+      <path d="M12 5l7 7-7 7" />
+    </svg>
+  );
+}
+
+/**
+ * Icon-only circular back button: a left arrow, no text. `label` is the
+ * screen-reader name for the destination (e.g. "Back to guides").
+ */
+export function CircleBackLink({
+  href,
+  label,
+  className = "",
+}: {
+  href: string;
+  label: string;
+  className?: string;
+}) {
+  return (
+    <Link
+      href={href}
+      aria-label={label}
+      title={label}
+      className={`flex h-11 w-11 items-center justify-center rounded-full border border-brass/40 bg-card/90 text-navy shadow-md backdrop-blur-sm transition-colors hover:border-brass ${className}`}
+    >
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="h-5 w-5"
+      >
+        <path d="M19 12H5" />
+        <path d="M12 19l-7-7 7-7" />
+      </svg>
+    </Link>
+  );
+}
