@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { Suspense } from "react";
+
 import SceneExperience from "@/components/SceneExperience";
 import {
   getScene,
@@ -46,9 +46,5 @@ export default async function ScenePage({
     notFound();
   }
 
-  return (
-    <Suspense fallback={null}>
-      <SceneExperience scene={scene} />
-    </Suspense>
-  );
+  return <SceneExperience scene={scene} />;
 }
