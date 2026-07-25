@@ -113,9 +113,10 @@ export const scenes: Scene[] = [
     shipSpot: { length: 0.5, height: 0.35, beam: 0.7 },
   },
   {
+    // Title follows the historical name; the ids stay stable backend keys.
     id: "deck",
     backendSceneId: "open_deck",
-    title: "Boat Deck",
+    title: "Sport Deck",
     photoSrc: "/scenes/first-class/deck.png",
     narratorIds: allNarratorIds,
     shipSpot: { length: 0.78, height: 0.35 },
@@ -153,9 +154,11 @@ export const scenes: Scene[] = [
     shipSpot: { length: 0.45, height: 0.16 },
   },
   {
+    // Historically a steerage passenger space (see data/ai persona notes);
+    // the ids stay stable backend keys.
     id: "crew-bedroom",
     backendSceneId: "crew_bedroom",
-    title: "Crew Quarters",
+    title: "Steerage Bedroom",
     photoSrc: "/scenes/crew/crew-bedroom.png",
     narratorIds: allNarratorIds,
     shipSpot: { length: 0.12, height: 0.35 },
