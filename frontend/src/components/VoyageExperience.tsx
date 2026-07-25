@@ -352,16 +352,21 @@ export default function VoyageExperience() {
           onClick={dismissHints}
         >
           {/* Phones are too narrow for the side callouts and this block to
-              share the middle band — below sm they stagger vertically
-              (centerpiece 35%, scene callout 58%) instead. */}
-          <div className="absolute left-1/2 top-[35%] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-4 text-center sm:top-1/2">
-            <p className="font-display text-2xl font-bold text-ivory drop-shadow-[0_2px_6px_rgba(0,0,0,0.6)] lg:text-3xl">
+              share the middle band. Below sm: the centerpiece shrinks and
+              moves up to 35%, the scene callout drops to 58%, and the nowrap
+              callouts become width-capped wrapping strips hugging their
+              edges — vertical bands separate center from sides, horizontal
+              caps separate the sides from each other. */}
+          <div className="absolute left-1/2 top-[35%] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-3 text-center sm:top-1/2 sm:gap-4">
+            <p className="font-display text-xl font-bold text-ivory drop-shadow-[0_2px_6px_rgba(0,0,0,0.6)] sm:text-2xl lg:text-3xl">
               Drag to Look Around
             </p>
-            <Button onClick={dismissHints}>Got it</Button>
+            <Button onClick={dismissHints} className="scale-90 sm:scale-100">
+              Got it
+            </Button>
           </div>
 
-          <p className="absolute bottom-[48vh] left-4 whitespace-nowrap rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-xs font-semibold text-navy shadow-lg sm:left-6">
+          <p className="absolute bottom-[48vh] left-4 max-w-[38vw] rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-xs font-semibold text-navy shadow-lg sm:left-6 sm:max-w-none sm:whitespace-nowrap">
             Tap Your Guide to Switch Narrator
           </p>
 
@@ -371,11 +376,11 @@ export default function VoyageExperience() {
             </p>
           )}
 
-          <p className="absolute right-12 top-[58%] -translate-y-1/2 whitespace-nowrap rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-xs font-semibold text-navy shadow-lg sm:right-14 sm:top-1/2">
+          <p className="absolute right-12 top-[58%] max-w-[38vw] -translate-y-1/2 rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-xs font-semibold text-navy shadow-lg sm:right-14 sm:top-1/2 sm:max-w-none sm:whitespace-nowrap">
             Browse Ship&apos;s Scenes Here
           </p>
 
-          <p className="absolute bottom-24 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-xs font-semibold text-navy shadow-lg sm:bottom-28">
+          <p className="absolute bottom-24 left-1/2 max-w-[85vw] -translate-x-1/2 rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-center text-xs font-semibold text-navy shadow-lg sm:bottom-28 sm:max-w-none sm:whitespace-nowrap">
             Ask with the Mic · Read the Transcript
           </p>
         </div>
