@@ -7,7 +7,7 @@ useDefault = true
 [allowlist]
 description = "Confirmed false positives (client-side storage key names, not secrets)"
 regexes = [
-  # sessionStorage flag in frontend/src/components/VoyageExperience.tsx - the
+  # sessionStorage flag in frontend/src/components/VoyageExperience.tsx — the
   # generic-api-key rule mistakes this literal key name for a credential.
   '''empress\.voyage\.hints\.v1''',
 ]

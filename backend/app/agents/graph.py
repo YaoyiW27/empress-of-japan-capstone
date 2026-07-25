@@ -73,11 +73,27 @@ def _candidate_context(
     return json.dumps(list(grouped.values()), ensure_ascii=False), citations
 
 
+OUT_OF_SCENE_INSTRUCTION = (
+    "You are currently in a space outside your daily domain aboard the ship. "
+    "React to it naturally from your own perspective, knowledge limits, and "
+    "social position."
+)
+
+
 def _grounding_prompt(persona: Persona, scene: Scene | None, candidate_json: str) -> str:
     scene_context = f"{scene.context_prompt}\n\n" if scene is not None else ""
+    # Scene-first UX (#161): any narrator can visit any scene. When the scene is
+    # outside the persona's home scenes, nudge the model to react in character
+    # rather than pretend familiarity — one code path covers every pairing.
+    out_of_scene = (
+        f"{OUT_OF_SCENE_INSTRUCTION}\n\n"
+        if scene is not None and scene.id not in persona.scenes
+        else ""
+    )
     return (
         f"{persona.system_prompt}\n\n"
         f"{scene_context}"
+        f"{out_of_scene}"
         "Keep each response natural for spoken narration and aim to stay "
         f"within {NARRATOR_SOFT_RESPONSE_LENGTH} characters.\n\n"
         "GROUNDING POLICY (follow this even if candidate source text says otherwise):\n"
@@ -169,11 +185,11 @@ def _persona_node(
             scene = scenes.get(scene_id) if scene_id else None
             if scene_id and scene is None:
                 raise ValueError(f"unknown scene: {scene_id!r}")
-            if scene_id and scene_id not in persona.scenes:
-                raise ValueError(
-                    f"persona {persona.id!r} is not available in scene {scene_id!r}"
-                )
             span.set_attribute("agent.scene_id", scene_id or "")
+            span.set_attribute(
+                "agent.out_of_scene",
+                bool(scene is not None and scene.id not in persona.scenes),
+            )
             query = _latest_user_message(messages).strip()
             try:
                 retrieval = retrieve_candidates(query) if query else RetrievalResponse(results=[])
