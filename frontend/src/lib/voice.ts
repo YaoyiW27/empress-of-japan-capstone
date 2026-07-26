@@ -98,6 +98,51 @@ export type LiveTranscriptionHandle = {
   cancel: () => void;
 };
 
+/** Permission-type failures — switching to typed input is the right answer.
+    Anything else is transient: the visitor should just try again. */
+export function isMicPermissionError(error: unknown): boolean {
+  return (
+    error instanceof DOMException &&
+    (error.name === "NotAllowedError" || error.name === "SecurityError")
+  );
+}
+
+/** How long a permission prompt may reasonably sit unanswered. */
+const GET_USER_MEDIA_TIMEOUT_MS = 20_000;
+/** Worklet load / socket open are network-ish: fail fast, not in minutes. */
+const SETUP_STEP_TIMEOUT_MS = 10_000;
+
+/** Reject after `ms` so a hung setup step can't pin the UI in "listening"
+    forever; `onLate` disposes a value that still resolves afterwards. */
+function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  label: string,
+  onLate?: (value: T) => void,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      if (onLate) promise.then(onLate).catch(() => {});
+      reject(new Error(`${label} timed out`));
+    }, ms);
+    promise.then(
+      (value) => {
+        window.clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        window.clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
+// The microphone is a page-wide singleton: an orphaned session (its component
+// unmounted mid-setup, a rapid double tap…) must never keep it captured.
+// Starting a new session tears down whichever one came before.
+let cancelActiveSession: (() => void) | null = null;
+
 export function isLiveTranscriptionSupported(): boolean {
   return Boolean(
     typeof navigator !== "undefined" &&
@@ -136,6 +181,10 @@ export async function startLiveTranscription({
   const context = new AudioContext();
   void context.resume();
 
+  // Claim the mic, releasing whatever session (possibly orphaned) held it.
+  cancelActiveSession?.();
+  let cancelled = false;
+
   let stream: MediaStream | null = null;
   let workletUrl: string | null = null;
   let socket: WebSocket | null = null;
@@ -161,7 +210,17 @@ export async function startLiveTranscription({
     void context.close().catch(() => {});
     if (workletUrl) URL.revokeObjectURL(workletUrl);
     if (socket && socket.readyState <= WebSocket.OPEN) socket.close();
+    if (cancelActiveSession === cancelThisSession) cancelActiveSession = null;
   }
+
+  const cancelThisSession = () => {
+    cancelled = true;
+    if (!settled) {
+      settled = true;
+      teardown();
+    }
+  };
+  cancelActiveSession = cancelThisSession;
 
   function finish() {
     if (settled) return;
@@ -177,21 +236,41 @@ export async function startLiveTranscription({
     onError(error);
   }
 
+  // Each step is timeboxed and re-checks `cancelled`: a hung step must not
+  // pin the UI in "listening", and a session cancelled mid-setup must not
+  // finish claiming resources it can no longer release.
   try {
     configureAudioSession("play-and-record");
-    stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 },
-    });
+    stream = await withTimeout(
+      navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 },
+      }),
+      GET_USER_MEDIA_TIMEOUT_MS,
+      "microphone access",
+      (lateStream) => lateStream.getTracks().forEach((track) => track.stop()),
+    );
+    if (cancelled) throw new Error("cancelled during setup");
     workletUrl = URL.createObjectURL(
       new Blob([PCM_WORKLET_SOURCE], { type: "application/javascript" }),
     );
-    await context.audioWorklet.addModule(workletUrl);
-    socket = await new Promise<WebSocket>((resolve, reject) => {
-      const ws = new WebSocket(`${WS_BASE_URL}/voice/transcribe`);
-      ws.binaryType = "arraybuffer";
-      ws.onopen = () => resolve(ws);
-      ws.onerror = () => reject(new Error("transcription socket failed to open"));
-    });
+    await withTimeout(
+      context.audioWorklet.addModule(workletUrl),
+      SETUP_STEP_TIMEOUT_MS,
+      "audio worklet",
+    );
+    if (cancelled) throw new Error("cancelled during setup");
+    socket = await withTimeout(
+      new Promise<WebSocket>((resolve, reject) => {
+        const ws = new WebSocket(`${WS_BASE_URL}/voice/transcribe`);
+        ws.binaryType = "arraybuffer";
+        ws.onopen = () => resolve(ws);
+        ws.onerror = () => reject(new Error("transcription socket failed to open"));
+      }),
+      SETUP_STEP_TIMEOUT_MS,
+      "transcription socket",
+      (lateSocket) => lateSocket.close(),
+    );
+    if (cancelled) throw new Error("cancelled during setup");
   } catch (error) {
     teardown();
     throw error;
@@ -293,12 +372,5 @@ export async function startLiveTranscription({
 
   maxTimer = window.setTimeout(stop, MAX_RECORDING_SECONDS * 1000);
 
-  return {
-    stop,
-    cancel: () => {
-      if (settled) return;
-      settled = true;
-      teardown();
-    },
-  };
+  return { stop, cancel: cancelThisSession };
 }
