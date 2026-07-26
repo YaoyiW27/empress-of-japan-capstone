@@ -189,6 +189,35 @@ class PollyS3VoiceSynthesizer:
         return SynthesisResult(audio_url=url, cached=cached, expires_in=self.expires_in)
 
 
+class _Boto3CredentialResolver:
+    """Feed amazon-transcribe the credentials botocore already resolves.
+
+    The SDK's default AwsCrtCredentialResolver does not source ECS task-role
+    (or local SSO) credentials the way botocore does — it falls through to the
+    EC2 IMDS provider and fails, so streaming dies with an IMDS lookup error
+    even though the boto3-backed Polly/S3 clients in this module work fine.
+    Bridge botocore's session here; it is re-frozen per stream start, so
+    refreshable SSO/role credentials stay current. Duck-typed on purpose so
+    amazon_transcribe stays a lazy import.
+    """
+
+    def __init__(self, session: boto3.Session) -> None:
+        self._session = session
+
+    async def get_credentials(self):
+        from amazon_transcribe.auth import Credentials
+
+        botocore_creds = self._session.get_credentials()
+        if botocore_creds is None:
+            return None
+        frozen = await asyncio.to_thread(botocore_creds.get_frozen_credentials)
+        return Credentials(
+            access_key_id=frozen.access_key,
+            secret_access_key=frozen.secret_key,
+            session_token=frozen.token,
+        )
+
+
 class AmazonTranscribeAdapter:
     def __init__(
         self,
@@ -200,13 +229,17 @@ class AmazonTranscribeAdapter:
         self.language_code = language_code
         self.region = region
         self.sample_rate_hz = sample_rate_hz
+        self._session = boto3.Session(region_name=region)
 
     async def transcribe(self, chunks: AsyncIterator[bytes]) -> AsyncIterator[TranscriptMessage]:
         from amazon_transcribe.client import TranscribeStreamingClient
         from amazon_transcribe.handlers import TranscriptResultStreamHandler
         from amazon_transcribe.model import TranscriptEvent
 
-        client = TranscribeStreamingClient(region=self.region)
+        client = TranscribeStreamingClient(
+            region=self.region,
+            credential_resolver=_Boto3CredentialResolver(self._session),
+        )
         stream = await client.start_stream_transcription(
             language_code=self.language_code,
             media_sample_rate_hz=self.sample_rate_hz,
