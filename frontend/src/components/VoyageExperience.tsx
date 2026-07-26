@@ -11,6 +11,7 @@ import NarratorOverlay, {
 import NarratorButton, {
   type NarratorId as NarratorButtonId,
 } from "@/components/ui/NarratorButton";
+import SceneButton from "./ui/SceneButton";
 import { Button, CircleBackLink } from "@/components/ui/Button";
 import { narrators, scenes } from "@/lib/scenes";
 
@@ -304,41 +305,21 @@ export default function VoyageExperience() {
           </span>
         </button>
         <div className="pointer-events-auto h-full w-56 overflow-y-auto border-l border-brass/40 bg-card/95 p-3 shadow-xl backdrop-blur-sm lg:w-64">
-          <div className="flex flex-col gap-2">
-            {scenes.map((candidate) => {
-              const active = candidate.id === sceneId;
-              return (
-                <button
-                  key={candidate.id}
-                  type="button"
-                  onClick={() => setSceneId(candidate.id)}
-                  aria-current={active}
-                  className={`flex w-full items-center gap-2.5 rounded-md border p-1.5 text-left shadow-sm transition-colors ${
-                    active
-                      ? "border-brass bg-navy"
-                      : "border-brass/40 bg-ivory hover:border-brass"
-                  }`}
-                >
-                  <span className="relative block h-11 w-16 shrink-0 overflow-hidden rounded-sm border border-brass/30">
-                    <Image
-                      src={candidate.photoSrc}
-                      alt={candidate.title}
-                      fill
-                      sizes="64px"
-                      className="object-cover"
-                    />
-                  </span>
-                  <span
-                    className={`font-display text-sm font-semibold ${
-                      active ? "text-ivory" : "text-navy"
-                    }`}
-                  >
-                    {candidate.title}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+        <div className="flex flex-col items-center gap-2">
+          {scenes.map((candidate) => {
+            const active = candidate.id === sceneId;
+
+            return (
+              <SceneButton
+                key={candidate.id}
+                scene={candidate}
+                selected={active}
+                variant="overview"
+                onClick={() => setSceneId(candidate.id)}
+              />
+            );
+          })}
+        </div>
         </div>
       </div>
 

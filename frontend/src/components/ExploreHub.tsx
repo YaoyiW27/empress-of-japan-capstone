@@ -1,10 +1,10 @@
 "use client";
 
 import { useRef, useState } from "react";
-import Image from "next/image";
 import NarratorButton, {
   type NarratorId as NarratorButtonId,
 } from "@/components/ui/NarratorButton";
+import SceneButton from "@/components/ui/SceneButton";
 import Scene from "@/components/three/Scene";
 import { narrators, scenes } from "@/lib/scenes";
 import { Button, ButtonLink, CircleBackLink } from "@/components/ui/Button";
@@ -137,36 +137,13 @@ export default function ExploreHub() {
               {scenes.map((scene) => {
                 const active = scene.id === sceneId;
                 return (
-                  <li key={scene.id}>
-                    <button
-                      type="button"
+                  <li key={scene.id} className="flex justify-center">
+                    <SceneButton
+                      scene={scene}
+                      selected={active}
+                      variant="overview"
                       onClick={() => setSceneId(scene.id)}
-                      aria-pressed={active}
-                      className={`group flex w-full items-center gap-3 rounded-md border p-2 text-left shadow-sm transition-all lg:gap-4 lg:p-2.5 ${
-                        active
-                          ? "border-brass bg-navy"
-                          : "border-brass/40 bg-ivory hover:-translate-y-0.5 hover:border-brass hover:shadow-md"
-                      }`}
-                    >
-                      <span className="relative block h-11 w-20 shrink-0 overflow-hidden rounded-sm border border-brass/30 lg:h-14 lg:w-24">
-                        <Image
-                          src={scene.photoSrc}
-                          alt={scene.title}
-                          fill
-                          sizes="96px"
-                          className="object-cover"
-                        />
-                      </span>
-                      <span
-                        className={`font-display text-base font-semibold transition-colors lg:text-xl ${
-                          active
-                            ? "text-ivory"
-                            : "text-navy group-hover:text-brass"
-                        }`}
-                      >
-                        {scene.title}
-                      </span>
-                    </button>
+                    />
                   </li>
                 );
               })}
