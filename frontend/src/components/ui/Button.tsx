@@ -11,7 +11,7 @@ export type ButtonVariant = "primary" | "ghost";
  */
 const styles: Record<ButtonVariant, string> = {
   primary:
-  "box-border inline-flex h-11 w-48 shrink-0 items-center justify-center gap-2 rounded-lg border-2 border-ivory bg-vermilion px-4 text-ui-interaction text-ivory shadow-sm transition-[filter,background-color] hover:brightness-95 disabled:cursor-not-allowed disabled:bg-navy-faint disabled:text-ivory disabled:opacity-100 disabled:hover:brightness-100",
+  "box-border inline-flex h-11 w-48 shrink-0 items-center justify-center gap-2 rounded-lg border-2 border-ivory bg-navy px-4 text-ui-interaction text-ivory shadow-sm transition-[filter,background-color] hover:brightness-95 disabled:cursor-not-allowed disabled:bg-navy-faint disabled:text-ivory disabled:opacity-100 disabled:hover:brightness-100",
   ghost:
     "inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-navy/80 transition-colors hover:text-vermilion disabled:cursor-not-allowed disabled:opacity-50",
 };
