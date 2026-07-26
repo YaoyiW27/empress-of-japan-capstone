@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 
 export type ButtonVariant = "primary" | "ghost";
@@ -90,22 +91,15 @@ export function CircleBackLink({
     <Link
       href={href}
       aria-label={label}
-      title={label}
-      className={`flex h-11 w-11 items-center justify-center rounded-full border border-brass/40 bg-card/90 text-navy shadow-md backdrop-blur-sm transition-colors hover:border-brass ${className}`}
+      className={`ui-nav-button ${className}`}
     >
-      <svg
+      <Image
+        src="/icons/back-button.svg"
+        alt=""
+        width={44}
+        height={44}
         aria-hidden="true"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="h-5 w-5"
-      >
-        <path d="M19 12H5" />
-        <path d="M12 19l-7-7 7-7" />
-      </svg>
+      />
     </Link>
   );
 }
