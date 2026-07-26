@@ -129,7 +129,7 @@ export default function ExploreHub() {
 
         {/* Right: every scene, scrollable; pick one and start the voyage */}
         <aside className="flex w-64 shrink-0 flex-col lg:w-[24rem]">
-          <div className="flex min-h-0 flex-1 flex-col rounded-lg border border-brass/40 bg-card p-4 shadow-sm ring-1 ring-brass/10 lg:p-6">
+        <div className="flex min-h-0 flex-1 flex-col rounded-lg border border-brass/40 bg-transparent p-4 shadow-sm ring-1 ring-brass/10 lg:p-6">
             <p className="shrink-0 text-xs font-semibold uppercase tracking-[0.22em] text-brass lg:text-base">
               Scenes
             </p>
