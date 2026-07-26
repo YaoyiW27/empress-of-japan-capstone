@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CircleBackLink } from "@/components/ui/Button";
+import SceneButton from "@/components/ui/SceneButton";
 import { getNarrator, getScene, narrators, type Scene } from "@/lib/scenes";
 
 type RouteParams = { narratorId: string };
@@ -92,15 +92,17 @@ export default async function NarratorBioPage({
           {narrator.bio}
         </p>
 
-        <ul className="mt-1 grid max-w-2xl grid-cols-2 gap-3 lg:mt-2 lg:gap-4">
+        {/* Same SceneButton as the hub rail / voyage drawer, in link form —
+            picking one lands on the hub with narrator + scene preselected. */}
+        <ul className="mt-1 grid max-w-md grid-cols-2 gap-3 lg:mt-2 lg:gap-4">
           {featuredScenes.map((scene) => (
             <li key={scene.id}>
-              <Link
+              <SceneButton
+                scene={scene}
+                selected={false}
+                variant="overview"
                 href={`/explore?narrator=${narrator.id}&scene=${scene.id}`}
-                className="flex h-11 items-center justify-center rounded-xl border-2 border-ivory/90 bg-gradient-to-b from-card to-brass-soft px-3 text-center text-sm font-bold tracking-wide text-brass shadow-[0_2px_10px_rgb(from_var(--color-navy)_r_g_b_/_45%)] transition-[transform,filter] duration-200 hover:scale-[1.03] hover:brightness-105 lg:h-14 lg:text-lg"
-              >
-                {scene.title}
-              </Link>
+              />
             </li>
           ))}
         </ul>

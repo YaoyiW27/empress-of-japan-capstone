@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import NarratorButton, {
@@ -42,6 +42,23 @@ export default function ExploreHub() {
     const requested = searchParams.get("scene");
     return requested && getScene(requested) ? requested : null;
   });
+  const sceneListRef = useRef<HTMLUListElement | null>(null);
+
+  // Scenes can be selected from outside the rail (a ship dot, or the bio
+  // page's ?scene=) while the rail is scrolled elsewhere — bring the
+  // selected entry into view so the change is visible.
+  useEffect(() => {
+    if (!sceneId) return;
+    const item = sceneListRef.current?.querySelector(
+      `[data-scene-id="${CSS.escape(sceneId)}"]`,
+    );
+    item?.scrollIntoView({
+      block: "nearest",
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "auto"
+        : "smooth",
+    });
+  }, [sceneId]);
 
   return (
     <main className="explore-hub relative flex h-dvh w-full flex-col overflow-x-hidden overflow-y-auto bg-ivory px-4 py-3 lg:px-8 lg:py-6">
@@ -122,12 +139,19 @@ export default function ExploreHub() {
               Scenes
             </p>
 
-            <ul className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto p-1">
+            <ul
+              ref={sceneListRef}
+              className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto p-1"
+            >
               {scenes.map((scene) => {
                 const active = scene.id === sceneId;
 
                 return (
-                  <li key={scene.id} className="flex justify-center">
+                  <li
+                    key={scene.id}
+                    data-scene-id={scene.id}
+                    className="flex justify-center"
+                  >
                     <SceneButton
                       scene={scene}
                       selected={active}
