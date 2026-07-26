@@ -45,6 +45,34 @@ export async function synthesizeNarratorVoice({
 // Transcribe, which answers with partial and final transcript messages.
 // ---------------------------------------------------------------------------
 
+declare global {
+  interface Navigator {
+    /** WebKit Audio Session API (iOS 17+). */
+    audioSession?: {
+      type:
+        | "auto"
+        | "playback"
+        | "transient"
+        | "transient-solo"
+        | "ambient"
+        | "play-and-record";
+    };
+  }
+}
+
+/**
+ * Steer iOS audio routing. While a page captures the mic, iOS flips the
+ * session to play-and-record, which sends playback to the earpiece at phone-
+ * call volume — and it can stay there after capture ends. Set "play-and-
+ * record" before capturing and "playback" before speaking to force the
+ * loudspeaker. No-op where the API is missing (iOS 16-, other browsers).
+ */
+export function configureAudioSession(type: "playback" | "play-and-record") {
+  if (navigator.audioSession) {
+    navigator.audioSession.type = type;
+  }
+}
+
 const TRANSCRIBE_SAMPLE_RATE_HZ = 16_000;
 /** The server cuts recordings at 15 s; stop just under for a clean final. */
 const MAX_RECORDING_SECONDS = 14;
@@ -94,8 +122,13 @@ export async function startLiveTranscription({
 }: {
   /** Progressive updates while speaking (partials included). */
   onTranscript?: (transcript: string, isFinal: boolean) => void;
-  /** Recording finished: everything heard, or null for silence. */
-  onDone: (transcript: string | null) => void;
+  /**
+   * Recording finished: everything heard, or null for silence. heardAudio
+   * distinguishes "spoke but unintelligible" from a dead mic track — iOS
+   * hands Chrome an all-zeros track (no prompt!) when the OS-level mic
+   * permission for the browser app was denied earlier.
+   */
+  onDone: (transcript: string | null, info: { heardAudio: boolean }) => void;
   /** Unrecoverable failure after recording started. */
   onError: (error: unknown) => void;
 }): Promise<LiveTranscriptionHandle> {
@@ -115,6 +148,8 @@ export async function startLiveTranscription({
   // still-moving partial, so multi-sentence questions survive intact.
   const finalizedParts: string[] = [];
   let currentPartial = "";
+  // A blocked mic delivers pure zeros; any real room tops this instantly.
+  let peakLevel = 0;
   const heardSoFar = () =>
     [...finalizedParts, currentPartial].filter(Boolean).join(" ").trim() ||
     null;
@@ -132,7 +167,7 @@ export async function startLiveTranscription({
     if (settled) return;
     settled = true;
     teardown();
-    onDone(heardSoFar());
+    onDone(heardSoFar(), { heardAudio: peakLevel > 0.001 });
   }
 
   function fail(error: unknown) {
@@ -143,6 +178,7 @@ export async function startLiveTranscription({
   }
 
   try {
+    configureAudioSession("play-and-record");
     stream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 },
     });
@@ -221,6 +257,10 @@ export async function startLiveTranscription({
   forwarder.port.onmessage = (event) => {
     if (settled || stopping) return;
     const chunk = event.data as Float32Array;
+    for (let i = 0; i < chunk.length; i++) {
+      const amplitude = Math.abs(chunk[i]);
+      if (amplitude > peakLevel) peakLevel = amplitude;
+    }
     const merged = new Float32Array(pendingSamples.length + chunk.length);
     merged.set(pendingSamples);
     merged.set(chunk, pendingSamples.length);

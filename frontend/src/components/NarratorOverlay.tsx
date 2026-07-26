@@ -14,6 +14,7 @@ import {
   type ChatHistoryTurn,
 } from "@/lib/chat";
 import {
+  configureAudioSession,
   isLiveTranscriptionSupported,
   startLiveTranscription,
   synthesizeNarratorVoice,
@@ -29,7 +30,7 @@ type SpeechRecognition = {
   start: () => void;
   stop: () => void;
   onresult: ((event: SpeechRecognitionEvent) => void) | null;
-  onerror: (() => void) | null;
+  onerror: ((event: { error?: string }) => void) | null;
   onend: (() => void) | null;
 };
 
@@ -108,9 +109,10 @@ export default function NarratorOverlay({
   const [isListening, setIsListening] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [draft, setDraft] = useState("");
-  // Downgrade to typed input if recording breaks mid-session (permission
-  // denied, socket refused…) so the visitor is never stuck with a dead mic.
-  const [recorderFailed, setRecorderFailed] = useState(false);
+  // Downgrade to typed input when the mic turns out to be unusable
+  // (permission denied at the browser or OS level, dead audio, socket
+  // failure…) so the visitor is never stuck with a mic that can't work.
+  const [micBlocked, setMicBlocked] = useState(false);
   // The server snapshot assumes "native" so the first paint matches the SSR
   // mic button; the real mode replaces it right after hydration.
   const detectedVoiceMode = useSyncExternalStore(
@@ -118,10 +120,7 @@ export default function NarratorOverlay({
     readVoiceInputMode,
     () => "native" as const,
   );
-  const voiceMode: VoiceInputMode =
-    detectedVoiceMode === "recorder" && recorderFailed
-      ? "text"
-      : detectedVoiceMode;
+  const voiceMode: VoiceInputMode = micBlocked ? "text" : detectedVoiceMode;
   const isMountedRef = useRef(true);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const liveTranscriptionRef = useRef<LiveTranscriptionHandle | null>(null);
@@ -161,6 +160,7 @@ export default function NarratorOverlay({
 
   function speakWithBrowserFallback(text: string) {
     if (!("speechSynthesis" in window)) return;
+    configureAudioSession("playback");
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
   }
@@ -176,6 +176,9 @@ export default function NarratorOverlay({
         text,
       });
       if (!isMountedRef.current) return;
+      // Mic capture flips the iOS session to earpiece routing; put it back on
+      // the loudspeaker before the narrator speaks.
+      configureAudioSession("playback");
       // Reuse the element unlocked in unlockAudioOutput — the tap is seconds
       // in the past by now, and iOS blocks play() on any element that was not
       // unlocked inside a user gesture.
@@ -237,6 +240,7 @@ export default function NarratorOverlay({
 
   function startListening() {
     unlockAudioOutput();
+    configureAudioSession("play-and-record");
     const Recognition =
       window.SpeechRecognition ?? window.webkitSpeechRecognition;
 
@@ -255,9 +259,21 @@ export default function NarratorOverlay({
       void submitMessage(event.results[0][0].transcript);
     };
 
-    recognition.onerror = () => {
+    recognition.onerror = (event) => {
       setIsListening(false);
-      setNotice("Sorry, I could not hear that clearly.");
+      if (
+        event.error === "not-allowed" ||
+        event.error === "service-not-allowed" ||
+        event.error === "audio-capture"
+      ) {
+        // Includes iOS Safari with Siri & Dictation disabled in Settings.
+        setMicBlocked(true);
+        setNotice(
+          "Microphone access is blocked on this phone — check the browser's microphone permission (and Dictation on iPhone) in Settings. You can type your question below instead.",
+        );
+      } else {
+        setNotice("Sorry, I could not hear that clearly — please try again.");
+      }
       setOpen(true);
     };
 
@@ -267,11 +283,16 @@ export default function NarratorOverlay({
     recognition.start();
   }
 
-  function failRecording() {
+  function failRecording(error: unknown) {
     setIsListening(false);
     liveTranscriptionRef.current = null;
-    setRecorderFailed(true);
-    setNotice("Could not access the microphone — type your question instead.");
+    setMicBlocked(true);
+    const name = error instanceof DOMException ? error.name : "";
+    setNotice(
+      name === "NotAllowedError" || name === "SecurityError"
+        ? "Microphone access was denied — allow it for this browser in your phone's Settings. You can type your question below instead."
+        : "Could not access the microphone — type your question below instead.",
+    );
     setOpen(true);
   }
 
@@ -282,27 +303,36 @@ export default function NarratorOverlay({
     setIsListening(true);
     try {
       liveTranscriptionRef.current = await startLiveTranscription({
-        onDone: (transcript) => {
+        onDone: (transcript, { heardAudio }) => {
           if (!isMountedRef.current) return;
           setIsListening(false);
           liveTranscriptionRef.current = null;
           if (transcript) {
             void submitMessage(transcript);
+          } else if (!heardAudio) {
+            // iOS hands the browser an all-zeros track — with no prompt —
+            // when the OS-level mic permission was denied earlier. Point at
+            // Settings and switch to typing.
+            setMicBlocked(true);
+            setNotice(
+              "I couldn't hear anything — this phone may be blocking the microphone for this browser. Check the browser's microphone permission in Settings, or type your question below.",
+            );
+            setOpen(true);
           } else {
-            setNotice("Sorry, I could not hear that clearly.");
+            setNotice("Sorry, I didn't catch that — please try again.");
             setOpen(true);
           }
         },
         onError: (error) => {
           if (!isMountedRef.current) return;
           console.error("live transcription failed", error);
-          failRecording();
+          failRecording(error);
         },
       });
     } catch (error) {
       if (!isMountedRef.current) return;
       console.error("live transcription failed to start", error);
-      failRecording();
+      failRecording(error);
     }
   }
 
