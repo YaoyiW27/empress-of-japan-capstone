@@ -15,6 +15,7 @@ export type SceneNarratorState =
   | "default"
   | "recommended"
   | "selected"
+  | "notSelected"
   | "listening"
   | "thinking"
   | "speaking"
@@ -51,39 +52,10 @@ const narratorNames: Record<NarratorId, string> = {
   ming: "Ming",
 };
 
-const narratorIcons: Record<
-  NarratorId,
-  Record<NarratorButtonState, string>
-> = {
-  sinclair: {
-    default: "/narrators/sinclair/narrator_default.svg",
-    recommended: "/narrators/sinclair/narrator_Primary.svg",
-    selected: "/narrators/sinclair/narrator_selected.svg",
-    listening: "/narrators/sinclair/narrator_listening.svg",
-    thinking: "/narrators/sinclair/narrator_thinking.svg",
-    speaking: "/narrators/sinclair/narrator_speaking.svg",
-    disabled: "/narrators/sinclair/narrator_disabled.svg",
-  },
-
-  whitmore: {
-    default: "/narrators/whitmore/narrator_default.svg",
-    recommended: "/narrators/whitmore/narrator_Primary.svg",
-    selected: "/narrators/whitmore/narrator_selected.svg",
-    listening: "/narrators/whitmore/narrator_listening.svg",
-    thinking: "/narrators/whitmore/narrator_thinking.svg",
-    speaking: "/narrators/whitmore/narrator_speaking.svg",
-    disabled: "/narrators/whitmore/narrator_disabled.svg",
-  },
-
-  ming: {
-    default: "/narrators/ming/narrator_default.svg",
-    recommended: "/narrators/ming/narrator_Primary.svg",
-    selected: "/narrators/ming/narrator_selected.svg",
-    listening: "/narrators/ming/narrator_listening.svg",
-    thinking: "/narrators/ming/narrator_thinking.svg",
-    speaking: "/narrators/ming/narrator_speaking.svg",
-    disabled: "/narrators/ming/narrator_disabled.svg",
-  },
+const narratorIcons: Record<NarratorId, string> = {
+  sinclair: "/narrators/sinclair/narrator_default.svg",
+  whitmore: "/narrators/whitmore/narrator_default.svg",
+  ming: "/narrators/ming/narrator_default.svg",
 };
 
 function joinClasses(
@@ -101,7 +73,7 @@ export default function NarratorButton({
   onClick,
 }: NarratorButtonProps) {
   const disabled = state === "disabled";
-  const iconSrc = narratorIcons[narrator][state];
+  const iconSrc = narratorIcons[narrator];
   const narratorName = narratorNames[narrator];
 
   function getAccessibleLabel() {
@@ -151,8 +123,7 @@ export default function NarratorButton({
       data-narrator={narrator}
       onClick={onClick}
       className={joinClasses(
-        "relative h-32 w-46 shrink-0 select-none border-0 bg-transparent p-0",
-        variant === "hub" && "h-20 w-20",
+        "narrator-button",
         className,
       )}
     >
@@ -160,34 +131,29 @@ export default function NarratorButton({
         src={iconSrc}
         alt=""
         draggable={false}
-        className={joinClasses(
-          "pointer-events-none absolute block max-w-none",
-
-          variant === "hub" &&
-            "left-0 top-0 h-20 w-20",
-
-          variant === "scene" &&
-            (
-              state === "default" ||
-              state === "recommended" ||
-              state === "selected" ||
-              state === "disabled"
-            ) &&
-            "left-6 top-6 h-20 w-20",
-
-          variant === "scene" &&
-            (
-              state === "listening" ||
-              state === "thinking"
-            ) &&
-            "left-0 top-0 h-32 w-32",
-
-          variant === "scene" &&
-            state === "speaking" &&
-            "left-0 top-0 h-32 w-46",
-        )}
+        className="narrator-button__portrait"
       />
-
+  
+      {state === "speaking" && (
+        <span
+          className="narrator-button__speaking-icon"
+          aria-hidden="true"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M11 5 6 9H2v6h4l5 4V5Z" />
+            <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+            <path d="M18 6a8.5 8.5 0 0 1 0 12" />
+          </svg>
+        </span>
+      )}
+  
       <span className="sr-only">
         {narratorName}
       </span>

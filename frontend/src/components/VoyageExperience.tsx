@@ -231,7 +231,7 @@ export default function VoyageExperience() {
               key={candidate.id}
               narrator={narratorButtonIds[candidate.id]}
               variant="scene"
-              state={active ? "selected" : "default"}
+              state={active ? "selected" : "notSelected"}
               onClick={() => setNarratorId(candidate.id)}
               label={`${candidate.name}, ${candidate.role}${
                 active ? ", selected" : ""

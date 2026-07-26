@@ -180,6 +180,143 @@ body {
   color: var(--color-vermilion-faint);
 }
 
+/* ---------- Narrator button ---------- */
+
+.narrator-button {
+  --narrator-shadow: var(--narrator-shadow);
+  --narrator-frame: transparent;
+
+  position: relative;
+  display: block;
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  flex-shrink: 0;
+
+  overflow: visible;
+
+  border: 0;
+  border-radius: 9999px;
+  outline: 4px solid var(--narrator-frame);
+  outline-offset: 0;
+
+  background: transparent;
+  cursor: pointer;
+}
+
+.narrator-button__portrait {
+  display: block;
+  width: 64px;
+  height: 64px;
+
+  filter: drop-shadow(
+    0 0 12px var(--narrator-shadow)
+  );
+
+  transition:
+    filter 200ms ease,
+    opacity 200ms ease;
+}
+
+/* Default: Dark V2 shadow */
+
+.narrator-button[data-state="default"] {
+  --narrator-shadow: var(--color-navy-soft);
+}
+
+/* Recommended: Red V2 shadow */
+
+.narrator-button[data-state="recommended"] {
+  --narrator-shadow: var(--color-vermilion-faint);
+}
+
+/* Selected: Dark V2 shadow and 4px Gold frame */
+
+.narrator-button[data-state="selected"] {
+  --narrator-shadow: var(--color-navy-soft);
+  --narrator-frame: var(--color-brass);
+}
+
+/* Listening: Light AI shadow and 4px Gold V frame */
+
+.narrator-button[data-state="listening"] {
+  --narrator-shadow: var(--color-ai);
+  --narrator-frame: var(--color-brass-soft);
+}
+
+/* Speaking: same treatment as listening */
+
+.narrator-button[data-state="speaking"] {
+  --narrator-shadow: var(--color-ai);
+  --narrator-frame: var(--color-brass-soft);
+}
+
+.narrator-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+/* Not selected: default appearance at 50% opacity */
+
+.narrator-button[data-state="notSelected"] {
+  --narrator-shadow: var(--color-navy-faint);
+  opacity: 0.5;
+}
+
+.narrator-button[data-state="notSelected"]:hover {
+  opacity: 1;
+}
+/* Speaking icon layered over the portrait */
+
+.narrator-button__speaking-icon {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 1;
+
+  display: flex;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 9999px;
+  background: var(--color-navy);
+  color: var(--color-ai);
+
+  box-shadow:
+    0 0 12px rgb(from var(--color-ai) r g b / 80%);
+
+  transform: translate(-50%, -50%);
+  animation: narrator-speaking-blink 1s ease-in-out infinite;
+}
+
+.narrator-button__speaking-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+@keyframes narrator-speaking-blink {
+  0%,
+  45% {
+    opacity: 1;
+  }
+
+  50%,
+  95% {
+    opacity: 0.25;
+  }
+
+  100% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .narrator-button__speaking-icon {
+    animation: none;
+  }
+}
+
 /* ---------- Typography ---------- */
 .text-ig-header {
   font-family: var(--font-display);
