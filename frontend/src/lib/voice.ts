@@ -153,6 +153,20 @@ export function isLiveTranscriptionSupported(): boolean {
 }
 
 /**
+ * True on any iOS/iPadOS device, regardless of browser. Every iOS browser is
+ * WebKit under the hood, so they all inherit the same webkitSpeechRecognition
+ * that only captures once per page load and leaves playback stuck on the
+ * earpiece — see readVoiceInputMode, which routes iOS to recorder mode instead.
+ */
+export function isIOS(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  if (/iPad|iPhone|iPod/.test(ua)) return true;
+  // iPadOS 13+ reports as "Macintosh"; a touch-capable Mac is really an iPad.
+  return ua.includes("Macintosh") && navigator.maxTouchPoints > 1;
+}
+
+/**
  * Record the microphone and stream it to the transcription WebSocket.
  *
  * Call synchronously from a tap handler: the AudioContext is created before
