@@ -22,8 +22,8 @@ export default function SceneButton({
         ? "border-brass bg-brass text-ivory"
         : "border-ivory bg-ivory text-brass"
       : selected
-        ? "border-ai bg-ai-soft text-ai-bg"
-        : "border-ai-soft bg-ai-bg/50 text-ai-soft";
+        ? "border-ai bg-ai-soft/50 text-ai-bg"
+        : "border-neutral bg-ai-bg/50 text-ai/75";
 
   return (
     <button
