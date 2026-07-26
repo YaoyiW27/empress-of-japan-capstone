@@ -21,6 +21,12 @@ resource "aws_cloudfront_distribution" "backend_api" {
   is_ipv6_enabled = true
   comment         = "HTTPS and WebSocket entry point for the Empress backend API"
   price_class     = "PriceClass_100"
+  # WebSocket upgrades only succeed over HTTP/1.1: the /voice/transcribe
+  # handshake returns 101 over h1.1 but is proxied unupgraded (origin 404s)
+  # over h2. Chrome/Firefox silently downgrade for WS; iOS Safari does not, so
+  # it fails with "network connection was lost". Pin the distribution to h1.1
+  # so every viewer's WS reaches FastAPI. Regular API calls still work here.
+  http_version = "http1.1"
 
   origin {
     domain_name = aws_lb.backend.dns_name
