@@ -53,9 +53,9 @@ const narratorNames: Record<NarratorId, string> = {
 };
 
 const narratorIcons: Record<NarratorId, string> = {
-  sinclair: "/narrators/sinclair/narrator_default.svg",
-  whitmore: "/narrators/whitmore/narrator_default.svg",
-  ming: "/narrators/ming/narrator_default.svg",
+  sinclair: "/narrators/sinclair/narrator_default.png",
+  whitmore: "/narrators/whitmore/narrator_default.png",
+  ming: "/narrators/ming/narrator_default.png",
 };
 
 function joinClasses(
