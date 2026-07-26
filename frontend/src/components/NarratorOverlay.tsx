@@ -330,7 +330,6 @@ export default function NarratorOverlay({
       } else {
         handleNativeSpeechMiss();
       }
-      setOpen(true);
     };
 
     recognition.onend = () => {
@@ -338,7 +337,6 @@ export default function NarratorOverlay({
       setIsListening(false);
       if (!heardResult && !sawError) {
         handleNativeSpeechMiss();
-        setOpen(true);
       }
     };
 
@@ -356,6 +354,7 @@ export default function NarratorOverlay({
     setNotice(
       "Voice recognition is not working reliably on this phone. You can type your question below instead.",
     );
+    setOpen(true);
   }
 
   function failRecording(error: unknown) {
