@@ -16,6 +16,7 @@ import {
 import {
   configureAudioSession,
   isLiveTranscriptionSupported,
+  isMicPermissionError,
   startLiveTranscription,
   synthesizeNarratorVoice,
   type LiveTranscriptionHandle,
@@ -29,6 +30,7 @@ type SpeechRecognition = {
   maxAlternatives: number;
   start: () => void;
   stop: () => void;
+  abort: () => void;
   onresult: ((event: SpeechRecognitionEvent) => void) | null;
   onerror: ((event: { error?: string }) => void) | null;
   onend: (() => void) | null;
@@ -79,6 +81,29 @@ function subscribeToNothing() {
   return () => {};
 }
 
+// Module scope on purpose: NarratorOverlay remounts on narrator switch
+// (key={narrator.id}), and a recognizer left running by the old instance
+// keeps the microphone captured — Safari then refuses the next one until the
+// page reloads. Whoever starts a recognizer must be able to kill its
+// predecessor.
+let activeRecognition: SpeechRecognition | null = null;
+
+function disposeActiveRecognition() {
+  const recognition = activeRecognition;
+  if (!recognition) return;
+  activeRecognition = null;
+  // Null the handlers first so aborting doesn't fire a stale instance's
+  // error/submit callbacks.
+  recognition.onresult = null;
+  recognition.onerror = null;
+  recognition.onend = null;
+  try {
+    recognition.abort();
+  } catch {
+    // Already stopped.
+  }
+}
+
 /**
  * How this browser can capture a question, best first:
  * - native: the built-in Web Speech API (iOS Safari, Android Chrome).
@@ -124,6 +149,10 @@ export default function NarratorOverlay({
   const isMountedRef = useRef(true);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const liveTranscriptionRef = useRef<LiveTranscriptionHandle | null>(null);
+  // Synchronous re-entry guard: liveTranscriptionRef is only assigned after
+  // the async setup resolves, so taps during setup must be fenced separately
+  // or they spawn concurrent sessions fighting over the microphone.
+  const startingRecordingRef = useRef(false);
   const historyEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -136,6 +165,9 @@ export default function NarratorOverlay({
       isMountedRef.current = false;
       audioRef.current?.pause();
       liveTranscriptionRef.current?.cancel();
+      // The old instance's recognizer would otherwise hold the mic across a
+      // narrator switch and starve the next one.
+      disposeActiveRecognition();
     };
   }, []);
 
@@ -240,6 +272,7 @@ export default function NarratorOverlay({
 
   function startListening() {
     unlockAudioOutput();
+    disposeActiveRecognition();
     configureAudioSession("play-and-record");
     const Recognition =
       window.SpeechRecognition ?? window.webkitSpeechRecognition;
@@ -263,22 +296,28 @@ export default function NarratorOverlay({
       setIsListening(false);
       if (
         event.error === "not-allowed" ||
-        event.error === "service-not-allowed" ||
-        event.error === "audio-capture"
+        event.error === "service-not-allowed"
       ) {
         // Includes iOS Safari with Siri & Dictation disabled in Settings.
         setMicBlocked(true);
         setNotice(
           "Microphone access is blocked on this phone — check the browser's microphone permission (and Dictation on iPhone) in Settings. You can type your question below instead.",
         );
+      } else if (event.error === "audio-capture") {
+        // Usually transient (the mic was still held by something else).
+        setNotice("The microphone isn't available right now — please try again.");
       } else {
         setNotice("Sorry, I could not hear that clearly — please try again.");
       }
       setOpen(true);
     };
 
-    recognition.onend = () => setIsListening(false);
+    recognition.onend = () => {
+      if (activeRecognition === recognition) activeRecognition = null;
+      setIsListening(false);
+    };
 
+    activeRecognition = recognition;
     setIsListening(true);
     recognition.start();
   }
@@ -286,23 +325,28 @@ export default function NarratorOverlay({
   function failRecording(error: unknown) {
     setIsListening(false);
     liveTranscriptionRef.current = null;
-    setMicBlocked(true);
-    const name = error instanceof DOMException ? error.name : "";
-    setNotice(
-      name === "NotAllowedError" || name === "SecurityError"
-        ? "Microphone access was denied — allow it for this browser in your phone's Settings. You can type your question below instead."
-        : "Could not access the microphone — type your question below instead.",
-    );
+    if (isMicPermissionError(error)) {
+      setMicBlocked(true);
+      setNotice(
+        "Microphone access was denied — allow it for this browser in your phone's Settings. You can type your question below instead.",
+      );
+    } else {
+      // Transient (socket hiccup, setup timeout, device busy): keep the mic
+      // so the visitor can simply try again instead of losing voice forever.
+      setNotice("The microphone hit a snag — please try again.");
+    }
     setOpen(true);
   }
 
   /** Recorder mode: no end-of-speech detection, so the mic button toggles —
       tap to start, tap again (or the 14 s cap) to stop and send. */
   async function startRecording() {
+    if (startingRecordingRef.current || liveTranscriptionRef.current) return;
+    startingRecordingRef.current = true;
     unlockAudioOutput();
     setIsListening(true);
     try {
-      liveTranscriptionRef.current = await startLiveTranscription({
+      const handle = await startLiveTranscription({
         onDone: (transcript, { heardAudio }) => {
           if (!isMountedRef.current) return;
           setIsListening(false);
@@ -329,14 +373,25 @@ export default function NarratorOverlay({
           failRecording(error);
         },
       });
+      if (!isMountedRef.current) {
+        // Unmounted (narrator switch) while setting up — release the mic.
+        handle.cancel();
+        return;
+      }
+      liveTranscriptionRef.current = handle;
     } catch (error) {
       if (!isMountedRef.current) return;
       console.error("live transcription failed to start", error);
       failRecording(error);
+    } finally {
+      startingRecordingRef.current = false;
     }
   }
 
   function toggleRecording() {
+    // Ignore taps while setup is in flight — a second session would fight
+    // the first for the microphone.
+    if (startingRecordingRef.current) return;
     if (liveTranscriptionRef.current) {
       liveTranscriptionRef.current.stop();
       return;
