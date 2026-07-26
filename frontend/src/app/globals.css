@@ -482,6 +482,7 @@ body {
 
   .voyage-experience__narrator-rail {
     top: 6.25rem;
+    left: calc(1.5rem + 2px);
     gap: 0.45rem;
   }
 

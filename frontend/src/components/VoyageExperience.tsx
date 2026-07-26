@@ -49,6 +49,26 @@ function getDeviceOrientationEvent(): DeviceOrientationEventStatic | undefined {
   ).DeviceOrientationEvent;
 }
 
+function readGyroSupported() {
+  try {
+    return Boolean(getDeviceOrientationEvent());
+  } catch {
+    return false;
+  }
+}
+
+function readDefaultLookMode(): LookMode {
+  try {
+    const doe = getDeviceOrientationEvent();
+    if (!doe) return "drag";
+    const needsPermission = typeof doe.requestPermission === "function";
+    const isTouch = window.matchMedia?.("(pointer: coarse)").matches ?? false;
+    return isTouch && !needsPermission ? "gyro" : "drag";
+  } catch {
+    return "drag";
+  }
+}
+
 /**
  * The voyage: one persistent panorama viewer where both halves of the pair —
  * narrator and scene — switch in place (no remount, no navigation). The pair
@@ -98,22 +118,23 @@ export default function VoyageExperience() {
     }
   }
 
-  // Device-orientation support + default look mode, computed once. Reading
-  // window here is safe: the route wraps this component in <Suspense> (for
-  // useSearchParams), so it renders on the client.
-  const [gyroSupported] = useState(
-    () => typeof window !== "undefined" && Boolean(getDeviceOrientationEvent()),
+  // Device-orientation support + default look mode. useSyncExternalStore uses
+  // server-safe snapshots during SSR, then reads the browser capability after
+  // hydration without creating a markup mismatch.
+  const gyroSupported = useSyncExternalStore(
+    subscribeToNothing,
+    readGyroSupported,
+    () => false,
   );
-  const [lookMode, setLookMode] = useState<LookMode>(() => {
-    if (typeof window === "undefined") return "drag";
-    const doe = getDeviceOrientationEvent();
-    if (!doe) return "drag";
-    // iOS needs a permission tap (handled in toggleLook) → start in drag.
-    // Touch devices without that requirement (Android) default to gyro.
-    const needsPermission = typeof doe.requestPermission === "function";
-    const isTouch = window.matchMedia?.("(pointer: coarse)").matches ?? false;
-    return isTouch && !needsPermission ? "gyro" : "drag";
-  });
+  const defaultLookMode = useSyncExternalStore(
+    subscribeToNothing,
+    readDefaultLookMode,
+    () => "drag",
+  );
+  const [lookModeOverride, setLookModeOverride] = useState<LookMode | null>(
+    null,
+  );
+  const lookMode = lookModeOverride ?? defaultLookMode;
 
   // Warm the texture cache once so switching scenes is instant (no reload flash).
   useEffect(() => {
@@ -131,7 +152,7 @@ export default function VoyageExperience() {
 
   async function toggleLook() {
     if (lookMode === "gyro") {
-      setLookMode("drag");
+      setLookModeOverride("drag");
       return;
     }
     const doe = getDeviceOrientationEvent();
@@ -139,12 +160,12 @@ export default function VoyageExperience() {
     if (doe && typeof doe.requestPermission === "function") {
       try {
         const res = await doe.requestPermission();
-        setLookMode(res === "granted" ? "gyro" : "drag");
+        setLookModeOverride(res === "granted" ? "gyro" : "drag");
       } catch {
-        setLookMode("drag");
+        setLookModeOverride("drag");
       }
     } else {
-      setLookMode("gyro");
+      setLookModeOverride("gyro");
     }
   }
 
