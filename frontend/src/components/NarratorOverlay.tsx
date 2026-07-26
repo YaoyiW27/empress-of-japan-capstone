@@ -15,6 +15,7 @@ import {
 } from "@/lib/chat";
 import {
   configureAudioSession,
+  isIOS,
   isLiveTranscriptionSupported,
   isMicPermissionError,
   startLiveTranscription,
@@ -86,12 +87,22 @@ function subscribeToNothing() {
 // keeps the microphone captured — Safari then refuses the next one until the
 // page reloads. Whoever starts a recognizer must be able to kill its
 // predecessor.
-let activeRecognition: SpeechRecognition | null = null;
+const activeRecognitionRef = { current: null as SpeechRecognition | null };
+
+function setActiveRecognition(recognition: SpeechRecognition) {
+  activeRecognitionRef.current = recognition;
+}
+
+function clearActiveRecognition(recognition: SpeechRecognition) {
+  if (activeRecognitionRef.current === recognition) {
+    activeRecognitionRef.current = null;
+  }
+}
 
 function disposeActiveRecognition() {
-  const recognition = activeRecognition;
+  const recognition = activeRecognitionRef.current;
   if (!recognition) return;
-  activeRecognition = null;
+  activeRecognitionRef.current = null;
   // Null the handlers first so aborting doesn't fire a stale instance's
   // error/submit callbacks.
   recognition.onresult = null;
@@ -106,9 +117,9 @@ function disposeActiveRecognition() {
 
 /**
  * How this browser can capture a question, best first:
- * - native: the built-in Web Speech API (iOS Safari, Android Chrome).
+ * - native: the built-in Web Speech API (Android Chrome, desktop).
  * - recorder: mic capture streamed to the backend's /voice/transcribe
- *   WebSocket (third-party iOS browsers, which never get SpeechRecognition).
+ *   WebSocket (all iOS browsers, third-party WebViews).
  * - text: typed input (WebViews that block the microphone entirely).
  */
 type VoiceInputMode = "native" | "recorder" | "text";
@@ -120,6 +131,13 @@ export type NarratorInteractionStatus =
   | "speaking";
 
 function readVoiceInputMode(): VoiceInputMode {
+  // Every iOS browser is WebKit and now exposes webkitSpeechRecognition, but
+  // that recognizer only captures on the first turn per page load and leaves
+  // playback pinned to the earpiece. Stream to the backend instead so voice
+  // survives across turns and narrator switches.
+  if (isIOS()) {
+    return isLiveTranscriptionSupported() ? "recorder" : "text";
+  }
   if (window.SpeechRecognition ?? window.webkitSpeechRecognition) {
     return "native";
   }
@@ -339,15 +357,27 @@ export default function NarratorOverlay({
     }
 
     const recognition = new Recognition();
+    let heardResult = false;
+    let sawError = false;
     recognition.lang = "en-US";
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
 
     recognition.onresult = (event) => {
-      void submitMessage(event.results[0][0].transcript);
+      heardResult = true;
+      const transcript = event.results[0]?.[0]?.transcript.trim();
+      disposeActiveRecognition();
+      configureAudioSession("playback");
+      setIsListening(false);
+      if (transcript) {
+        void submitMessage(transcript);
+      } else {
+        handleNativeSpeechMiss();
+      }
     };
 
     recognition.onerror = (event) => {
+      sawError = true;
       setIsListening(false);
       if (
         event.error === "not-allowed" ||
@@ -359,22 +389,35 @@ export default function NarratorOverlay({
           "Microphone access is blocked on this phone — check the browser's microphone permission (and Dictation on iPhone) in Settings. You can type your question below instead.",
         );
       } else if (event.error === "audio-capture") {
-        // Usually transient (the mic was still held by something else).
-        setNotice("The microphone isn't available right now — please try again.");
+        handleNativeSpeechMiss();
       } else {
-        setNotice("Sorry, I could not hear that clearly — please try again.");
+        handleNativeSpeechMiss();
       }
-      setOpen(true);
     };
 
     recognition.onend = () => {
-      if (activeRecognition === recognition) activeRecognition = null;
+      clearActiveRecognition(recognition);
       setIsListening(false);
+      if (!heardResult && !sawError) {
+        handleNativeSpeechMiss();
+      }
     };
 
-    activeRecognition = recognition;
+    setActiveRecognition(recognition);
     setIsListening(true);
     recognition.start();
+  }
+
+  function handleNativeSpeechMiss() {
+    // Mobile Web Speech can get stuck after one successful turn. When that
+    // happens, fall back to typing instead of leaving visitors with a mic
+    // button that only flashes red.
+    configureAudioSession("playback");
+    setMicBlocked(true);
+    setNotice(
+      "Voice recognition is not working reliably on this phone. You can type your question below instead.",
+    );
+    setOpen(true);
   }
 
   function failRecording(error: unknown) {
