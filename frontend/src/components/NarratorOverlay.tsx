@@ -367,6 +367,7 @@ export default function NarratorOverlay({
 
   function failRecording(error: unknown) {
     setIsListening(false);
+    liveTranscriptionRef.current?.cancel();
     liveTranscriptionRef.current = null;
     if (isMicPermissionError(error)) {
       setMicBlocked(true);
@@ -374,9 +375,13 @@ export default function NarratorOverlay({
         "Microphone access was denied — allow it for this browser in your phone's Settings. You can type your question below instead.",
       );
     } else {
-      // Transient (socket hiccup, setup timeout, device busy): keep the mic
-      // so the visitor can simply try again instead of losing voice forever.
-      setNotice("The microphone hit a snag — please try again.");
+      // Demo-safe fallback: iOS recorder failures usually mean the browser,
+      // AudioWorklet, or transcription socket cannot complete this session.
+      // Do not leave visitors stuck with a mic button that keeps failing.
+      setMicBlocked(true);
+      setNotice(
+        "The microphone is not working reliably on this phone. You can type your question below instead.",
+      );
     }
     setOpen(true);
   }
