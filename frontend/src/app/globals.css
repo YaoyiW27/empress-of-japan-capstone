@@ -644,6 +644,7 @@ body {
   display: inline-flex;
   width: 44px;
   height: 44px;
+
   padding: 0;
   border: 0;
   align-items: center;
@@ -657,10 +658,13 @@ body {
 }
 .ui-nav-button img {
   display: block;
-  width: 60px;
-  height: 60px;
+  width: 44px;
+  height: 44px;
   max-width: none;
   flex-shrink: 0;
+  filter: drop-shadow(
+    0 0 8px rgb(from var(--color-navy) r g b / 50%)
+  );
 }
 
 .ui-nav-button:hover {
