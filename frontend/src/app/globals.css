@@ -218,6 +218,11 @@ body {
     filter 200ms ease,
     opacity 200ms ease;
 }
+.narrator-button[data-state="default"] .narrator-button__portrait,
+.narrator-button[data-state="selected"] .narrator-button__portrait,
+.narrator-button[data-state="notSelected"] .narrator-button__portrait {
+  filter: drop-shadow(0 0 4px var(--narrator-shadow));
+}
 
 /* Default: Dark V2 shadow */
 
