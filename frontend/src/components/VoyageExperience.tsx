@@ -164,7 +164,7 @@ export default function VoyageExperience() {
 
       {/* Top-center: current scene title */}
       <div className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 text-center sm:top-6">
-        <h1 className="font-display text-4xl font-bold text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.7)] lg:text-5xl">
+        <h1 className="whitespace-nowrap text-ig-header text-light drop-shadow-[0_2px_6px_rgba(0,0,0,0.7)] lg:text-5xl">
           {scene.title}
         </h1>
       </div>

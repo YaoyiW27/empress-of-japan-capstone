@@ -122,18 +122,18 @@ export default function ExploreHub() {
             selectedSceneId={sceneId}
             onSelectScene={setSceneId}
           />
-          <p className="pointer-events-none absolute inset-x-0 bottom-2 text-center text-[0.65rem] uppercase tracking-[0.2em] text-navy-soft lg:bottom-3 lg:text-xs">
+          <p className="pointer-events-none absolute inset-x-0 bottom-2 text-center text-ig text-[0.65rem] uppercase tracking-[0.2em] text-navy-soft lg:bottom-3 lg:text-xs">
             Drag to rotate · scroll to zoom · tap a glowing dot to pick a scene
           </p>
         </section>
 
         {/* Right: every scene, scrollable; pick one and start the voyage */}
-        <aside className="flex w-64 shrink-0 flex-col lg:w-[24rem]">
-        <div className="flex min-h-0 flex-1 flex-col rounded-lg border border-brass/40 bg-transparent p-4 shadow-sm ring-1 ring-brass/10 lg:p-6">
-            <p className="shrink-0 text-xs font-semibold uppercase tracking-[0.22em] text-brass lg:text-base">
+        <aside className="flex w-64 shrink-0 flex-col">
+          <div className="flex min-h-0 flex-1 flex-col bg-transparent p-4">
+          <p className="w-full shrink-0 text-center text-ig uppercase text-navy-soft">
               Scenes
             </p>
-            <ul className="mt-3 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-1 lg:gap-3">
+            <ul className="mt-3 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-1">
               {scenes.map((scene) => {
                 const active = scene.id === sceneId;
                 return (
