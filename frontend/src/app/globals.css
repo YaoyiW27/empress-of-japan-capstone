@@ -342,13 +342,13 @@ body {
     width: 4rem;
     justify-content: flex-start;
     gap: 0.65rem;
-    padding-top: 3rem;
+    padding-top: 4.25rem;
   }
 
   .explore-hub__guide-rail .narrator-button,
   .explore-hub__guide-rail .narrator-button__portrait {
-    width: 48px;
-    height: 48px;
+    width: 44px;
+    height: 44px;
   }
 
   .explore-hub__ship {
@@ -381,7 +381,7 @@ body {
   }
 
   .voyage-experience__narrator-rail {
-    top: 5.25rem;
+    top: 6.75rem;
     left: 0.75rem;
     flex-direction: column;
     gap: 0.55rem;
@@ -469,7 +469,7 @@ body {
   }
 
   .explore-hub__guide-rail {
-    padding-top: 2.75rem;
+    padding-top: 3.75rem;
   }
 
   .explore-hub__guide-rail .narrator-button,
@@ -481,7 +481,7 @@ body {
   }
 
   .voyage-experience__narrator-rail {
-    top: 4.75rem;
+    top: 6.25rem;
     gap: 0.45rem;
   }
 
