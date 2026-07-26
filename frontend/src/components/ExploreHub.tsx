@@ -54,15 +54,15 @@ export default function ExploreHub() {
 
       <div className="explore-hub__layout mt-14 flex min-h-0 flex-1 gap-3 lg:mt-16 lg:gap-5">
         {/* Left: guides as circular portrait options. Tap the portrait to
-            select; the name underneath opens the guide's biography page. */}
-        <aside className="explore-hub__guide-rail flex w-24 shrink-0 flex-col items-center justify-center gap-1.5 lg:w-32 lg:gap-3">
+            select; the name beside it opens the guide's biography page. */}
+        <aside className="explore-hub__guide-rail flex w-40 shrink-0 flex-col items-center justify-center gap-1.5 lg:w-48 lg:gap-3">
           <p className="mt-3 text-center text-ig uppercase tracking-[0.16em] text-navy-soft">
               Narrators
           </p>
           {narrators.map((narrator) => {
             const active = narrator.id === narratorId;
             return (
-              <div key={narrator.id} className="flex flex-col items-center">
+              <div key={narrator.id} className="flex w-full items-center">
                 <NarratorButton
                   narrator={narratorButtonIds[narrator.id]}
                   variant="hub"
@@ -76,11 +76,15 @@ export default function ExploreHub() {
                 <Link
                   href={`/explore/${narrator.id}`}
                   aria-label={`About ${narrator.name}`}
-                  className="mt-0.5 flex items-center gap-0.5 whitespace-nowrap px-1 py-1.5 text-[9px] font-semibold uppercase tracking-[0.06em] text-navy-soft transition-colors hover:text-vermilion lg:text-xs lg:tracking-[0.08em]"
+                  className="flex min-h-11 min-w-0 flex-1 items-center py-1 pl-2 text-left text-[10px] font-semibold uppercase leading-snug tracking-[0.06em] text-navy-soft transition-colors hover:text-vermilion lg:text-xs lg:tracking-[0.08em]"
                 >
-                  {narrator.name}
-                  <span aria-hidden="true" className="text-brass">
-                    ›
+                  {/* No-break space keeps the chevron glued to the last word. */}
+                  <span>
+                    {narrator.name}
+                    {" "}
+                    <span aria-hidden="true" className="text-brass">
+                      ›
+                    </span>
                   </span>
                 </Link>
               </div>
@@ -134,10 +138,12 @@ export default function ExploreHub() {
                 );
               })}
             </ul>
-            <p className="mt-3 text-center text-ig uppercase tracking-[0.16em] text-navy-soft">
-              Select a narrator and a scene to begin.
-            </p>
-            <div className="explore-hub__start mt-4 flex shrink-0 justify-center">
+            {/* Hint + CTA share one width-capped footer so the hint can't
+                spread and squeeze the scene list on short viewports. */}
+            <div className="explore-hub__start mx-auto mt-2 flex w-48 shrink-0 flex-col items-center gap-1.5 lg:mt-4 lg:w-auto lg:gap-3">
+              <p className="text-center text-[10px] uppercase leading-snug tracking-[0.12em] text-navy-soft lg:text-ig lg:tracking-[0.16em]">
+                Select a narrator and a scene to begin.
+              </p>
               {sceneId && narratorId ? (
                 <ButtonLink
                   href={`/explore/voyage?scene=${sceneId}&narrator=${narratorId}`}
