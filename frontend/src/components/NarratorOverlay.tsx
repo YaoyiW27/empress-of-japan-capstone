@@ -498,7 +498,7 @@ export default function NarratorOverlay({
   }
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-2 p-4 sm:p-6">
+    <div className="narrator-overlay pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-2 p-4 sm:p-6">
       {open && (
         /* Transcript panel, rising from the capsule below. */
         <div className="pointer-events-auto w-full max-w-md rounded-md border border-brass/40 bg-card/90 px-4 py-3 shadow-lg backdrop-blur-sm">
