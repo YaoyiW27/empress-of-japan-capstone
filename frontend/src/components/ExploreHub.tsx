@@ -54,6 +54,9 @@ export default function ExploreHub() {
         {/* Left: guides as circular portrait options. Hover (mouse) or
             long-press (touch) reveals the bio beside the portrait. */}
         <aside className="explore-hub__guide-rail flex w-20 shrink-0 flex-col items-center justify-center gap-3 lg:w-32 lg:gap-5">
+          <p className="mt-3 text-center text-ig uppercase tracking-[0.16em] text-navy-soft">
+              Narrators
+          </p>
           {narrators.map((narrator) => {
             const active = narrator.id === narratorId;
             return (
@@ -113,11 +116,12 @@ export default function ExploreHub() {
             );
           })}
         </aside>
+        {/*
       <div className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 text-center sm:top-6">
         <h1 className="whitespace-nowrap text-ig-header !text-brass lg:text-5xl">
           Welcome Aboard
         </h1>
-      </div>
+      </div>*/}
         {/* Center: the ship (no background). min-w-0 lets it shrink so the right
             panel never gets pushed off a narrow (phone-landscape) screen. */}
 
