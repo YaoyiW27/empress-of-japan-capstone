@@ -11,6 +11,7 @@ import NarratorOverlay, {
 import NarratorButton, {
   type NarratorId as NarratorButtonId,
 } from "@/components/ui/NarratorButton";
+import SceneButton from "./ui/SceneButton";
 import { Button, CircleBackLink } from "@/components/ui/Button";
 import { narrators, scenes } from "@/lib/scenes";
 
@@ -179,12 +180,12 @@ export default function VoyageExperience() {
       <CircleBackLink
         href="/explore"
         label="Back to the hub"
-        className="voyage-experience__back absolute left-3 top-3 sm:left-6 sm:top-6"
+        className="absolute h-11 w-11 left-3 top-3 sm:left-6 sm:top-6"
       />
 
       {/* Top-center: current scene title */}
       <div className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 text-center sm:top-6">
-        <h1 className="font-display text-4xl font-bold text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.7)] lg:text-5xl">
+        <h1 className="whitespace-nowrap text-ig-header text-light drop-shadow-[0_2px_6px_rgba(0,0,0,0.7)] lg:text-5xl">
           {scene.title}
         </h1>
       </div>
@@ -204,7 +205,7 @@ export default function VoyageExperience() {
               ? "Drag to look around"
               : "Tilt the phone to look around"
           }
-          className="voyage-experience__look-toggle absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-full border border-brass/40 bg-card/90 text-navy shadow-md backdrop-blur-sm transition-colors hover:border-brass sm:right-5 sm:top-5"
+          className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-full border bg-neutral text-navy-soft shadow-md backdrop-blur-sm transition-colors sm:right-6 sm:top-6"
         >
           {lookMode === "gyro" ? (
             /* Hand: tap to go back to drag-to-look. */
@@ -306,7 +307,7 @@ export default function VoyageExperience() {
           onClick={() => setDrawerOpen((v) => !v)}
           aria-expanded={drawerOpen}
           aria-label={drawerOpen ? "Close scenes" : "Open scenes"}
-          className="voyage-experience__scene-handle pointer-events-auto flex flex-col items-center gap-1.5 rounded-l-md border border-r-0 border-brass/40 bg-card/90 px-2.5 py-4 text-navy shadow-md backdrop-blur-sm transition-colors hover:border-brass"
+          className="pointer-events-auto flex flex-col items-center gap-1.5 rounded-l-md  bg-neutral px-2.5 py-4 text-navy shadow-md backdrop-blur-sm transition-colors hover:border-brass"
         >
           <svg
             aria-hidden="true"
@@ -322,46 +323,26 @@ export default function VoyageExperience() {
           >
             <path d="M15 6l-6 6 6 6" />
           </svg>
-          <span className="text-xs font-semibold uppercase leading-none tracking-[0.18em] [writing-mode:vertical-rl]">
-            Scenes
+          <span className="text-ui-interaction flex flex-col items-center leading-none tracking-[0.18em] [writing-mode:vertical-rl]">
+            SCENES
           </span>
         </button>
-        <div className="voyage-experience__scene-list pointer-events-auto h-full w-56 overflow-y-auto border-l border-brass/40 bg-card/95 p-3 shadow-xl backdrop-blur-sm lg:w-64">
-          <div className="flex flex-col gap-2">
-            {scenes.map((candidate) => {
-              const active = candidate.id === sceneId;
-              return (
-                <button
-                  key={candidate.id}
-                  type="button"
-                  onClick={() => setSceneId(candidate.id)}
-                  aria-current={active}
-                  className={`flex w-full items-center gap-2.5 rounded-md border p-1.5 text-left shadow-sm transition-colors ${
-                    active
-                      ? "border-brass bg-navy"
-                      : "border-brass/40 bg-ivory hover:border-brass"
-                  }`}
-                >
-                  <span className="relative block h-11 w-16 shrink-0 overflow-hidden rounded-sm border border-brass/30">
-                    <Image
-                      src={candidate.photoSrc}
-                      alt={candidate.title}
-                      fill
-                      sizes="64px"
-                      className="object-cover"
-                    />
-                  </span>
-                  <span
-                    className={`font-display text-sm font-semibold ${
-                      active ? "text-ivory" : "text-navy"
-                    }`}
-                  >
-                    {candidate.title}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+        <div className="pointer-events-auto h-full w-56 overflow-y-auto  bg-neutral/50 p-3 shadow-xl backdrop-blur-sm lg:w-64">
+        <div className="flex flex-col items-center gap-2">
+          {scenes.map((candidate) => {
+            const active = candidate.id === sceneId;
+
+            return (
+              <SceneButton
+                key={candidate.id}
+                scene={candidate}
+                selected={active}
+                variant="panorama"
+                onClick={() => setSceneId(candidate.id)}
+              />
+            );
+          })}
+        </div>
         </div>
       </div>
 

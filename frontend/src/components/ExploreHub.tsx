@@ -1,10 +1,10 @@
 "use client";
 
 import { useRef, useState } from "react";
-import Image from "next/image";
 import NarratorButton, {
   type NarratorId as NarratorButtonId,
 } from "@/components/ui/NarratorButton";
+import SceneButton from "@/components/ui/SceneButton";
 import Scene from "@/components/three/Scene";
 import { narrators, scenes } from "@/lib/scenes";
 import { Button, ButtonLink, CircleBackLink } from "@/components/ui/Button";
@@ -28,7 +28,7 @@ const narratorButtonIds: Record<string, NarratorButtonId> = {
  * kicks in on real desktops/tablets (>=1024px).
  */
 export default function ExploreHub() {
-  const [narratorId, setNarratorId] = useState(narrators[0].id);
+  const [narratorId, setNarratorId] = useState<string | null>(null);
   const [sceneId, setSceneId] = useState<string | null>(null);
   // Which guide's bio is showing (mouse hover, or touch long-press).
   const [bioId, setBioId] = useState<string | null>(null);
@@ -54,6 +54,9 @@ export default function ExploreHub() {
         {/* Left: guides as circular portrait options. Hover (mouse) or
             long-press (touch) reveals the bio beside the portrait. */}
         <aside className="explore-hub__guide-rail flex w-20 shrink-0 flex-col items-center justify-center gap-3 lg:w-32 lg:gap-5">
+          <p className="mt-3 text-center text-ig uppercase tracking-[0.16em] text-navy-soft">
+              Narrators
+          </p>
           {narrators.map((narrator) => {
             const active = narrator.id === narratorId;
             return (
@@ -113,79 +116,65 @@ export default function ExploreHub() {
             );
           })}
         </aside>
-
+        {/*
+      <div className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 text-center sm:top-6">
+        <h1 className="whitespace-nowrap text-ig-header !text-brass lg:text-5xl">
+          Welcome Aboard
+        </h1>
+      </div>*/}
         {/* Center: the ship (no background). min-w-0 lets it shrink so the right
             panel never gets pushed off a narrow (phone-landscape) screen. */}
-        <section className="explore-hub__ship relative min-h-0 min-w-0 flex-1">
-          <div className="absolute inset-y-0 left-1/2 w-[70%] max-w-2xl -translate-x-1/2 overflow-hidden">
-            <Scene
-              scenes={scenes}
-              selectedSceneId={sceneId}
-              onSelectScene={setSceneId}
-            />
-          </div>
 
-          <p className="pointer-events-none absolute bottom-2 left-1/2 z-10 w-full -translate-x-1/2 px-2 text-center text-[0.6rem] font-semibold uppercase tracking-[0.2em] text-navy-soft lg:bottom-4 lg:text-xs">
+        <section className="explore-hub__ship relative min-h-0 min-w-0 flex-1">
+        <div className="absolute inset-y-0 left-1/2 w-[60%] max-w-xl -translate-x-1/2 overflow-hidden">
+          <Scene
+            scenes={scenes}
+            selectedSceneId={sceneId}
+            onSelectScene={setSceneId}
+          />
+        </div>
+
+          <p className="pointer-events-none absolute bottom-2 left-1/2 z-10 w-full -translate-x-1/2 px-2 text-center text-ig text-[0.65rem] uppercase tracking-[0.2em] text-navy-soft lg:bottom-3 lg:text-xs">
             Drag to rotate · scroll to zoom · tap a glowing dot to pick a scene
           </p>
         </section>
 
         {/* Right: every scene, scrollable; pick one and start the voyage */}
-        <aside className="explore-hub__scene-panel flex w-64 shrink-0 flex-col lg:w-[24rem]">
-          <div className="flex min-h-0 flex-1 flex-col rounded-lg border border-brass/40 bg-card p-4 shadow-sm ring-1 ring-brass/10 lg:p-6">
-            <p className="shrink-0 text-xs font-semibold uppercase tracking-[0.22em] text-brass lg:text-base">
+        {/* Right: every scene, scrollable; pick one and start the voyage */}
+        <aside className="explore-hub__scene-panel flex min-h-0 w-64 shrink-0 flex-col overflow-hidden lg:w-[24rem]">
+          <div className="flex min-h-0 flex-1 flex-col bg-transparent p-4">
+            <p className="shrink-0 text-center text-ig uppercase text-navy-soft">
               Scenes
             </p>
-            <ul className="mt-3 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-1 lg:gap-3">
+
+            <ul className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto p-1">
               {scenes.map((scene) => {
                 const active = scene.id === sceneId;
+
                 return (
-                  <li key={scene.id}>
-                    <button
-                      type="button"
+                  <li key={scene.id} className="flex justify-center">
+                    <SceneButton
+                      scene={scene}
+                      selected={active}
+                      variant="overview"
                       onClick={() => setSceneId(scene.id)}
-                      aria-pressed={active}
-                      className={`group flex w-full items-center gap-3 rounded-md border p-2 text-left shadow-sm transition-all lg:gap-4 lg:p-2.5 ${
-                        active
-                          ? "border-brass bg-navy"
-                          : "border-brass/40 bg-ivory hover:-translate-y-0.5 hover:border-brass hover:shadow-md"
-                      }`}
-                    >
-                      <span className="relative block h-11 w-20 shrink-0 overflow-hidden rounded-sm border border-brass/30 lg:h-14 lg:w-24">
-                        <Image
-                          src={scene.photoSrc}
-                          alt={scene.title}
-                          fill
-                          sizes="96px"
-                          className="object-cover"
-                        />
-                      </span>
-                      <span
-                        className={`font-display text-base font-semibold transition-colors lg:text-xl ${
-                          active
-                            ? "text-ivory"
-                            : "text-navy group-hover:text-brass"
-                        }`}
-                      >
-                        {scene.title}
-                      </span>
-                    </button>
+                    />
                   </li>
                 );
               })}
             </ul>
-            <div className="explore-hub__start mt-4 shrink-0">
-              {sceneId ? (
+            <p className="mt-3 text-center text-ig uppercase tracking-[0.16em] text-navy-soft">
+              Select a narrator and a scene to begin.
+            </p>
+            <div className="explore-hub__start mt-4 flex shrink-0 justify-center">
+              {sceneId && narratorId ? (
                 <ButtonLink
                   href={`/explore/voyage?scene=${sceneId}&narrator=${narratorId}`}
-                  className="w-full justify-center"
                 >
-                  Start voyage
+                  Start Voyage
                 </ButtonLink>
               ) : (
-                <Button disabled className="w-full justify-center">
-                  Start voyage
-                </Button>
+                <Button disabled>Start Voyage</Button>
               )}
             </div>
           </div>

@@ -14,6 +14,7 @@
   --color-brass: #c89b5a; /* accent, borders, hairline rules — Figma: Gold */
   --color-vermilion: #b91d0b; /* sparing accent — Figma: Attention-Red */
   --color-ink: #14202e; /* strong headings — local, slightly deeper than navy */
+  --color-neutral:#9EADBE; /* sparing accent — Figma: Neutral-f1 */
 
   /* --- Neutral ramp (Figma Dark-f1…f3) --- */
   --color-navy-muted: #878d9d; /* Figma: Dark-f2 */
@@ -222,6 +223,11 @@ body {
   transition:
     filter 200ms ease,
     opacity 200ms ease;
+}
+.narrator-button[data-state="default"] .narrator-button__portrait,
+.narrator-button[data-state="selected"] .narrator-button__portrait,
+.narrator-button[data-state="notSelected"] .narrator-button__portrait {
+  filter: drop-shadow(0 0 4px var(--narrator-shadow));
 }
 
 /* Default: Dark V2 shadow */
@@ -532,7 +538,6 @@ body {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--color-ivory);
-  text-shadow: 0 0 12px var(--color-navy);
 }
 .text-ig {
   font-family: var(--font-display);
@@ -637,10 +642,13 @@ body {
 }
 .ui-nav-button {
   display: inline-flex;
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   border: 0;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
 
   transform-origin: center;
   transition:
@@ -649,8 +657,10 @@ body {
 }
 .ui-nav-button img {
   display: block;
-  width: 42px;
-  height: 42px;
+  width: 60px;
+  height: 60px;
+  max-width: none;
+  flex-shrink: 0;
 }
 
 .ui-nav-button:hover {
