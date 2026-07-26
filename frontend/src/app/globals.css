@@ -476,6 +476,18 @@ body {
 }
 
 @media (orientation: landscape) and (max-height: 420px) {
+  .explore-hub__scene-panel > div {
+    padding: 0.5rem;
+  }
+
+  .explore-hub__scene-panel ul {
+    margin-top: 0.25rem;
+    gap: 0.25rem;
+  }
+
+  .explore-hub__start {
+    margin-top: 0.5rem;
+  }
   .explore-hub__layout {
     margin-top: 3.25rem;
   }

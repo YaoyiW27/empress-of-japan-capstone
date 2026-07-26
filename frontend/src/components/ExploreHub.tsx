@@ -116,13 +116,16 @@ export default function ExploreHub() {
 
         {/* Center: the ship (no background). min-w-0 lets it shrink so the right
             panel never gets pushed off a narrow (phone-landscape) screen. */}
-        <section className="explore-hub__ship relative min-h-0 min-w-0 flex-1 overflow-hidden">
-          <Scene
-            scenes={scenes}
-            selectedSceneId={sceneId}
-            onSelectScene={setSceneId}
-          />
-          <p className="pointer-events-none absolute inset-x-0 bottom-2 text-center text-[0.65rem] uppercase tracking-[0.2em] text-navy-soft lg:bottom-3 lg:text-xs">
+        <section className="explore-hub__ship relative min-h-0 min-w-0 flex-1">
+          <div className="absolute inset-y-0 left-1/2 w-[70%] max-w-2xl -translate-x-1/2 overflow-hidden">
+            <Scene
+              scenes={scenes}
+              selectedSceneId={sceneId}
+              onSelectScene={setSceneId}
+            />
+          </div>
+
+          <p className="pointer-events-none absolute bottom-2 left-1/2 z-10 w-full -translate-x-1/2 px-2 text-center text-[0.6rem] font-semibold uppercase tracking-[0.2em] text-navy-soft lg:bottom-4 lg:text-xs">
             Drag to rotate · scroll to zoom · tap a glowing dot to pick a scene
           </p>
         </section>
@@ -171,7 +174,7 @@ export default function ExploreHub() {
                 );
               })}
             </ul>
-            <div className="mt-4 shrink-0">
+            <div className="explore-hub__start mt-4 shrink-0">
               {sceneId ? (
                 <ButtonLink
                   href={`/explore/voyage?scene=${sceneId}&narrator=${narratorId}`}
