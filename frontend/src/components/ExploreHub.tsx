@@ -47,7 +47,7 @@ export default function ExploreHub() {
       <CircleBackLink
         href="/"
         label="Back to home"
-        className="absolute left-3 top-3 z-10 sm:left-6 sm:top-6"
+        className="absolute left-6 top-6 z-10"
       />
 
       <div className="explore-hub__layout mt-14 flex min-h-0 flex-1 gap-3 lg:mt-16 lg:gap-5">
