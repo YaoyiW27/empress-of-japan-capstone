@@ -205,7 +205,7 @@ export default function VoyageExperience() {
               ? "Drag to look around"
               : "Tilt the phone to look around"
           }
-          className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-full border bg-neutral text-navy-soft shadow-md backdrop-blur-sm transition-colors sm:right-6 sm:top-6"
+          className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-full  bg-neutral text-navy-soft shadow-[0_0_8px_rgb(from_var(--color-navy)_r_g_b/50%)] backdrop-blur-sm transition-colors sm:right-6 sm:top-6"
         >
           {lookMode === "gyro" ? (
             /* Hand: tap to go back to drag-to-look. */

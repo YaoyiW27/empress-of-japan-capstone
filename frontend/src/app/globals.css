@@ -644,6 +644,7 @@ body {
   display: inline-flex;
   width: 44px;
   height: 44px;
+  box-shadow: 0 0 8px rgb(from var(--color-navy) r g b / 50%);
   padding: 0;
   border: 0;
   align-items: center;
@@ -657,8 +658,8 @@ body {
 }
 .ui-nav-button img {
   display: block;
-  width: 60px;
-  height: 60px;
+  width: 44px;
+  height: 44px;
   max-width: none;
   flex-shrink: 0;
 }
