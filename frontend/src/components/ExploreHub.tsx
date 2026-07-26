@@ -19,7 +19,7 @@ const narratorButtonIds: Record<string, NarratorButtonId> = {
 };
 
 /**
- * Scene-first hub: pick a guide on the left (the ⓘ badge on a portrait opens
+ * Scene-first hub: pick a guide on the left (the name under a portrait opens
  * their biography page), see the 3D ship in the center, and pick any scene on
  * the right — guides and scenes combine freely. "Start voyage" opens the pair.
  *
@@ -54,15 +54,15 @@ export default function ExploreHub() {
 
       <div className="explore-hub__layout mt-14 flex min-h-0 flex-1 gap-3 lg:mt-16 lg:gap-5">
         {/* Left: guides as circular portrait options. Tap the portrait to
-            select; the ⓘ badge opens the guide's biography page. */}
-        <aside className="explore-hub__guide-rail flex w-20 shrink-0 flex-col items-center justify-center gap-3 lg:w-32 lg:gap-5">
+            select; the name underneath opens the guide's biography page. */}
+        <aside className="explore-hub__guide-rail flex w-24 shrink-0 flex-col items-center justify-center gap-1.5 lg:w-32 lg:gap-3">
           <p className="mt-3 text-center text-ig uppercase tracking-[0.16em] text-navy-soft">
               Narrators
           </p>
           {narrators.map((narrator) => {
             const active = narrator.id === narratorId;
             return (
-              <div key={narrator.id} className="relative">
+              <div key={narrator.id} className="flex flex-col items-center">
                 <NarratorButton
                   narrator={narratorButtonIds[narrator.id]}
                   variant="hub"
@@ -76,9 +76,12 @@ export default function ExploreHub() {
                 <Link
                   href={`/explore/${narrator.id}`}
                   aria-label={`About ${narrator.name}`}
-                  className="absolute -right-1 -top-1 z-10 flex h-6 w-6 items-center justify-center rounded-full border border-brass bg-card text-navy shadow-md transition-colors hover:bg-brass hover:text-ivory lg:h-7 lg:w-7"
+                  className="mt-0.5 flex items-center gap-0.5 whitespace-nowrap px-1 py-1.5 text-[9px] font-semibold uppercase tracking-[0.06em] text-navy-soft transition-colors hover:text-vermilion lg:text-xs lg:tracking-[0.08em]"
                 >
-                  <InfoIcon />
+                  {narrator.name}
+                  <span aria-hidden="true" className="text-brass">
+                    ›
+                  </span>
                 </Link>
               </div>
             );
@@ -149,23 +152,5 @@ export default function ExploreHub() {
         </aside>
       </div>
     </main>
-  );
-}
-
-/** The "i" glyph for the bio badge — stroke style matches ArrowRightIcon. */
-function InfoIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      className={className}
-    >
-      <path d="M12 10.5V17" />
-      <path d="M12 7h.01" />
-    </svg>
   );
 }
