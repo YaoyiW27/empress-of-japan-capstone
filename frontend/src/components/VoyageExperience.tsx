@@ -327,7 +327,7 @@ export default function VoyageExperience() {
             SCENES
           </span>
         </button>
-        <div className="pointer-events-auto h-full w-56 overflow-y-auto  bg-neutral/50 p-3 shadow-xl backdrop-blur-sm lg:w-64">
+        <div className="voyage-experience__scene-list pointer-events-auto h-full w-56 overflow-y-auto  bg-neutral/50 p-3 shadow-xl backdrop-blur-sm lg:w-64">
         <div className="flex flex-col items-center gap-2">
           {scenes.map((candidate) => {
             const active = candidate.id === sceneId;
