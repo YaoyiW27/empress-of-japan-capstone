@@ -122,8 +122,13 @@ export async function startLiveTranscription({
 }: {
   /** Progressive updates while speaking (partials included). */
   onTranscript?: (transcript: string, isFinal: boolean) => void;
-  /** Recording finished: everything heard, or null for silence. */
-  onDone: (transcript: string | null) => void;
+  /**
+   * Recording finished: everything heard, or null for silence. heardAudio
+   * distinguishes "spoke but unintelligible" from a dead mic track — iOS
+   * hands Chrome an all-zeros track (no prompt!) when the OS-level mic
+   * permission for the browser app was denied earlier.
+   */
+  onDone: (transcript: string | null, info: { heardAudio: boolean }) => void;
   /** Unrecoverable failure after recording started. */
   onError: (error: unknown) => void;
 }): Promise<LiveTranscriptionHandle> {
@@ -143,6 +148,8 @@ export async function startLiveTranscription({
   // still-moving partial, so multi-sentence questions survive intact.
   const finalizedParts: string[] = [];
   let currentPartial = "";
+  // A blocked mic delivers pure zeros; any real room tops this instantly.
+  let peakLevel = 0;
   const heardSoFar = () =>
     [...finalizedParts, currentPartial].filter(Boolean).join(" ").trim() ||
     null;
@@ -160,7 +167,7 @@ export async function startLiveTranscription({
     if (settled) return;
     settled = true;
     teardown();
-    onDone(heardSoFar());
+    onDone(heardSoFar(), { heardAudio: peakLevel > 0.001 });
   }
 
   function fail(error: unknown) {
@@ -250,6 +257,10 @@ export async function startLiveTranscription({
   forwarder.port.onmessage = (event) => {
     if (settled || stopping) return;
     const chunk = event.data as Float32Array;
+    for (let i = 0; i < chunk.length; i++) {
+      const amplitude = Math.abs(chunk[i]);
+      if (amplitude > peakLevel) peakLevel = amplitude;
+    }
     const merged = new Float32Array(pendingSamples.length + chunk.length);
     merged.set(pendingSamples);
     merged.set(chunk, pendingSamples.length);
