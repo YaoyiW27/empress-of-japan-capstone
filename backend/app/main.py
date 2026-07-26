@@ -13,6 +13,7 @@ from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect, status
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.websockets import WebSocketState
 from fastapi.responses import JSONResponse
 from opentelemetry import trace
 from psycopg import Error as PsycopgError
@@ -510,6 +511,14 @@ def create_app(
             if websocket.client_state.name != "DISCONNECTED":
                 await websocket.send_json({"type": "error", "detail": "voice transcription failed"})
                 await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
+        else:
+            # Transcription finished normally. Close with a normal code so the
+            # browser fires a clean onclose instead of onerror — otherwise an
+            # implicit teardown reaches the client as an abnormal 1006 and the
+            # finished recording is reported as a dropped connection. Skip when
+            # receive_audio already closed (empty chunk / duration cap).
+            if websocket.application_state == WebSocketState.CONNECTED:
+                await websocket.close()
         finally:
             if not receiver.done():
                 receiver.cancel()
