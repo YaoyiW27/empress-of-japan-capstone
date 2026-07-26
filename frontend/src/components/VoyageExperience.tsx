@@ -5,7 +5,9 @@ import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { useTexture } from "@react-three/drei";
 import PanoramaScene, { type LookMode } from "@/components/three/PanoramaScene";
-import NarratorOverlay from "@/components/NarratorOverlay";
+import NarratorOverlay, {
+  type NarratorInteractionStatus,
+} from "@/components/NarratorOverlay";
 import NarratorButton, {
   type NarratorId as NarratorButtonId,
 } from "@/components/ui/NarratorButton";
@@ -73,6 +75,8 @@ export default function VoyageExperience() {
 
   // Right-edge scene drawer, opened from its persistent handle.
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [narratorStatus, setNarratorStatus] =
+    useState<NarratorInteractionStatus>("selected");
 
   // One-time feature hints. useSyncExternalStore reads the flag with a
   // server snapshot of "seen", so SSR renders no overlay and the client
@@ -218,11 +222,9 @@ export default function VoyageExperience() {
         </button>
       )}
 
-      {/* Narrator buttons — always visible in their existing position. Voice
-          states will be supplied by NarratorOverlay once its status callback
-          is connected; for now the active guide is selected and the rest use
-          their default appearance. */}
-      <div className="absolute left-3 top-[calc(50%-108px)] z-10 flex flex-row gap-3 sm:left-6 lg:top-[calc(50%-164px)] lg:gap-5">
+      {/* Narrator buttons — the active guide reflects NarratorOverlay's live
+          interaction status; the other guides remain not selected. */}
+      <div className="absolute left-3 top-[calc(50%-108px)] z-10 flex flex-row gap-4 sm:left-6 lg:top-[calc(50%-164px)] lg:gap-5">
         {narrators.map((candidate) => {
           const active = candidate.id === narratorId;
 
@@ -231,8 +233,11 @@ export default function VoyageExperience() {
               key={candidate.id}
               narrator={narratorButtonIds[candidate.id]}
               variant="scene"
-              state={active ? "selected" : "notSelected"}
-              onClick={() => setNarratorId(candidate.id)}
+              state={active ? narratorStatus : "notSelected"}
+              onClick={() => {
+                setNarratorStatus("selected");
+                setNarratorId(candidate.id);
+              }}
               label={`${candidate.name}, ${candidate.role}${
                 active ? ", selected" : ""
               }`}
@@ -256,7 +261,12 @@ export default function VoyageExperience() {
 
       {/* Bottom-center: voice dock (mic + collapsible transcript). Keyed by
           narrator so a guide switch resets the conversation panel. */}
-      <NarratorOverlay key={narrator.id} narrator={narrator} scene={scene} />
+      <NarratorOverlay
+        key={narrator.id}
+        narrator={narrator}
+        scene={scene}
+        onStatusChange={setNarratorStatus}
+      />
 
       {/* Right-edge scene drawer: a persistent vertical "Scenes" handle; the
           thumbnail list slides out beside it. The panorama stays live behind

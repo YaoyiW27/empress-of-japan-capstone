@@ -113,6 +113,12 @@ function disposeActiveRecognition() {
  */
 type VoiceInputMode = "native" | "recorder" | "text";
 
+export type NarratorInteractionStatus =
+  | "selected"
+  | "listening"
+  | "thinking"
+  | "speaking";
+
 function readVoiceInputMode(): VoiceInputMode {
   if (window.SpeechRecognition ?? window.webkitSpeechRecognition) {
     return "native";
@@ -123,9 +129,11 @@ function readVoiceInputMode(): VoiceInputMode {
 export default function NarratorOverlay({
   narrator,
   scene,
+  onStatusChange,
 }: {
   narrator: Narrator;
   scene: Scene;
+  onStatusChange?: (status: NarratorInteractionStatus) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [history, setHistory] = useState<ChatHistoryTurn[]>([]);
@@ -133,6 +141,7 @@ export default function NarratorOverlay({
   const [notice, setNotice] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const [draft, setDraft] = useState("");
   // Downgrade to typed input when the mic turns out to be unusable
   // (permission denied at the browser or OS level, dead audio, socket
@@ -158,6 +167,18 @@ export default function NarratorOverlay({
   useEffect(() => {
     historyEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [history]);
+
+  const interactionStatus: NarratorInteractionStatus = isListening
+    ? "listening"
+    : isSpeaking
+      ? "speaking"
+      : isLoading
+        ? "thinking"
+        : "selected";
+
+  useEffect(() => {
+    onStatusChange?.(interactionStatus);
+  }, [interactionStatus, onStatusChange]);
   
   useEffect(() => {
     isMountedRef.current = true;
@@ -190,15 +211,45 @@ export default function NarratorOverlay({
     }
   }
 
-  function speakWithBrowserFallback(text: string) {
-    if (!("speechSynthesis" in window)) return;
+  function speakWithBrowserFallback(text: string): Promise<void> {
+    if (!("speechSynthesis" in window)) return Promise.resolve();
     configureAudioSession("playback");
     window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+    return new Promise((resolve) => {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.onend = () => resolve();
+      utterance.onerror = () => resolve();
+      window.speechSynthesis.speak(utterance);
+    });
+  }
+
+  function playAudioToCompletion(audio: HTMLAudioElement): Promise<void> {
+    return new Promise((resolve, reject) => {
+      function cleanup() {
+        audio.removeEventListener("ended", handleEnded);
+        audio.removeEventListener("error", handleError);
+      }
+
+      function handleEnded() {
+        cleanup();
+        resolve();
+      }
+
+      function handleError() {
+        cleanup();
+        reject(new Error("Narrator audio playback failed."));
+      }
+
+      audio.addEventListener("ended", handleEnded);
+      audio.addEventListener("error", handleError);
+      void audio.play().catch((error) => {
+        cleanup();
+        reject(error);
+      });
+    });
   }
 
   async function speak(text: string) {
-
     audioRef.current?.pause();
     if ("speechSynthesis" in window) window.speechSynthesis.cancel();
 
@@ -214,13 +265,17 @@ export default function NarratorOverlay({
       // Reuse the element unlocked in unlockAudioOutput — the tap is seconds
       // in the past by now, and iOS blocks play() on any element that was not
       // unlocked inside a user gesture.
-      await loadSharedAudio(audioRef, audio_url).play();
+      setIsSpeaking(true);
+      await playAudioToCompletion(loadSharedAudio(audioRef, audio_url));
     } catch (error) {
       if (!isMountedRef.current) return;
       // Backend/Polly unavailable (not configured, network error, etc.) —
       // fall back to the browser's built-in TTS so the narrator still speaks.
       console.error("Polly synthesis failed, falling back to browser TTS", error);
-      speakWithBrowserFallback(text);
+      setIsSpeaking(true);
+      await speakWithBrowserFallback(text);
+    } finally {
+      if (isMountedRef.current) setIsSpeaking(false);
     }
   }
 
@@ -249,7 +304,7 @@ export default function NarratorOverlay({
       ]);
 
       setResponse(result.response);
-      void speak(result.response);
+      await speak(result.response);
     } catch (error) {
       console.error(error);
       setNotice("Sorry, I could not reach the narrator service.");

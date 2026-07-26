@@ -2,12 +2,22 @@
 
 import { useRef, useState } from "react";
 import Image from "next/image";
+import NarratorButton, {
+  type NarratorId as NarratorButtonId,
+} from "@/components/ui/NarratorButton";
 import Scene from "@/components/three/Scene";
 import { narrators, scenes } from "@/lib/scenes";
 import { Button, ButtonLink, CircleBackLink } from "@/components/ui/Button";
 
 /** How long a touch press must last before the bio pops up. */
 const LONG_PRESS_MS = 450;
+
+/** Maps backend persona ids to the shorter ids used by NarratorButton assets. */
+const narratorButtonIds: Record<string, NarratorButtonId> = {
+  captain_sinclair: "sinclair",
+  eleanor_whitmore: "whitmore",
+  ming_chen: "ming",
+};
 
 /**
  * Scene-first hub: pick a guide on the left (hover / long-press a portrait for
@@ -47,51 +57,44 @@ export default function ExploreHub() {
           {narrators.map((narrator) => {
             const active = narrator.id === narratorId;
             return (
-              <div key={narrator.id} className="relative">
-                <button
-                  type="button"
+              <div
+                key={narrator.id}
+                className="relative"
+                onPointerEnter={(event) => {
+                  if (event.pointerType === "mouse") setBioId(narrator.id);
+                }}
+                onPointerLeave={() => {
+                  cancelPress();
+                  setBioId(null);
+                }}
+                onPointerDown={(event) => {
+                  if (event.pointerType === "mouse") return;
+                  cancelPress();
+                  pressTimer.current = window.setTimeout(
+                    () => setBioId(narrator.id),
+                    LONG_PRESS_MS,
+                  );
+                }}
+                onPointerUp={(event) => {
+                  cancelPress();
+                  if (event.pointerType !== "mouse") setBioId(null);
+                }}
+                onPointerCancel={() => {
+                  cancelPress();
+                  setBioId(null);
+                }}
+                onContextMenu={(event) => event.preventDefault()}
+              >
+                <NarratorButton
+                  narrator={narratorButtonIds[narrator.id]}
+                  variant="hub"
+                  state={active ? "selected" : "default"}
                   onClick={() => setNarratorId(narrator.id)}
-                  onPointerEnter={(e) => {
-                    if (e.pointerType === "mouse") setBioId(narrator.id);
-                  }}
-                  onPointerLeave={() => {
-                    cancelPress();
-                    setBioId(null);
-                  }}
-                  onPointerDown={(e) => {
-                    if (e.pointerType === "mouse") return;
-                    cancelPress();
-                    pressTimer.current = window.setTimeout(
-                      () => setBioId(narrator.id),
-                      LONG_PRESS_MS,
-                    );
-                  }}
-                  onPointerUp={(e) => {
-                    cancelPress();
-                    if (e.pointerType !== "mouse") setBioId(null);
-                  }}
-                  onPointerCancel={() => {
-                    cancelPress();
-                    setBioId(null);
-                  }}
-                  onContextMenu={(e) => e.preventDefault()}
-                  aria-current={active}
-                  aria-label={`${narrator.name}, ${narrator.role}`}
-                  className={`relative aspect-square w-16 shrink-0 touch-none select-none overflow-hidden rounded-full border-2 transition-all [-webkit-touch-callout:none] lg:w-24 ${
-                    active
-                      ? "border-brass ring-2 ring-brass/50"
-                      : "border-brass/40 opacity-70 hover:scale-105 hover:opacity-100"
+                  label={`${narrator.name}, ${narrator.role}${
+                    active ? ", selected" : ""
                   }`}
-                >
-                  <Image
-                    src={narrator.portraitSrc}
-                    alt={narrator.name}
-                    fill
-                    sizes="(min-width: 1024px) 96px, 64px"
-                    draggable={false}
-                    className="pointer-events-none select-none object-cover object-top"
-                  />
-                </button>
+                  className="touch-none [-webkit-touch-callout:none]"
+                />
 
                 {bioId === narrator.id && (
                   <div className="pointer-events-none absolute left-full top-1/2 z-20 ml-3 w-64 -translate-y-1/2 rounded-lg border border-brass/40 bg-card p-4 shadow-lg ring-1 ring-brass/10 lg:w-80">

@@ -243,7 +243,11 @@ body {
   --narrator-shadow: var(--color-ai);
   --narrator-frame: var(--color-brass-soft);
 }
+.narrator-button[data-state="thinking"] {
+  --narrator-shadow: var(--color-purple-faint);
+  --narrator-frame: var(--color-purple-faint);
 
+}
 /* Speaking: same treatment as listening */
 
 .narrator-button[data-state="speaking"] {
