@@ -6,11 +6,21 @@ import { useSearchParams } from "next/navigation";
 import { useTexture } from "@react-three/drei";
 import PanoramaScene, { type LookMode } from "@/components/three/PanoramaScene";
 import NarratorOverlay from "@/components/NarratorOverlay";
+import NarratorButton, {
+  type NarratorId as NarratorButtonId,
+} from "@/components/ui/NarratorButton";
 import { Button, CircleBackLink } from "@/components/ui/Button";
 import { narrators, scenes } from "@/lib/scenes";
 
 /** sessionStorage flag: the one-time feature hints were already shown. */
 const HINTS_SEEN_KEY = "empress.voyage.hints.v1";
+
+/** Maps backend persona ids to the shorter ids used by NarratorButton assets. */
+const narratorButtonIds: Record<string, NarratorButtonId> = {
+  captain_sinclair: "sinclair",
+  eleanor_whitmore: "whitmore",
+  ming_chen: "ming",
+};
 
 /** The flag never changes behind React's back, so subscribing is a no-op. */
 function subscribeToNothing() {
@@ -63,8 +73,6 @@ export default function VoyageExperience() {
 
   // Right-edge scene drawer, opened from its persistent handle.
   const [drawerOpen, setDrawerOpen] = useState(false);
-  // Bottom-left guide switcher: opens when the visitor taps the narrator.
-  const [switcherOpen, setSwitcherOpen] = useState(false);
 
   // One-time feature hints. useSyncExternalStore reads the flag with a
   // server snapshot of "seen", so SSR renders no overlay and the client
@@ -210,62 +218,41 @@ export default function VoyageExperience() {
         </button>
       )}
 
-      {/* Left: the narrator. Tapping the cut-out swaps it for a hub-style
-          column of portrait options, vertically centered so it never covers
-          the back button; picking one (or the current guide) brings it back. */}
-      {switcherOpen ? (
-        <div className="absolute left-3 top-1/2 flex -translate-y-1/2 flex-col gap-3 sm:left-6 lg:gap-5">
-          {narrators.map((candidate) => {
-            const active = candidate.id === narratorId;
-            return (
-              <button
-                key={candidate.id}
-                type="button"
-                onClick={() => {
-                  setNarratorId(candidate.id);
-                  setSwitcherOpen(false);
-                }}
-                aria-current={active}
-                aria-label={`${candidate.name}, ${candidate.role}`}
-                title={`${candidate.name} · ${candidate.role}`}
-                className={`relative aspect-square w-16 overflow-hidden rounded-full border-2 shadow-lg transition-all lg:w-24 ${
-                  active
-                    ? "border-brass ring-2 ring-brass/50"
-                    : "border-brass/40 opacity-80 hover:scale-105 hover:opacity-100"
-                }`}
-              >
-                <Image
-                  src={candidate.portraitSrc}
-                  alt={candidate.name}
-                  fill
-                  sizes="(min-width: 1024px) 96px, 64px"
-                  className="object-cover object-top"
-                />
-              </button>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="absolute bottom-0 left-0 px-4 sm:px-6">
-          <button
-            type="button"
-            onClick={() => setSwitcherOpen(true)}
-            aria-expanded={switcherOpen}
-            aria-label="Switch guide"
-            className="block leading-none"
-          >
-          <Image
-            src={narrator.cutoutSrc ?? narrator.portraitSrc}
-            alt={narrator.name}
-            width={400}
-            height={600}
-            className={`h-[46vh] w-auto object-contain drop-shadow-[0_8px_24px_rgba(0,0,0,0.45)] ${
-              narrator.id === "captain_sinclair" ? "translate-y-[5.6%]" : ""
-            }`}
-          />
-          </button>
-        </div>
-      )}
+      {/* Narrator buttons — always visible in their existing position. Voice
+          states will be supplied by NarratorOverlay once its status callback
+          is connected; for now the active guide is selected and the rest use
+          their default appearance. */}
+      <div className="absolute left-3 top-[calc(50%-108px)] z-10 flex flex-row gap-3 sm:left-6 lg:top-[calc(50%-164px)] lg:gap-5">
+        {narrators.map((candidate) => {
+          const active = candidate.id === narratorId;
+
+          return (
+            <NarratorButton
+              key={candidate.id}
+              narrator={narratorButtonIds[candidate.id]}
+              variant="scene"
+              state={active ? "selected" : "default"}
+              onClick={() => setNarratorId(candidate.id)}
+              label={`${candidate.name}, ${candidate.role}${
+                active ? ", selected" : ""
+              }`}
+            />
+          );
+        })}
+      </div>
+
+      {/* Current narrator avatar — always visible at the bottom-left */}
+      <div className="absolute bottom-0 left-0 px-4 sm:px-6">
+        <Image
+          src={narrator.cutoutSrc ?? narrator.portraitSrc}
+          alt={narrator.name}
+          width={400}
+          height={600}
+          className={`block h-[46vh] w-auto object-contain drop-shadow-[0_8px_24px_rgba(0,0,0,0.45)] ${
+            narrator.id === "captain_sinclair" ? "translate-y-[5.6%]" : ""
+          }`}
+        />
+      </div>
 
       {/* Bottom-center: voice dock (mic + collapsible transcript). Keyed by
           narrator so a guide switch resets the conversation panel. */}
