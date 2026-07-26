@@ -63,7 +63,7 @@ export const narrators: Narrator[] = [
     blurb: "Command the ship from the bridge and the working decks.",
     bio: "A veteran mariner with more than thirty years at sea, Captain James Sinclair commands the Empress of Japan with discipline and quiet confidence. Responsible for the safety of hundreds of passengers and crew, he oversees every aspect of the voyage.",
     portraitSrc: "/narrator/captain.png",
-    cutoutSrc: "/narrator/captain-cutout.png",
+    cutoutSrc: "/narrators/sinclair/Sinclair-profile.png",
   },
   {
     id: "eleanor_whitmore",
@@ -72,7 +72,7 @@ export const narrators: Narrator[] = [
     blurb: "Promenade the decks and the grand rooms of first class.",
     bio: "Eleanor Whitmore is the daughter of a prominent railway executive and a familiar face in Vancouver's upper social circles. Traveling to Yokohama to visit relatives and pursue charitable work abroad, she spends her days attending dinners, writing letters, and mingling with fellow first-class passengers.",
     portraitSrc: "/narrator/first-class.png",
-    cutoutSrc: "/narrator/first-class-cutout.png",
+    cutoutSrc: "/narrators/whitmore/Whitmore-profile.png",
   },
   {
     id: "ming_chen",
@@ -81,7 +81,7 @@ export const narrators: Narrator[] = [
     blurb: "See the ship from below, where the crew worked and slept.",
     bio: "Ming left Hong Kong several years ago in search of opportunity and now works deep within the ship's engine spaces. Most passengers never see him, yet he knows the vessel better than almost anyone. Long hours among the boilers have taught him to notice every unusual vibration.",
     portraitSrc: "/narrator/crew.png",
-    cutoutSrc: "/narrator/crew-cutout.png",
+    cutoutSrc: "/narrators/ming/Ming-profile.png",
   },
 ];
 
