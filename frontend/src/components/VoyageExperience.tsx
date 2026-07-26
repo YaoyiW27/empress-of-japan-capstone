@@ -246,20 +246,23 @@ export default function VoyageExperience() {
           })}
         </div>
       ) : (
-        <div className="absolute bottom-0 left-0 p-4 sm:p-6">
+        <div className="absolute bottom-0 left-0 px-4 sm:px-6">
           <button
             type="button"
             onClick={() => setSwitcherOpen(true)}
             aria-expanded={switcherOpen}
             aria-label="Switch guide"
+            className="block leading-none"
           >
-            <Image
-              src={narrator.cutoutSrc ?? narrator.portraitSrc}
-              alt={narrator.name}
-              width={400}
-              height={600}
-              className="h-[46vh] w-auto object-contain drop-shadow-[0_8px_24px_rgba(0,0,0,0.45)]"
-            />
+          <Image
+            src={narrator.cutoutSrc ?? narrator.portraitSrc}
+            alt={narrator.name}
+            width={400}
+            height={600}
+            className={`h-[46vh] w-auto object-contain drop-shadow-[0_8px_24px_rgba(0,0,0,0.45)] ${
+              narrator.id === "captain_sinclair" ? "translate-y-[5.6%]" : ""
+            }`}
+          />
           </button>
         </div>
       )}
