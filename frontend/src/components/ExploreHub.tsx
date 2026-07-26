@@ -42,7 +42,7 @@ export default function ExploreHub() {
   }
 
   return (
-    <main className="explore-hub relative flex h-dvh w-full flex-col overflow-hidden bg-ivory px-4 py-3 lg:px-8 lg:py-6">
+    <main className="explore-hub relative flex h-dvh w-full flex-col overflow-x-hidden overflow-y-auto bg-ivory px-4 py-3 lg:px-8 lg:py-6">
       {/* Same spot as the voyage page's back button, for cross-page consistency. */}
       <CircleBackLink
         href="/"
