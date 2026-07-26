@@ -235,6 +235,7 @@ export default function VoyageExperience() {
               variant="scene"
               state={active ? narratorStatus : "notSelected"}
               onClick={() => {
+                if (active) return;
                 setNarratorStatus("selected");
                 setNarratorId(candidate.id);
               }}

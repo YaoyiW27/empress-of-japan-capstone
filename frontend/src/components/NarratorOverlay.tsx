@@ -322,7 +322,7 @@ export default function NarratorOverlay({
       ]);
 
       setResponse(result.response);
-      await speak(result.response);
+      void speak(result.response);
     } catch (error) {
       console.error(error);
       setNotice("Sorry, I could not reach the narrator service.");

@@ -183,7 +183,7 @@ body {
 /* ---------- Narrator button ---------- */
 
 .narrator-button {
-  --narrator-shadow: var(--narrator-shadow);
+  --narrator-shadow: transparent;
   --narrator-frame: transparent;
 
   position: relative;
