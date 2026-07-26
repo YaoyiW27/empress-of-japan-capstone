@@ -50,6 +50,26 @@ function getDeviceOrientationEvent(): DeviceOrientationEventStatic | undefined {
   ).DeviceOrientationEvent;
 }
 
+function readGyroSupported() {
+  try {
+    return Boolean(getDeviceOrientationEvent());
+  } catch {
+    return false;
+  }
+}
+
+function readDefaultLookMode(): LookMode {
+  try {
+    const doe = getDeviceOrientationEvent();
+    if (!doe) return "drag";
+    const needsPermission = typeof doe.requestPermission === "function";
+    const isTouch = window.matchMedia?.("(pointer: coarse)").matches ?? false;
+    return isTouch && !needsPermission ? "gyro" : "drag";
+  } catch {
+    return "drag";
+  }
+}
+
 /**
  * The voyage: one persistent panorama viewer where both halves of the pair —
  * narrator and scene — switch in place (no remount, no navigation). The pair
@@ -99,22 +119,23 @@ export default function VoyageExperience() {
     }
   }
 
-  // Device-orientation support + default look mode, computed once. Reading
-  // window here is safe: the route wraps this component in <Suspense> (for
-  // useSearchParams), so it renders on the client.
-  const [gyroSupported] = useState(
-    () => typeof window !== "undefined" && Boolean(getDeviceOrientationEvent()),
+  // Device-orientation support + default look mode. useSyncExternalStore uses
+  // server-safe snapshots during SSR, then reads the browser capability after
+  // hydration without creating a markup mismatch.
+  const gyroSupported = useSyncExternalStore(
+    subscribeToNothing,
+    readGyroSupported,
+    () => false,
   );
-  const [lookMode, setLookMode] = useState<LookMode>(() => {
-    if (typeof window === "undefined") return "drag";
-    const doe = getDeviceOrientationEvent();
-    if (!doe) return "drag";
-    // iOS needs a permission tap (handled in toggleLook) → start in drag.
-    // Touch devices without that requirement (Android) default to gyro.
-    const needsPermission = typeof doe.requestPermission === "function";
-    const isTouch = window.matchMedia?.("(pointer: coarse)").matches ?? false;
-    return isTouch && !needsPermission ? "gyro" : "drag";
-  });
+  const defaultLookMode = useSyncExternalStore<LookMode>(
+    subscribeToNothing,
+    readDefaultLookMode,
+    () => "drag",
+  );
+  const [lookModeOverride, setLookModeOverride] = useState<LookMode | null>(
+    null,
+  );
+  const lookMode = lookModeOverride ?? defaultLookMode;
 
   // Warm the texture cache once so switching scenes is instant (no reload flash).
   useEffect(() => {
@@ -132,7 +153,7 @@ export default function VoyageExperience() {
 
   async function toggleLook() {
     if (lookMode === "gyro") {
-      setLookMode("drag");
+      setLookModeOverride("drag");
       return;
     }
     const doe = getDeviceOrientationEvent();
@@ -140,17 +161,17 @@ export default function VoyageExperience() {
     if (doe && typeof doe.requestPermission === "function") {
       try {
         const res = await doe.requestPermission();
-        setLookMode(res === "granted" ? "gyro" : "drag");
+        setLookModeOverride(res === "granted" ? "gyro" : "drag");
       } catch {
-        setLookMode("drag");
+        setLookModeOverride("drag");
       }
     } else {
-      setLookMode("gyro");
+      setLookModeOverride("gyro");
     }
   }
 
   return (
-    <main className="relative h-dvh w-full overflow-hidden bg-navy">
+    <main className="voyage-experience relative h-dvh w-full overflow-hidden bg-navy">
       <div className="absolute inset-0">
         <PanoramaScene scene={scene} mode={lookMode} />
       </div>
@@ -225,7 +246,7 @@ export default function VoyageExperience() {
 
       {/* Narrator buttons — the active guide reflects NarratorOverlay's live
           interaction status; the other guides remain not selected. */}
-      <div className="absolute left-3 top-[calc(50%-108px)] z-10 flex flex-row gap-4 sm:left-6 lg:top-[calc(50%-164px)] lg:gap-5">
+      <div className="voyage-experience__narrator-rail absolute left-3 top-[calc(50%-108px)] z-10 flex flex-row gap-4 sm:left-6 lg:top-[calc(50%-164px)] lg:gap-5">
         {narrators.map((candidate) => {
           const active = candidate.id === narratorId;
 
@@ -249,7 +270,7 @@ export default function VoyageExperience() {
       </div>
 
       {/* Current narrator avatar — always visible at the bottom-left */}
-      <div className="absolute bottom-0 left-0 px-4 sm:px-6">
+      <div className="voyage-experience__cutout absolute bottom-0 left-0 px-4 sm:px-6">
         <Image
           src={narrator.cutoutSrc ?? narrator.portraitSrc}
           alt={narrator.name}
@@ -275,8 +296,10 @@ export default function VoyageExperience() {
           it, so picking a scene previews instantly — the drawer stays open
           for flipping through and closes from the same handle. */}
       <div
-        className={`pointer-events-none absolute inset-y-0 right-0 z-20 flex items-center transition-transform duration-300 ease-out ${
-          drawerOpen ? "translate-x-0" : "translate-x-56 lg:translate-x-64"
+        className={`voyage-experience__scene-drawer pointer-events-none absolute inset-y-0 right-0 z-20 flex items-center transition-transform duration-300 ease-out ${
+          drawerOpen
+            ? "translate-x-0"
+            : "translate-x-[var(--scene-drawer-offset)] lg:translate-x-[var(--scene-drawer-offset-lg)]"
         }`}
       >
         <button
@@ -339,7 +362,7 @@ export default function VoyageExperience() {
               callouts become width-capped wrapping strips hugging their
               edges — vertical bands separate center from sides, horizontal
               caps separate the sides from each other. */}
-          <div className="absolute left-1/2 top-[35%] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-3 text-center sm:top-1/2 sm:gap-4">
+          <div className="voyage-hints__center absolute left-1/2 top-[35%] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-3 text-center sm:top-1/2 sm:gap-4">
             <p className="font-display text-xl font-bold text-ivory drop-shadow-[0_2px_6px_rgba(0,0,0,0.6)] sm:text-2xl lg:text-3xl">
               Drag to Look Around
             </p>
@@ -348,21 +371,21 @@ export default function VoyageExperience() {
             </Button>
           </div>
 
-          <p className="absolute bottom-[48vh] left-4 max-w-[38vw] rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-xs font-semibold text-navy shadow-lg sm:left-6 sm:max-w-none sm:whitespace-nowrap">
+          <p className="voyage-hints__guide absolute bottom-[48vh] left-4 max-w-[38vw] rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-xs font-semibold text-navy shadow-lg sm:left-6 sm:max-w-none sm:whitespace-nowrap">
             Tap Your Guide to Switch Narrator
           </p>
 
           {gyroSupported && (
-            <p className="absolute right-16 top-4 whitespace-nowrap rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-xs font-semibold text-navy shadow-lg sm:right-20 sm:top-6">
+            <p className="voyage-hints__look absolute right-16 top-4 whitespace-nowrap rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-xs font-semibold text-navy shadow-lg sm:right-20 sm:top-6">
               Drag / Tilt View
             </p>
           )}
 
-          <p className="absolute right-12 top-[58%] max-w-[38vw] -translate-y-1/2 rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-xs font-semibold text-navy shadow-lg sm:right-14 sm:top-1/2 sm:max-w-none sm:whitespace-nowrap">
+          <p className="voyage-hints__scenes absolute right-12 top-[58%] max-w-[38vw] -translate-y-1/2 rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-xs font-semibold text-navy shadow-lg sm:right-14 sm:top-1/2 sm:max-w-none sm:whitespace-nowrap">
             Browse Ship&apos;s Scenes Here
           </p>
 
-          <p className="absolute bottom-24 left-1/2 max-w-[85vw] -translate-x-1/2 rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-center text-xs font-semibold text-navy shadow-lg sm:bottom-28 sm:max-w-none sm:whitespace-nowrap">
+          <p className="voyage-hints__mic absolute bottom-24 left-1/2 max-w-[85vw] -translate-x-1/2 rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-center text-xs font-semibold text-navy shadow-lg sm:bottom-28 sm:max-w-none sm:whitespace-nowrap">
             Ask with the Mic · Read the Transcript
           </p>
         </div>

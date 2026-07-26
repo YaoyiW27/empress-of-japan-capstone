@@ -42,18 +42,18 @@ export default function ExploreHub() {
   }
 
   return (
-    <main className="relative flex h-dvh w-full flex-col bg-ivory px-4 py-3 lg:px-8 lg:py-6">
+    <main className="explore-hub relative flex h-dvh w-full flex-col overflow-x-hidden overflow-y-auto bg-ivory px-4 py-3 lg:px-8 lg:py-6">
       {/* Same spot as the voyage page's back button, for cross-page consistency. */}
       <CircleBackLink
         href="/"
         label="Back to home"
-        className="absolute left-3 top-3 z-10 sm:left-6 sm:top-6"
+        className="absolute left-6 top-6 z-10"
       />
 
-      <div className="mt-14 flex min-h-0 flex-1 gap-3 lg:mt-16 lg:gap-5">
+      <div className="explore-hub__layout mt-14 flex min-h-0 flex-1 gap-3 lg:mt-16 lg:gap-5">
         {/* Left: guides as circular portrait options. Hover (mouse) or
             long-press (touch) reveals the bio beside the portrait. */}
-        <aside className="flex w-20 shrink-0 flex-col items-center justify-center gap-3 lg:w-32 lg:gap-5">
+        <aside className="explore-hub__guide-rail flex w-20 shrink-0 flex-col items-center justify-center gap-3 lg:w-32 lg:gap-5">
           {narrators.map((narrator) => {
             const active = narrator.id === narratorId;
             return (
@@ -120,26 +120,33 @@ export default function ExploreHub() {
       </div>
         {/* Center: the ship (no background). min-w-0 lets it shrink so the right
             panel never gets pushed off a narrow (phone-landscape) screen. */}
-        <section className="relative min-h-0 min-w-0 flex-1">
+
+        <section className="explore-hub__ship relative min-h-0 min-w-0 flex-1">
+        <div className="absolute inset-y-0 left-1/2 w-[60%] max-w-xl -translate-x-1/2 overflow-hidden">
           <Scene
             scenes={scenes}
             selectedSceneId={sceneId}
             onSelectScene={setSceneId}
           />
-          <p className="pointer-events-none absolute inset-x-0 bottom-2 text-center text-ig text-[0.65rem] uppercase tracking-[0.2em] text-navy-soft lg:bottom-3 lg:text-xs">
+        </div>
+
+          <p className="pointer-events-none absolute bottom-2 left-1/2 z-10 w-full -translate-x-1/2 px-2 text-center text-ig text-[0.65rem] uppercase tracking-[0.2em] text-navy-soft lg:bottom-3 lg:text-xs">
             Drag to rotate · scroll to zoom · tap a glowing dot to pick a scene
           </p>
         </section>
 
         {/* Right: every scene, scrollable; pick one and start the voyage */}
-        <aside className="flex w-64 shrink-0 flex-col">
+        {/* Right: every scene, scrollable; pick one and start the voyage */}
+        <aside className="explore-hub__scene-panel flex min-h-0 w-64 shrink-0 flex-col overflow-hidden lg:w-[24rem]">
           <div className="flex min-h-0 flex-1 flex-col bg-transparent p-4">
-          <p className="w-full shrink-0 text-center text-ig uppercase text-navy-soft">
+            <p className="shrink-0 text-center text-ig uppercase text-navy-soft">
               Scenes
             </p>
-            <ul className="mt-3 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-1">
+
+            <ul className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto p-1">
               {scenes.map((scene) => {
                 const active = scene.id === sceneId;
+
                 return (
                   <li key={scene.id} className="flex justify-center">
                     <SceneButton
@@ -152,7 +159,10 @@ export default function ExploreHub() {
                 );
               })}
             </ul>
-            <div className="mt-4 flex shrink-0 justify-center">
+            <p className="mt-3 text-center text-ig uppercase tracking-[0.16em] text-navy-soft">
+              Select a narrator and a scene to begin.
+            </p>
+            <div className="explore-hub__start mt-4 flex shrink-0 justify-center">
               {sceneId && narratorId ? (
                 <ButtonLink
                   href={`/explore/voyage?scene=${sceneId}&narrator=${narratorId}`}
@@ -160,9 +170,7 @@ export default function ExploreHub() {
                   Start Voyage
                 </ButtonLink>
               ) : (
-                <Button disabled>
-                  Start Voyage
-                </Button>
+                <Button disabled>Start Voyage</Button>
               )}
             </div>
           </div>
