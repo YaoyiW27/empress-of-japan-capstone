@@ -116,7 +116,7 @@ export default function ExploreHub() {
 
         {/* Center: the ship (no background). min-w-0 lets it shrink so the right
             panel never gets pushed off a narrow (phone-landscape) screen. */}
-        <section className="explore-hub__ship relative min-h-0 min-w-0 flex-1">
+        <section className="explore-hub__ship relative min-h-0 min-w-0 flex-1 overflow-hidden">
           <Scene
             scenes={scenes}
             selectedSceneId={sceneId}
