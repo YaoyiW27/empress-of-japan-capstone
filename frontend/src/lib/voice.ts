@@ -45,6 +45,34 @@ export async function synthesizeNarratorVoice({
 // Transcribe, which answers with partial and final transcript messages.
 // ---------------------------------------------------------------------------
 
+declare global {
+  interface Navigator {
+    /** WebKit Audio Session API (iOS 17+). */
+    audioSession?: {
+      type:
+        | "auto"
+        | "playback"
+        | "transient"
+        | "transient-solo"
+        | "ambient"
+        | "play-and-record";
+    };
+  }
+}
+
+/**
+ * Steer iOS audio routing. While a page captures the mic, iOS flips the
+ * session to play-and-record, which sends playback to the earpiece at phone-
+ * call volume — and it can stay there after capture ends. Set "play-and-
+ * record" before capturing and "playback" before speaking to force the
+ * loudspeaker. No-op where the API is missing (iOS 16-, other browsers).
+ */
+export function configureAudioSession(type: "playback" | "play-and-record") {
+  if (navigator.audioSession) {
+    navigator.audioSession.type = type;
+  }
+}
+
 const TRANSCRIBE_SAMPLE_RATE_HZ = 16_000;
 /** The server cuts recordings at 15 s; stop just under for a clean final. */
 const MAX_RECORDING_SECONDS = 14;
@@ -143,6 +171,7 @@ export async function startLiveTranscription({
   }
 
   try {
+    configureAudioSession("play-and-record");
     stream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 },
     });

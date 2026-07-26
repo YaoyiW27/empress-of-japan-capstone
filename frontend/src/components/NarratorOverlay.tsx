@@ -14,6 +14,7 @@ import {
   type ChatHistoryTurn,
 } from "@/lib/chat";
 import {
+  configureAudioSession,
   isLiveTranscriptionSupported,
   startLiveTranscription,
   synthesizeNarratorVoice,
@@ -161,6 +162,7 @@ export default function NarratorOverlay({
 
   function speakWithBrowserFallback(text: string) {
     if (!("speechSynthesis" in window)) return;
+    configureAudioSession("playback");
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
   }
@@ -176,6 +178,9 @@ export default function NarratorOverlay({
         text,
       });
       if (!isMountedRef.current) return;
+      // Mic capture flips the iOS session to earpiece routing; put it back on
+      // the loudspeaker before the narrator speaks.
+      configureAudioSession("playback");
       // Reuse the element unlocked in unlockAudioOutput — the tap is seconds
       // in the past by now, and iOS blocks play() on any element that was not
       // unlocked inside a user gesture.
@@ -237,6 +242,7 @@ export default function NarratorOverlay({
 
   function startListening() {
     unlockAudioOutput();
+    configureAudioSession("play-and-record");
     const Recognition =
       window.SpeechRecognition ?? window.webkitSpeechRecognition;
 
