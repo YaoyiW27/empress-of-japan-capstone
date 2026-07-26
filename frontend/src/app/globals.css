@@ -394,7 +394,6 @@ body {
   .voyage-experience__narrator-rail {
     top: 6.75rem;
     left: 1.5rem;
-    flex-direction: column;
     gap: 0.55rem;
   }
 
