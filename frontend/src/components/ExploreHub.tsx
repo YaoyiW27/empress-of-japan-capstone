@@ -148,17 +148,16 @@ export default function ExploreHub() {
                 );
               })}
             </ul>
-            <div className="mt-4 shrink-0">
+            <div className="mt-4 flex shrink-0 justify-center">
               {sceneId ? (
                 <ButtonLink
                   href={`/explore/voyage?scene=${sceneId}&narrator=${narratorId}`}
-                  className="w-full justify-center"
                 >
-                  Start voyage
+                  Start Voyage
                 </ButtonLink>
               ) : (
-                <Button disabled className="w-full justify-center">
-                  Start voyage
+                <Button disabled>
+                  Start Voyage
                 </Button>
               )}
             </div>

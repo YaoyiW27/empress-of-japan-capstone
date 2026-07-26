@@ -37,8 +37,7 @@ export default function Home() {
       </div>
 
       <ButtonLink href="/explore">
-        Step aboard
-        <ArrowRightIcon />
+        Step Aboard
       </ButtonLink>
     </main>
   );
