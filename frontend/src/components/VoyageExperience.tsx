@@ -296,7 +296,9 @@ export default function VoyageExperience() {
           for flipping through and closes from the same handle. */}
       <div
         className={`voyage-experience__scene-drawer pointer-events-none absolute inset-y-0 right-0 z-20 flex items-center transition-transform duration-300 ease-out ${
-          drawerOpen ? "translate-x-0" : "translate-x-56 lg:translate-x-64"
+          drawerOpen
+            ? "translate-x-0"
+            : "translate-x-[var(--scene-drawer-offset)] lg:translate-x-[var(--scene-drawer-offset-lg)]"
         }`}
       >
         <button

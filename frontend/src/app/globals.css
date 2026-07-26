@@ -51,6 +51,12 @@ body {
   color: var(--color-navy);
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
 }
+
+.voyage-experience {
+  --scene-drawer-offset: 14rem;
+  --scene-drawer-offset-lg: 16rem;
+}
+
 /* ---------- Chat transcript ---------- */
 
 .chat-transcript {
@@ -380,6 +386,11 @@ body {
     line-height: 1;
   }
 
+  .voyage-experience {
+    --scene-drawer-offset: min(46vw, 13rem);
+    --scene-drawer-offset-lg: min(46vw, 13rem);
+  }
+
   .voyage-experience__narrator-rail {
     top: 6.75rem;
     left: 1.5rem;
@@ -431,20 +442,21 @@ body {
   }
 
   .voyage-hints__center {
-    top: 42%;
-    gap: 0.5rem;
+    top: 50%;
+    gap: 0.65rem;
   }
 
   .voyage-hints__center p {
-    font-size: 1.25rem;
+    font-size: 1.15rem;
     line-height: 1;
   }
 
   .voyage-hints__guide {
-    top: 5.5rem;
+    top: 50%;
     bottom: auto;
-    left: 4.75rem;
+    left: 3.75rem;
     max-width: 28vw;
+    transform: translateY(-50%);
   }
 
   .voyage-hints__look {
@@ -453,13 +465,14 @@ body {
   }
 
   .voyage-hints__scenes {
-    top: 52%;
-    right: 3.25rem;
+    top: 50%;
+    right: 1.25rem;
     max-width: 28vw;
   }
 
   .voyage-hints__mic {
-    bottom: 4.25rem;
+    bottom: 3.1rem;
+    max-width: min(24rem, 48vw);
   }
 }
 
