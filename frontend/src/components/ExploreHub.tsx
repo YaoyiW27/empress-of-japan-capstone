@@ -28,7 +28,7 @@ const narratorButtonIds: Record<string, NarratorButtonId> = {
  * kicks in on real desktops/tablets (>=1024px).
  */
 export default function ExploreHub() {
-  const [narratorId, setNarratorId] = useState(narrators[0].id);
+  const [narratorId, setNarratorId] = useState<string | null>(null);
   const [sceneId, setSceneId] = useState<string | null>(null);
   // Which guide's bio is showing (mouse hover, or touch long-press).
   const [bioId, setBioId] = useState<string | null>(null);
@@ -113,7 +113,11 @@ export default function ExploreHub() {
             );
           })}
         </aside>
-
+      <div className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 text-center sm:top-6">
+        <h1 className="whitespace-nowrap text-ig-header !text-brass lg:text-5xl">
+          Welcome Aboard
+        </h1>
+      </div>
         {/* Center: the ship (no background). min-w-0 lets it shrink so the right
             panel never gets pushed off a narrow (phone-landscape) screen. */}
         <section className="relative min-h-0 min-w-0 flex-1">
@@ -149,7 +153,7 @@ export default function ExploreHub() {
               })}
             </ul>
             <div className="mt-4 flex shrink-0 justify-center">
-              {sceneId ? (
+              {sceneId && narratorId ? (
                 <ButtonLink
                   href={`/explore/voyage?scene=${sceneId}&narrator=${narratorId}`}
                 >
