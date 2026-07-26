@@ -1,16 +1,15 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import NarratorButton, {
   type NarratorId as NarratorButtonId,
 } from "@/components/ui/NarratorButton";
 import SceneButton from "@/components/ui/SceneButton";
 import Scene from "@/components/three/Scene";
-import { narrators, scenes } from "@/lib/scenes";
+import { getNarrator, getScene, narrators, scenes } from "@/lib/scenes";
 import { Button, ButtonLink, CircleBackLink } from "@/components/ui/Button";
-
-/** How long a touch press must last before the bio pops up. */
-const LONG_PRESS_MS = 450;
 
 /** Maps backend persona ids to the shorter ids used by NarratorButton assets. */
 const narratorButtonIds: Record<string, NarratorButtonId> = {
@@ -20,26 +19,29 @@ const narratorButtonIds: Record<string, NarratorButtonId> = {
 };
 
 /**
- * Scene-first hub: pick a guide on the left (hover / long-press a portrait for
- * their bio), see the 3D ship in the center, and pick any scene on the right —
- * guides and scenes combine freely. "Start voyage" opens the pair.
+ * Scene-first hub: pick a guide on the left (the ⓘ badge on a portrait opens
+ * their biography page), see the 3D ship in the center, and pick any scene on
+ * the right — guides and scenes combine freely. "Start voyage" opens the pair.
+ *
+ * ?narrator= & ?scene= preselect either half — that's how the biography pages
+ * hand their picks back — so this sits under a Suspense boundary (the page
+ * stays static despite useSearchParams).
  *
  * Sized compact for phone landscape (short viewport); the roomier `lg:` sizing
  * kicks in on real desktops/tablets (>=1024px).
  */
 export default function ExploreHub() {
-  const [narratorId, setNarratorId] = useState<string | null>(null);
-  const [sceneId, setSceneId] = useState<string | null>(null);
-  // Which guide's bio is showing (mouse hover, or touch long-press).
-  const [bioId, setBioId] = useState<string | null>(null);
-  const pressTimer = useRef<number | null>(null);
-
-  function cancelPress() {
-    if (pressTimer.current !== null) {
-      window.clearTimeout(pressTimer.current);
-      pressTimer.current = null;
-    }
-  }
+  const searchParams = useSearchParams();
+  // Unknown ids (hand-typed deep links) are ignored rather than kept as
+  // un-startable selections.
+  const [narratorId, setNarratorId] = useState<string | null>(() => {
+    const requested = searchParams.get("narrator");
+    return requested && getNarrator(requested) ? requested : null;
+  });
+  const [sceneId, setSceneId] = useState<string | null>(() => {
+    const requested = searchParams.get("scene");
+    return requested && getScene(requested) ? requested : null;
+  });
 
   return (
     <main className="explore-hub relative flex h-dvh w-full flex-col overflow-x-hidden overflow-y-auto bg-ivory px-4 py-3 lg:px-8 lg:py-6">
@@ -51,8 +53,8 @@ export default function ExploreHub() {
       />
 
       <div className="explore-hub__layout mt-14 flex min-h-0 flex-1 gap-3 lg:mt-16 lg:gap-5">
-        {/* Left: guides as circular portrait options. Hover (mouse) or
-            long-press (touch) reveals the bio beside the portrait. */}
+        {/* Left: guides as circular portrait options. Tap the portrait to
+            select; the ⓘ badge opens the guide's biography page. */}
         <aside className="explore-hub__guide-rail flex w-20 shrink-0 flex-col items-center justify-center gap-3 lg:w-32 lg:gap-5">
           <p className="mt-3 text-center text-ig uppercase tracking-[0.16em] text-navy-soft">
               Narrators
@@ -60,34 +62,7 @@ export default function ExploreHub() {
           {narrators.map((narrator) => {
             const active = narrator.id === narratorId;
             return (
-              <div
-                key={narrator.id}
-                className="relative"
-                onPointerEnter={(event) => {
-                  if (event.pointerType === "mouse") setBioId(narrator.id);
-                }}
-                onPointerLeave={() => {
-                  cancelPress();
-                  setBioId(null);
-                }}
-                onPointerDown={(event) => {
-                  if (event.pointerType === "mouse") return;
-                  cancelPress();
-                  pressTimer.current = window.setTimeout(
-                    () => setBioId(narrator.id),
-                    LONG_PRESS_MS,
-                  );
-                }}
-                onPointerUp={(event) => {
-                  cancelPress();
-                  if (event.pointerType !== "mouse") setBioId(null);
-                }}
-                onPointerCancel={() => {
-                  cancelPress();
-                  setBioId(null);
-                }}
-                onContextMenu={(event) => event.preventDefault()}
-              >
+              <div key={narrator.id} className="relative">
                 <NarratorButton
                   narrator={narratorButtonIds[narrator.id]}
                   variant="hub"
@@ -96,22 +71,15 @@ export default function ExploreHub() {
                   label={`${narrator.name}, ${narrator.role}${
                     active ? ", selected" : ""
                   }`}
-                  className="touch-none [-webkit-touch-callout:none]"
                 />
 
-                {bioId === narrator.id && (
-                  <div className="pointer-events-none absolute left-full top-1/2 z-20 ml-3 w-64 -translate-y-1/2 rounded-lg border border-brass/40 bg-card p-4 shadow-lg ring-1 ring-brass/10 lg:w-80">
-                    <p className="text-[0.65rem] font-semibold uppercase tracking-[0.22em] text-brass lg:text-xs">
-                      {narrator.role}
-                    </p>
-                    <p className="mt-1 font-display text-lg font-bold text-navy lg:text-xl">
-                      {narrator.name}
-                    </p>
-                    <p className="mt-2 text-xs leading-relaxed text-navy-soft lg:text-sm">
-                      {narrator.bio}
-                    </p>
-                  </div>
-                )}
+                <Link
+                  href={`/explore/${narrator.id}`}
+                  aria-label={`About ${narrator.name}`}
+                  className="absolute -right-1 -top-1 z-10 flex h-6 w-6 items-center justify-center rounded-full border border-brass bg-card text-navy shadow-md transition-colors hover:bg-brass hover:text-ivory lg:h-7 lg:w-7"
+                >
+                  <InfoIcon />
+                </Link>
               </div>
             );
           })}
@@ -181,5 +149,23 @@ export default function ExploreHub() {
         </aside>
       </div>
     </main>
+  );
+}
+
+/** The "i" glyph for the bio badge — stroke style matches ArrowRightIcon. */
+function InfoIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      className={className}
+    >
+      <path d="M12 10.5V17" />
+      <path d="M12 7h.01" />
+    </svg>
   );
 }

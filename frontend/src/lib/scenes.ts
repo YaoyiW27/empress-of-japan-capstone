@@ -3,7 +3,9 @@
  *
  * Narrators and scenes are independent (scene-first): any narrator can guide
  * any scene. The ship hub (/explore) offers both pickers; /explore/voyage
- * renders the chosen pair and lets either half switch in place.
+ * renders the chosen pair and lets either half switch in place. Each narrator
+ * also has a biography page (/explore/[narratorId]) featuring their signature
+ * scenes (`sceneIds`), which jumps back to the hub with both preselected.
  *
  * Dialogue is intentionally not scripted here — the voice/agent track wires up
  * AI conversation. `bio` is the narrator's introduction copy. To add a scene:
@@ -19,12 +21,21 @@ export type Narrator = {
   role: string;
   /** One-line teaser for the selection card. */
   blurb: string;
-  /** Introduction paragraph (hover / long-press on the hub portrait). */
+  /** Introduction paragraph (the /explore/[narratorId] biography page). */
   bio: string;
   /** Framed portrait (has a background) — used on the selection card. */
   portraitSrc: string;
   /** Transparent cut-out for standing in the scene. */
   cutoutSrc?: string;
+  /**
+   * Signature scenes featured on the biography page, in display order.
+   * A curated subset — the hub still pairs any narrator with any scene.
+   */
+  sceneIds: string[];
+  /** Full-body transparent cut-out — the biography page portrait. */
+  bioPortraitSrc: string;
+  /** Scene photo blurred behind the biography page. */
+  bioBackdropSrc: string;
 };
 
 /**
@@ -64,6 +75,12 @@ export const narrators: Narrator[] = [
     bio: "A veteran mariner with more than thirty years at sea, Captain James Sinclair commands the Empress of Japan with discipline and quiet confidence. Responsible for the safety of hundreds of passengers and crew, he oversees every aspect of the voyage.",
     portraitSrc: "/narrator/captain.png",
     cutoutSrc: "/narrators/sinclair/Sinclair-profile.png",
+    // Figma lists Bridge / Smoking Room / Sport Deck, but no Smoking Room scene
+    // exists yet; Loading Dock stands in (it was Sinclair's in an earlier
+    // Figma iteration). Swap when the scene ships.
+    sceneIds: ["bridge", "loading-dock", "deck"],
+    bioPortraitSrc: "/narrators/sinclair/Sinclair-full.png",
+    bioBackdropSrc: "/scenes/captain/bridge.png",
   },
   {
     id: "eleanor_whitmore",
@@ -73,6 +90,13 @@ export const narrators: Narrator[] = [
     bio: "Eleanor Whitmore is the daughter of a prominent railway executive and a familiar face in Vancouver's upper social circles. Traveling to Yokohama to visit relatives and pursue charitable work abroad, she spends her days attending dinners, writing letters, and mingling with fellow first-class passengers.",
     portraitSrc: "/narrator/first-class.png",
     cutoutSrc: "/narrators/whitmore/Whitmore-profile.png",
+    sceneIds: [
+      "first-class-dining-saloon",
+      "first-class-suite",
+      "swimming-pool",
+    ],
+    bioPortraitSrc: "/narrators/whitmore/Whitmore-full.png",
+    bioBackdropSrc: "/scenes/first-class/first-class-suite.png",
   },
   {
     id: "ming_chen",
@@ -82,6 +106,9 @@ export const narrators: Narrator[] = [
     bio: "Ming left Hong Kong several years ago in search of opportunity and now works deep within the ship's engine spaces. Most passengers never see him, yet he knows the vessel better than almost anyone. Long hours among the boilers have taught him to notice every unusual vibration.",
     portraitSrc: "/narrator/crew.png",
     cutoutSrc: "/narrators/ming/Ming-profile.png",
+    sceneIds: ["loading-dock", "engine-room", "promenade-deck"],
+    bioPortraitSrc: "/narrators/ming/Ming-full.png",
+    bioBackdropSrc: "/scenes/crew/engine-room.png",
   },
 ];
 
