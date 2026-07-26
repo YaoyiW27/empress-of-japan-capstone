@@ -15,7 +15,6 @@ import {
 } from "@/lib/chat";
 import {
   configureAudioSession,
-  isIOS,
   isLiveTranscriptionSupported,
   isMicPermissionError,
   startLiveTranscription,
@@ -117,21 +116,14 @@ function disposeActiveRecognition() {
 
 /**
  * How this browser can capture a question, best first:
- * - native: the built-in Web Speech API (Android Chrome, desktop).
+ * - native: the built-in Web Speech API (Safari, Android Chrome, desktop).
  * - recorder: mic capture streamed to the backend's /voice/transcribe
- *   WebSocket (all iOS browsers, third-party WebViews).
+ *   WebSocket (browsers without SpeechRecognition).
  * - text: typed input (WebViews that block the microphone entirely).
  */
 type VoiceInputMode = "native" | "recorder" | "text";
 
 function readVoiceInputMode(): VoiceInputMode {
-  // Every iOS browser is WebKit and now exposes webkitSpeechRecognition, but
-  // that recognizer only captures on the first turn per page load and leaves
-  // playback pinned to the earpiece. Stream to the backend instead so voice
-  // survives across turns and narrator switches.
-  if (isIOS()) {
-    return isLiveTranscriptionSupported() ? "recorder" : "text";
-  }
   if (window.SpeechRecognition ?? window.webkitSpeechRecognition) {
     return "native";
   }
