@@ -25,15 +25,16 @@ export type Narrator = {
   bio: string;
   /** Framed portrait (has a background) — used on the selection card. */
   portraitSrc: string;
-  /** Transparent cut-out for standing in the scene. */
+  /**
+   * Profile photo (background baked in) — the narrator's standing imagery:
+   * the voyage overlay and the biography page portrait.
+   */
   cutoutSrc?: string;
   /**
    * Signature scenes featured on the biography page, in display order.
    * A curated subset — the hub still pairs any narrator with any scene.
    */
   sceneIds: string[];
-  /** Full-body transparent cut-out — the biography page portrait. */
-  bioPortraitSrc: string;
   /** Scene photo blurred behind the biography page. */
   bioBackdropSrc: string;
 };
@@ -79,7 +80,6 @@ export const narrators: Narrator[] = [
     // exists yet; Loading Dock stands in (it was Sinclair's in an earlier
     // Figma iteration). Swap when the scene ships.
     sceneIds: ["bridge", "loading-dock", "deck"],
-    bioPortraitSrc: "/narrators/sinclair/Sinclair-full.png",
     bioBackdropSrc: "/scenes/captain/bridge.png",
   },
   {
@@ -95,7 +95,6 @@ export const narrators: Narrator[] = [
       "first-class-suite",
       "swimming-pool",
     ],
-    bioPortraitSrc: "/narrators/whitmore/Whitmore-full.png",
     bioBackdropSrc: "/scenes/first-class/first-class-suite.png",
   },
   {
@@ -107,7 +106,6 @@ export const narrators: Narrator[] = [
     portraitSrc: "/narrator/crew.png",
     cutoutSrc: "/narrators/ming/Ming-profile.png",
     sceneIds: ["loading-dock", "engine-room", "promenade-deck"],
-    bioPortraitSrc: "/narrators/ming/Ming-full.png",
     bioBackdropSrc: "/scenes/crew/engine-room.png",
   },
 ];

@@ -32,12 +32,12 @@ export async function generateMetadata({
 }
 
 /**
- * Narrator biography: blurred signature-scene backdrop, the full-body cut-out
- * (bottom edge cropped by the viewport, per Figma), and the narrator's
- * featured scenes. Picking a scene returns to the hub with both the narrator
- * and that scene preselected; the back button returns keeping the narrator.
- * Fully static — no client state, so no Suspense needed. Landscape is
- * enforced by the /explore layout's OrientationGate.
+ * Narrator biography: blurred signature-scene backdrop, the narrator's
+ * profile photo (same imagery as the voyage overlay) in a brass frame, and
+ * their featured scenes. Picking a scene returns to the hub with both the
+ * narrator and that scene preselected; the back button returns keeping the
+ * narrator. Fully static — no client state, so no Suspense needed. Landscape
+ * is enforced by the /explore layout's OrientationGate.
  */
 export default async function NarratorBioPage({
   params,
@@ -53,7 +53,7 @@ export default async function NarratorBioPage({
     .filter((scene): scene is Scene => scene !== undefined);
 
   return (
-    <main className="relative h-dvh w-full overflow-hidden bg-navy">
+    <main className="relative flex h-dvh w-full overflow-hidden bg-navy">
       {/* Blurred signature scene + scrim (darker on the text side). */}
       <Image
         src={narrator.bioBackdropSrc}
@@ -72,18 +72,23 @@ export default async function NarratorBioPage({
         className="absolute left-6 top-6 z-20"
       />
 
-      {/* Oversized so the figure crops to waist-up at the viewport's bottom
-          edge (per Figma); overflow-hidden on <main> clips the rest. */}
-      <Image
-        src={narrator.bioPortraitSrc}
-        alt=""
-        width={800}
-        height={800}
-        priority
-        className="pointer-events-none absolute left-[21vw] top-[2dvh] h-[190dvh] w-auto max-w-none -translate-x-1/2 select-none [filter:drop-shadow(0_0_28px_rgb(from_var(--color-ai)_r_g_b_/_30%))]"
-      />
+      {/* Left: the narrator's profile photo (same as the voyage overlay),
+          framed like the home-page poster — the photos have baked-in
+          backgrounds, so a frame reads as intent rather than a cut-out. */}
+      <div className="relative z-10 flex w-[40%] shrink-0 items-center justify-center pl-[3vw]">
+        <div className="rounded-md border border-brass/60 bg-card p-1.5 shadow-xl ring-1 ring-brass/20 lg:p-2">
+          <Image
+            src={narrator.cutoutSrc ?? narrator.portraitSrc}
+            alt={`${narrator.name} portrait`}
+            width={800}
+            height={800}
+            priority
+            className="h-[52dvh] w-auto rounded-sm lg:h-[60dvh]"
+          />
+        </div>
+      </div>
 
-      <section className="relative z-10 ml-auto flex h-full w-[56%] flex-col justify-center gap-3 pr-[5vw] lg:gap-5">
+      <section className="relative z-10 flex h-full min-w-0 flex-1 flex-col justify-center gap-3 pl-[2vw] pr-[5vw] lg:gap-5">
         <h1 className="font-display text-4xl font-extrabold uppercase tracking-wide text-ivory [text-shadow:0_2px_12px_rgb(from_var(--color-navy)_r_g_b_/_60%)] lg:text-6xl">
           {narrator.name}
         </h1>
