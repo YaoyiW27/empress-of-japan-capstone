@@ -126,7 +126,7 @@ export default function VoyageExperience() {
     readGyroSupported,
     () => false,
   );
-  const defaultLookMode = useSyncExternalStore(
+  const defaultLookMode = useSyncExternalStore<LookMode>(
     subscribeToNothing,
     readDefaultLookMode,
     () => "drag",
