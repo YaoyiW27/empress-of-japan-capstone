@@ -72,20 +72,17 @@ export default async function NarratorBioPage({
         className="absolute left-6 top-6 z-20"
       />
 
-      {/* Left: the narrator's profile photo (same as the voyage overlay),
-          framed like the home-page poster — the photos have baked-in
-          backgrounds, so a frame reads as intent rather than a cut-out. */}
-      <div className="relative z-10 flex w-[40%] shrink-0 items-center justify-center pl-[3vw]">
-        <div className="rounded-md border border-brass/60 bg-card p-1.5 shadow-xl ring-1 ring-brass/20 lg:p-2">
-          <Image
-            src={narrator.cutoutSrc ?? narrator.portraitSrc}
-            alt={`${narrator.name} portrait`}
-            width={800}
-            height={800}
-            priority
-            className="h-[52dvh] w-auto rounded-sm lg:h-[60dvh]"
-          />
-        </div>
+      {/* Left: the narrator's cut-out standing at the bottom edge — the same
+          image and stance as the voyage overlay's avatar. */}
+      <div className="relative z-10 flex w-[40%] shrink-0 items-end justify-center">
+        <Image
+          src={narrator.cutoutSrc ?? narrator.portraitSrc}
+          alt={`${narrator.name} portrait`}
+          width={800}
+          height={800}
+          priority
+          className="h-[75dvh] w-auto max-w-full object-contain object-bottom drop-shadow-[0_8px_24px_rgba(0,0,0,0.45)] lg:h-[82dvh]"
+        />
       </div>
 
       <section className="relative z-10 flex h-full min-w-0 flex-1 flex-col justify-center gap-3 pl-[2vw] pr-[5vw] lg:gap-5">
@@ -97,9 +94,13 @@ export default async function NarratorBioPage({
           {narrator.bio}
         </p>
 
+        <p className="mt-1 text-[0.65rem] font-semibold uppercase tracking-[0.22em] text-brass lg:mt-2 lg:text-xs">
+          Recommended Scenes
+        </p>
+
         {/* Same SceneButton as the hub rail / voyage drawer, in link form —
             picking one lands on the hub with narrator + scene preselected. */}
-        <ul className="mt-1 grid max-w-md grid-cols-2 gap-3 lg:mt-2 lg:gap-4">
+        <ul className="grid max-w-md grid-cols-2 gap-3 lg:gap-4">
           {featuredScenes.map((scene) => (
             <li key={scene.id}>
               <SceneButton

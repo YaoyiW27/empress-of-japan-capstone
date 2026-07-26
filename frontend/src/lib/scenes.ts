@@ -26,8 +26,8 @@ export type Narrator = {
   /** Framed portrait (has a background) — used on the selection card. */
   portraitSrc: string;
   /**
-   * Profile photo (background baked in) — the narrator's standing imagery:
-   * the voyage overlay and the biography page portrait.
+   * Transparent profile cut-out — the narrator's standing imagery: the
+   * voyage overlay and the biography page portrait.
    */
   cutoutSrc?: string;
   /**
