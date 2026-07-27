@@ -336,19 +336,34 @@ def create_app(
             span.set_attribute("chat.scene", req.scene or "")
             span.set_attribute("chat.session_memory_requested", bool(req.session_id))
             user_turn = {"role": "user", "content": req.message}
+
+            def invoke_stateless_graph():
+                return graph.invoke(
+                    {
+                        "persona_id": persona_id,
+                        "scene": req.scene,
+                        "messages": [*req.history, user_turn],
+                    }
+                )
+
             try:
                 session_graph = app.state.session_graph
                 session_memory = app.state.session_memory
                 if req.session_id and session_graph is not None and session_memory is not None:
-                    # Refresh the sliding TTL before invoking the graph. If this ID
-                    # expired, refresh() removes its old checkpoints first.
-                    session_memory.refresh(req.session_id)
-                    # Memory path: send only the new turn; the reducer appends it to the
-                    # session's checkpointed history so the persona sees prior turns.
-                    result = session_graph.invoke(
-                        {"persona_id": persona_id, "scene": req.scene, "messages": [user_turn]},
-                        config={"configurable": {"thread_id": req.session_id}},
-                    )
+                    try:
+                        # Refresh the sliding TTL before invoking the graph. If this ID
+                        # expired, refresh() removes its old checkpoints first.
+                        session_memory.refresh(req.session_id)
+                        # Memory path: send only the new turn; the reducer appends it to the
+                        # session's checkpointed history so the persona sees prior turns.
+                        result = session_graph.invoke(
+                            {"persona_id": persona_id, "scene": req.scene, "messages": [user_turn]},
+                            config={"configurable": {"thread_id": req.session_id}},
+                        )
+                    except (SQLAlchemyError, PsycopgError, PoolTimeout) as exc:
+                        span.set_attribute("chat.session_memory_fallback", True)
+                        span.record_exception(exc)
+                        result = invoke_stateless_graph()
                 elif req.session_id:
                     # session_id given but server-side memory is disabled. Do not
                     # pretend to remember; the caller must provide history instead.
@@ -361,13 +376,7 @@ def create_app(
                     )
                 else:
                     # Stateless path: the client supplies the prior turns via `history`.
-                    result = graph.invoke(
-                        {
-                            "persona_id": persona_id,
-                            "scene": req.scene,
-                            "messages": [*req.history, user_turn],
-                        }
-                    )
+                    result = invoke_stateless_graph()
             except (SQLAlchemyError, PsycopgError, PoolTimeout) as exc:
                 raise HTTPException(
                     status_code=503, detail="session memory is unavailable"

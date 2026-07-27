@@ -551,7 +551,7 @@ def test_chat_endpoint_rejects_invalid_session_id(session_id: str) -> None:
     assert response.status_code == 422
 
 
-def test_chat_endpoint_returns_503_when_session_store_is_unavailable() -> None:
+def test_chat_endpoint_falls_back_when_session_store_is_unavailable() -> None:
     memory = FailingSessionBackend()
     app = create_app(
         Settings(enable_session_memory=True),
@@ -567,8 +567,29 @@ def test_chat_endpoint_returns_503_when_session_store_is_unavailable() -> None:
                 "message": "Hi",
             },
         )
-    assert response.status_code == 503
-    assert response.json()["detail"] == "session memory is unavailable"
+    assert response.status_code == 200
+    assert response.json()["persona_id"] == "captain_sinclair"
+
+
+def test_chat_endpoint_falls_back_to_history_when_session_store_is_unavailable() -> None:
+    memory = FailingSessionBackend()
+    app = create_app(
+        Settings(enable_session_memory=True),
+        retriever=EmptyRetriever(),
+        session_memory_backend=memory,
+    )
+    with TestClient(app) as client:
+        response = client.post(
+            "/chat",
+            json={
+                "persona_id": "captain_sinclair",
+                "session_id": "demo-1",
+                "message": "Hi",
+                "history": [{"role": "user", "content": "Previous turn"}],
+            },
+        )
+    assert response.status_code == 200
+    assert response.json()["persona_id"] == "captain_sinclair"
 
 
 def test_chat_endpoint_happy_path() -> None:

@@ -108,6 +108,7 @@ export async function sendChatMessage({
     scene,
     message,
     session_id: sessionId,
+    history: history.slice(-CHAT_HISTORY_FALLBACK_TURN_LIMIT),
   });
 
   if (res.ok) {
@@ -115,9 +116,14 @@ export async function sendChatMessage({
   }
 
   const errorText = await res.text();
-  if (res.status === 501 && errorText.includes("session_id memory is not enabled")) {
+  const canUseStatelessFallback =
+    (res.status === 501 && errorText.includes("session_id memory is not enabled")) ||
+    (res.status === 503 && errorText.includes("session memory is unavailable"));
+
+  if (canUseStatelessFallback) {
     // Compatibility path for deployments that have the session-memory schema
-    // but have not rolled ENABLE_SESSION_MEMORY into the live ECS task yet.
+    // but have not rolled ENABLE_SESSION_MEMORY into the live ECS task yet, or
+    // when the session checkpoint store is temporarily unavailable.
     const fallbackRes = await send({
       persona_id: personaId,
       scene,
