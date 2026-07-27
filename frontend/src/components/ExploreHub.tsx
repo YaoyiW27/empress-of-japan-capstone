@@ -62,20 +62,21 @@ export default function ExploreHub() {
 
   return (
     <main className="explore-hub relative flex h-dvh w-full flex-col overflow-x-hidden overflow-y-auto bg-ivory px-4 py-3 lg:px-8 lg:py-6">
-      {/* Same spot as the voyage page's back button, for cross-page consistency. */}
-      <CircleBackLink
-        href="/"
-        label="Back to home"
-        className="absolute left-6 top-6 z-10"
-      />
-
-      <div className="explore-hub__layout mt-14 flex min-h-0 flex-1 gap-3 lg:mt-16 lg:gap-5">
+      <div className="explore-hub__layout flex min-h-0 flex-1 gap-3 lg:gap-5">
         {/* Left: guides as circular portrait options. Tap the portrait to
             select; the name beside it opens the guide's biography page. */}
-        <aside className="explore-hub__guide-rail flex w-40 shrink-0 flex-col items-center justify-center gap-1.5 lg:w-48 lg:gap-3">
-          <p className="mt-3 text-center text-ig uppercase tracking-[0.16em] text-navy-soft">
+        <aside className="explore-hub__guide-rail flex w-40 shrink-0 flex-col items-center gap-1.5 lg:w-48 lg:gap-3">
+          {/* Shared header band: the back button (in flow, near the voyage
+              page's top-left spot) and this label sit on one 44px row, and the
+              Scenes label opposite uses the same row height — so both column
+              labels and the button read as a single line and the columns
+              below start level. */}
+          <div className="flex h-11 w-full shrink-0 items-center">
+            <CircleBackLink href="/" label="Back to home" className="shrink-0" />
+            <p className="min-w-0 flex-1 text-center text-ig uppercase tracking-[0.16em] text-navy-soft">
               Narrators
-          </p>
+            </p>
+          </div>
           {narrators.map((narrator) => {
             const active = narrator.id === narratorId;
             return (
@@ -108,76 +109,76 @@ export default function ExploreHub() {
             );
           })}
         </aside>
-        {/*
-      <div className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 text-center sm:top-6">
-        <h1 className="whitespace-nowrap text-ig-header !text-brass lg:text-5xl">
-          Welcome Aboard
-        </h1>
-      </div>*/}
+
         {/* Center: the ship (no background). min-w-0 lets it shrink so the right
-            panel never gets pushed off a narrow (phone-landscape) screen. */}
-
+            panel never gets pushed off a narrow (phone-landscape) screen. The
+            canvas fills the whole column (capped only on ultra-wide screens) —
+            zoom/pan are off so the wheel keeps scrolling the page and the ship
+            can't be dragged out of frame, which is what let us drop the old
+            w-[60%] gesture guard. No overflow-hidden: marker labels near the
+            bow/stern spill past the canvas edge instead of being clipped. */}
         <section className="explore-hub__ship relative min-h-0 min-w-0 flex-1">
-        <div className="absolute inset-y-0 left-1/2 w-[60%] max-w-xl -translate-x-1/2 overflow-hidden">
-          <Scene
-            scenes={scenes}
-            selectedSceneId={sceneId}
-            onSelectScene={setSceneId}
-          />
-        </div>
+          <div className="absolute inset-y-0 left-1/2 w-full max-w-5xl -translate-x-1/2">
+            <Scene
+              scenes={scenes}
+              selectedSceneId={sceneId}
+              onSelectScene={setSceneId}
+              enableZoom={false}
+              enablePan={false}
+            />
+          </div>
 
-          <p className="pointer-events-none absolute bottom-2 left-1/2 z-10 w-full -translate-x-1/2 px-2 text-center text-ig text-[0.65rem] uppercase tracking-[0.2em] text-navy-soft lg:bottom-3 lg:text-xs">
-            Drag to rotate · scroll to zoom · tap a glowing dot to pick a scene
+          <p className="pointer-events-none absolute bottom-2 left-1/2 z-10 w-full -translate-x-1/2 px-2 text-center text-ig uppercase tracking-[0.2em] text-navy-soft lg:bottom-3">
+            Drag to rotate · tap a glowing dot to pick a scene
           </p>
         </section>
 
-        {/* Right: every scene, scrollable; pick one and start the voyage */}
-        {/* Right: every scene, scrollable; pick one and start the voyage */}
-        <aside className="explore-hub__scene-panel flex min-h-0 w-64 shrink-0 flex-col overflow-hidden lg:w-[24rem]">
-          <div className="flex min-h-0 flex-1 flex-col bg-transparent p-4">
-            <p className="shrink-0 text-center text-ig uppercase text-navy-soft">
-              Scenes
-            </p>
+        {/* Right: every scene, scrollable; pick one and start the voyage.
+            The rail hugs the fixed-width SceneButton (13rem) plus padding —
+            the old 24rem reserved nearly double the content width. */}
+        <aside className="explore-hub__scene-panel flex min-h-0 w-60 shrink-0 flex-col overflow-hidden px-3 pb-3 lg:w-[17rem] lg:px-4 lg:pb-4">
+          <p className="flex h-11 shrink-0 items-center justify-center text-ig uppercase text-navy-soft">
+            Scenes
+          </p>
 
-            <ul
-              ref={sceneListRef}
-              className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto p-1"
-            >
-              {scenes.map((scene) => {
-                const active = scene.id === sceneId;
+          <ul
+            ref={sceneListRef}
+            className="mt-2 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-1"
+          >
+            {scenes.map((scene) => {
+              const active = scene.id === sceneId;
 
-                return (
-                  <li
-                    key={scene.id}
-                    data-scene-id={scene.id}
-                    className="flex justify-center"
-                  >
-                    <SceneButton
-                      scene={scene}
-                      selected={active}
-                      variant="overview"
-                      onClick={() => setSceneId(scene.id)}
-                    />
-                  </li>
-                );
-              })}
-            </ul>
-            {/* Hint + CTA share one width-capped footer so the hint can't
-                spread and squeeze the scene list on short viewports. */}
-            <div className="explore-hub__start mx-auto mt-2 flex w-48 shrink-0 flex-col items-center gap-1.5 lg:mt-4 lg:w-auto lg:gap-3">
-              <p className="text-center text-[10px] uppercase leading-snug tracking-[0.12em] text-navy-soft lg:text-ig lg:tracking-[0.16em]">
-                Select a narrator and a scene to begin.
-              </p>
-              {sceneId && narratorId ? (
-                <ButtonLink
-                  href={`/explore/voyage?scene=${sceneId}&narrator=${narratorId}`}
+              return (
+                <li
+                  key={scene.id}
+                  data-scene-id={scene.id}
+                  className="flex shrink-0 justify-center"
                 >
-                  Start Voyage
-                </ButtonLink>
-              ) : (
-                <Button disabled>Start Voyage</Button>
-              )}
-            </div>
+                  <SceneButton
+                    scene={scene}
+                    selected={active}
+                    variant="overview"
+                    onClick={() => setSceneId(scene.id)}
+                  />
+                </li>
+              );
+            })}
+          </ul>
+          {/* Hint + CTA share one width-capped footer so the hint can't
+              spread and squeeze the scene list on short viewports. */}
+          <div className="explore-hub__start mx-auto mt-2 flex w-48 shrink-0 flex-col items-center gap-1.5 lg:mt-4 lg:w-auto lg:gap-3">
+            <p className="text-center text-[10px] uppercase leading-snug tracking-[0.12em] text-navy-soft lg:text-ig lg:tracking-[0.16em]">
+              Select a narrator and a scene to begin.
+            </p>
+            {sceneId && narratorId ? (
+              <ButtonLink
+                href={`/explore/voyage?scene=${sceneId}&narrator=${narratorId}`}
+              >
+                Start Voyage
+              </ButtonLink>
+            ) : (
+              <Button disabled>Start Voyage</Button>
+            )}
           </div>
         </aside>
       </div>

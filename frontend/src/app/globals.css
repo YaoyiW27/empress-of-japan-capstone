@@ -347,15 +347,12 @@ body {
 
   .explore-hub__layout {
     gap: 0.75rem;
-    margin-top: 3.75rem;
   }
 
   .explore-hub__guide-rail {
     /* Wide enough for a 48px portrait plus the bio name-link beside it. */
     width: 8.5rem;
-    justify-content: flex-start;
     gap: 0.65rem;
-    padding-top: 4.25rem;
   }
 
   /* 48px keeps the tap target above the 44px HIG/WCAG floor on phones. */
@@ -365,23 +362,17 @@ body {
     height: 48px;
   }
 
-  .explore-hub__ship {
-    flex-basis: 36%;
-  }
-
   .explore-hub__ship p {
     bottom: 0.25rem;
     padding-inline: 0.5rem;
-    font-size: 0.55rem;
+    font-size: 0.65rem;
     line-height: 1.35;
   }
 
   .explore-hub__scene-panel {
-    width: clamp(13rem, 30vw, 18rem);
-  }
-
-  .explore-hub__scene-panel > div {
-    padding: 0.75rem;
+    /* Hugs the 13rem SceneButton: 13rem + 2x0.75rem padding + ul's 0.5rem. */
+    width: 15rem;
+    padding: 0 0.75rem 0.75rem;
   }
 
   .explore-hub__scene-panel ul {
@@ -484,8 +475,8 @@ body {
 }
 
 @media (orientation: landscape) and (max-height: 420px) {
-  .explore-hub__scene-panel > div {
-    padding: 0.5rem;
+  .explore-hub__scene-panel {
+    padding: 0 0.5rem 0.5rem;
   }
 
   .explore-hub__scene-panel ul {
@@ -495,13 +486,6 @@ body {
 
   .explore-hub__start {
     margin-top: 0.5rem;
-  }
-  .explore-hub__layout {
-    margin-top: 3.25rem;
-  }
-
-  .explore-hub__guide-rail {
-    padding-top: 3.25rem;
   }
 
   /* Hub portraits stay 48px (set above); only the voyage rail may go
