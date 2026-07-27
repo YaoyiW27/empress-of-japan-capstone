@@ -15,7 +15,7 @@ const libreFranklin = Libre_Franklin({
 });
 
 export const metadata: Metadata = {
-  title: "Empress of Japan",
+  title: "Echoes of the Empress of Japan",
   description: "A Web XR experience for the Vancouver Maritime Museum.",
 };
 

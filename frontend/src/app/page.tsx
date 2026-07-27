@@ -10,8 +10,13 @@ export default function Home() {
           Canadian Pacific · Trans-Pacific
         </p>
         {/* Type scales on lg (not sm): a landscape phone is wide enough for sm
-            but far too short for 6xl — height is the real constraint here. */}
+            but far too short for 6xl — height is the real constraint here.
+            Poster-style two-liner: the italic lead-in stays inside the h1 so
+            the document title reads as the full phrase. */}
         <h1 className="font-display text-4xl font-bold tracking-tight text-navy lg:text-6xl">
+          <span className="block text-2xl font-normal italic tracking-normal text-brass lg:text-3xl [@media(max-height:520px)]:text-xl">
+            Echoes of the
+          </span>
           Empress of Japan
         </h1>
         <p className="mx-auto max-w-xl text-base text-navy-soft lg:text-lg">
