@@ -133,10 +133,9 @@ export default function ExploreHub() {
         </section>
 
         {/* Right: every scene, scrollable; pick one and start the voyage.
-            Width is set by the footer hint, the rail's widest line: it
-            measures 287px on desktop / 272px on phones, so 21rem (304px
-            inner) keeps it on one line — still well under the old 24rem. */}
-        <aside className="explore-hub__scene-panel flex min-h-0 w-64 shrink-0 flex-col overflow-hidden p-3 lg:w-[21rem] lg:p-4">
+            The rail hugs the fixed-width SceneButton (13rem) plus padding —
+            the old 24rem reserved nearly double the content width. */}
+        <aside className="explore-hub__scene-panel flex min-h-0 w-60 shrink-0 flex-col overflow-hidden p-3 lg:w-[17rem] lg:p-4">
           <p className="shrink-0 text-center text-ig uppercase text-navy-soft">
             Scenes
           </p>
@@ -164,8 +163,8 @@ export default function ExploreHub() {
               );
             })}
           </ul>
-          {/* The hint gets the panel's full width — the panel is sized so it
-              fits on a single line (wrapping it looked broken). */}
+          {/* The hint spans the panel (~240px inner), wrapping to two
+              balanced lines — the old w-48 cap squeezed it into three. */}
           <div className="explore-hub__start mt-2 flex w-full shrink-0 flex-col items-center gap-1.5 lg:mt-4 lg:gap-3">
             <p className="text-center text-[10px] uppercase leading-snug tracking-[0.12em] text-navy-soft lg:tracking-[0.16em]">
               Select a narrator and a scene to begin.

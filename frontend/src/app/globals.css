@@ -370,10 +370,8 @@ body {
   }
 
   .explore-hub__scene-panel {
-    /* Wide enough for the one-line footer hint (272-287px depending on
-       breakpoint) plus this padding; the vw term lets very small phones trade
-       the single-line hint for ship room instead. */
-    width: min(20rem, 36vw);
+    /* Hugs the 13rem SceneButton: 13rem + 2x0.75rem padding + ul's 0.5rem. */
+    width: 15rem;
     padding: 0.75rem;
   }
 
