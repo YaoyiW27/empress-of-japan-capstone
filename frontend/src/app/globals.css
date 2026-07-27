@@ -334,6 +334,24 @@ body {
 }
 
 /*
+ * Hub scene rail options. Bind the option width to the rail so no side gap
+ * can open if either width changes (and the scrollbar's width is absorbed
+ * automatically), and keep rows shorter than SceneButton's h-16 default so
+ * more scenes fit per screenful before scrolling.
+ */
+.explore-hub__scene-panel li > button {
+  width: 100%;
+  height: 3.5rem;
+}
+
+/* SceneButton's first span is the thumbnail frame; scale it to the row
+   (2px border + 6px padding each side leaves 40px of content height). */
+.explore-hub__scene-panel li > button > span:first-child {
+  width: 3.5rem;
+  height: 2.5rem;
+}
+
+/*
  * Compressed mobile landscape support.
  *
  * Phone browsers lose a surprising amount of vertical space to the address
@@ -347,15 +365,13 @@ body {
 
   .explore-hub__layout {
     gap: 0.75rem;
-    margin-top: 3.75rem;
   }
 
   .explore-hub__guide-rail {
-    /* Wide enough for a 48px portrait plus the bio name-link beside it. */
-    width: 8.5rem;
-    justify-content: flex-start;
-    gap: 0.65rem;
-    padding-top: 4.25rem;
+    /* Wide enough for a 48px portrait plus the bio name-link beside it,
+       plus the px-2 edge inset. */
+    width: 9.5rem;
+    gap: 1rem;
   }
 
   /* 48px keeps the tap target above the 44px HIG/WCAG floor on phones. */
@@ -365,28 +381,30 @@ body {
     height: 48px;
   }
 
-  .explore-hub__ship {
-    flex-basis: 36%;
-  }
-
   .explore-hub__ship p {
     bottom: 0.25rem;
     padding-inline: 0.5rem;
-    font-size: 0.55rem;
+    font-size: 0.65rem;
     line-height: 1.35;
   }
 
   .explore-hub__scene-panel {
-    width: clamp(13rem, 30vw, 18rem);
-  }
-
-  .explore-hub__scene-panel > div {
+    /* Hugs the 13rem SceneButton: 13rem + 2x0.75rem padding + ul's 0.5rem. */
+    width: 15rem;
     padding: 0.75rem;
   }
 
   .explore-hub__scene-panel ul {
-    gap: 0.4rem;
     margin-top: 0.5rem;
+  }
+
+  .explore-hub__scene-panel li > button {
+    height: 3rem;
+  }
+
+  .explore-hub__scene-panel li > button > span:first-child {
+    width: 2.75rem;
+    height: 2rem;
   }
 
   .voyage-experience h1 {
@@ -484,24 +502,16 @@ body {
 }
 
 @media (orientation: landscape) and (max-height: 420px) {
-  .explore-hub__scene-panel > div {
+  .explore-hub__scene-panel {
     padding: 0.5rem;
   }
 
   .explore-hub__scene-panel ul {
     margin-top: 0.25rem;
-    gap: 0.25rem;
   }
 
   .explore-hub__start {
     margin-top: 0.5rem;
-  }
-  .explore-hub__layout {
-    margin-top: 3.25rem;
-  }
-
-  .explore-hub__guide-rail {
-    padding-top: 3.25rem;
   }
 
   /* Hub portraits stay 48px (set above); only the voyage rail may go
