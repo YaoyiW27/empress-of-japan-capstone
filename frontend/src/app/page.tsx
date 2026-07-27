@@ -5,8 +5,8 @@ import Divider from "@/components/ui/Divider";
 export default function Home() {
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center gap-5 bg-ivory px-6 py-8 text-center [@media(max-height:520px)]:gap-3 [@media(max-height:520px)]:py-4">
-      <div className="space-y-2">
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-brass lg:text-sm">
+      <div className="space-y-3 lg:space-y-4 [@media(max-height:520px)]:space-y-2">
+        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-navy-soft lg:text-sm">
           Canadian Pacific · Trans-Pacific
         </p>
         {/* Type scales on lg (not sm): a landscape phone is wide enough for sm
@@ -14,12 +14,12 @@ export default function Home() {
             Poster-style two-liner: the italic lead-in stays inside the h1 so
             the document title reads as the full phrase. */}
         <h1 className="font-display text-4xl font-bold tracking-tight text-navy lg:text-6xl">
-          <span className="block text-2xl font-normal italic tracking-normal text-brass lg:text-3xl [@media(max-height:520px)]:text-xl">
+          <span className="mb-1 block text-3xl font-semibold italic tracking-normal text-brass lg:mb-1.5 lg:text-4xl [@media(max-height:520px)]:mb-0.5 [@media(max-height:520px)]:text-2xl">
             Echoes of the
           </span>
           Empress of Japan
         </h1>
-        <p className="mx-auto max-w-xl text-base text-navy-soft lg:text-lg">
+        <p className="mx-auto max-w-xl text-sm text-navy-soft lg:text-base">
           A Web XR experience for the Vancouver Maritime Museum.
         </p>
       </div>
