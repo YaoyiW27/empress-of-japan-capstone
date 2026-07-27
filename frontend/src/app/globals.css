@@ -368,8 +368,9 @@ body {
   }
 
   .explore-hub__guide-rail {
-    /* Wide enough for a 48px portrait plus the bio name-link beside it. */
-    width: 8.5rem;
+    /* Wide enough for a 48px portrait plus the bio name-link beside it,
+       plus the px-2 edge inset. */
+    width: 9.5rem;
     gap: 1rem;
   }
 

@@ -73,7 +73,10 @@ export default function ExploreHub() {
         {/* Left: guides as circular portrait options, centered on the viewport
             height so they sit beside the ship. Tap the portrait to select; the
             name beside it opens the guide's biography page. */}
-        <aside className="explore-hub__guide-rail flex w-40 shrink-0 flex-col items-center justify-center gap-3 lg:w-48 lg:gap-6">
+        {/* px-2 keeps the portraits off the screen edge (the scene rail gets
+            the same inset from its own padding); the widths are +1rem to
+            compensate so the name links keep their room. */}
+        <aside className="explore-hub__guide-rail flex w-44 shrink-0 flex-col items-center justify-center gap-3 px-2 lg:w-52 lg:gap-6">
           <p className="text-center text-ig uppercase tracking-[0.16em] text-navy-soft">
             Narrators
           </p>
