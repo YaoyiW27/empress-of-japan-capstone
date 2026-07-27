@@ -140,8 +140,9 @@ export default function ExploreHub() {
         </section>
 
         {/* Right: every scene, scrollable; pick one and start the voyage.
-            The rail hugs the fixed-width SceneButton (13rem) plus padding —
-            the old 24rem reserved nearly double the content width. */}
+            The rail is sized around SceneButton's 13rem default (the old
+            24rem reserved nearly double the content width), and globals.css
+            stretches the buttons to the rail so the two can't drift apart. */}
         <aside className="explore-hub__scene-panel flex min-h-0 w-60 shrink-0 flex-col overflow-hidden p-3 lg:w-[17rem] lg:p-4">
           <p className="shrink-0 text-center text-ig uppercase text-navy-soft">
             Scenes

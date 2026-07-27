@@ -334,6 +334,24 @@ body {
 }
 
 /*
+ * Hub scene rail options. Bind the option width to the rail so no side gap
+ * can open if either width changes (and the scrollbar's width is absorbed
+ * automatically), and keep rows shorter than SceneButton's h-16 default so
+ * more scenes fit per screenful before scrolling.
+ */
+.explore-hub__scene-panel li > button {
+  width: 100%;
+  height: 3.5rem;
+}
+
+/* SceneButton's first span is the thumbnail frame; scale it to the row
+   (2px border + 6px padding each side leaves 40px of content height). */
+.explore-hub__scene-panel li > button > span:first-child {
+  width: 3.5rem;
+  height: 2.5rem;
+}
+
+/*
  * Compressed mobile landscape support.
  *
  * Phone browsers lose a surprising amount of vertical space to the address
@@ -377,6 +395,15 @@ body {
 
   .explore-hub__scene-panel ul {
     margin-top: 0.5rem;
+  }
+
+  .explore-hub__scene-panel li > button {
+    height: 3rem;
+  }
+
+  .explore-hub__scene-panel li > button > span:first-child {
+    width: 2.75rem;
+    height: 2rem;
   }
 
   .voyage-experience h1 {
