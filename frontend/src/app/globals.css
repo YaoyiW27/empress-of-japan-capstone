@@ -376,7 +376,6 @@ body {
   }
 
   .explore-hub__scene-panel ul {
-    gap: 0.4rem;
     margin-top: 0.5rem;
   }
 
@@ -481,7 +480,6 @@ body {
 
   .explore-hub__scene-panel ul {
     margin-top: 0.25rem;
-    gap: 0.25rem;
   }
 
   .explore-hub__start {

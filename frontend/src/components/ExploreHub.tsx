@@ -127,8 +127,15 @@ export default function ExploreHub() {
             />
           </div>
 
+          {/* The nowrap spans pin the only break point before "tap a glowing
+              dot", so on phones the hint splits into two clean phrases. */}
           <p className="pointer-events-none absolute bottom-2 left-1/2 z-10 w-full -translate-x-1/2 px-2 text-center text-ig uppercase tracking-[0.2em] text-navy-soft lg:bottom-3">
-            Drag to rotate · scroll to zoom · tap a glowing dot to pick a scene
+            <span className="whitespace-nowrap">
+              Drag to rotate · scroll to zoom ·
+            </span>{" "}
+            <span className="whitespace-nowrap">
+              tap a glowing dot to pick a scene
+            </span>
           </p>
         </section>
 
