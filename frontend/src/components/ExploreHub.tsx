@@ -73,7 +73,7 @@ export default function ExploreHub() {
         {/* Left: guides as circular portrait options, centered on the viewport
             height so they sit beside the ship. Tap the portrait to select; the
             name beside it opens the guide's biography page. */}
-        <aside className="explore-hub__guide-rail flex w-40 shrink-0 flex-col items-center justify-center gap-1.5 lg:w-48 lg:gap-3">
+        <aside className="explore-hub__guide-rail flex w-40 shrink-0 flex-col items-center justify-center gap-3 lg:w-48 lg:gap-6">
           <p className="text-center text-ig uppercase tracking-[0.16em] text-navy-soft">
             Narrators
           </p>
@@ -133,9 +133,10 @@ export default function ExploreHub() {
         </section>
 
         {/* Right: every scene, scrollable; pick one and start the voyage.
-            The rail hugs the fixed-width SceneButton (13rem) plus padding —
-            the old 24rem reserved nearly double the content width. */}
-        <aside className="explore-hub__scene-panel flex min-h-0 w-60 shrink-0 flex-col overflow-hidden p-3 lg:w-[17rem] lg:p-4">
+            Width is set by the footer hint, the rail's widest line: it
+            measures 287px on desktop / 272px on phones, so 21rem (304px
+            inner) keeps it on one line — still well under the old 24rem. */}
+        <aside className="explore-hub__scene-panel flex min-h-0 w-64 shrink-0 flex-col overflow-hidden p-3 lg:w-[21rem] lg:p-4">
           <p className="shrink-0 text-center text-ig uppercase text-navy-soft">
             Scenes
           </p>
@@ -163,10 +164,10 @@ export default function ExploreHub() {
               );
             })}
           </ul>
-          {/* Hint + CTA share one width-capped footer so the hint can't
-              spread and squeeze the scene list on short viewports. */}
-          <div className="explore-hub__start mx-auto mt-2 flex w-48 shrink-0 flex-col items-center gap-1.5 lg:mt-4 lg:w-auto lg:gap-3">
-            <p className="text-center text-[10px] uppercase leading-snug tracking-[0.12em] text-navy-soft lg:text-ig lg:tracking-[0.16em]">
+          {/* The hint gets the panel's full width — the panel is sized so it
+              fits on a single line (wrapping it looked broken). */}
+          <div className="explore-hub__start mt-2 flex w-full shrink-0 flex-col items-center gap-1.5 lg:mt-4 lg:gap-3">
+            <p className="text-center text-[10px] uppercase leading-snug tracking-[0.12em] text-navy-soft lg:tracking-[0.16em]">
               Select a narrator and a scene to begin.
             </p>
             {sceneId && narratorId ? (
