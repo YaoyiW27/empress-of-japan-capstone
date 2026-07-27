@@ -375,7 +375,7 @@ variable "backend_alarm_5xx_threshold" {
 variable "backend_alarm_latency_seconds" {
   description = "Average ALB target response time that triggers the sustained-latency alarm."
   type        = number
-  default     = 2
+  default     = 8
 }
 
 variable "jobs_queue_alarm_threshold" {
