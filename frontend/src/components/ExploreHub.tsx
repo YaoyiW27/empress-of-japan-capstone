@@ -1,16 +1,15 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import NarratorButton, {
   type NarratorId as NarratorButtonId,
 } from "@/components/ui/NarratorButton";
 import SceneButton from "@/components/ui/SceneButton";
 import Scene from "@/components/three/Scene";
-import { narrators, scenes } from "@/lib/scenes";
+import { getNarrator, getScene, narrators, scenes } from "@/lib/scenes";
 import { Button, ButtonLink, CircleBackLink } from "@/components/ui/Button";
-
-/** How long a touch press must last before the bio pops up. */
-const LONG_PRESS_MS = 450;
 
 /** Maps backend persona ids to the shorter ids used by NarratorButton assets. */
 const narratorButtonIds: Record<string, NarratorButtonId> = {
@@ -20,26 +19,46 @@ const narratorButtonIds: Record<string, NarratorButtonId> = {
 };
 
 /**
- * Scene-first hub: pick a guide on the left (hover / long-press a portrait for
- * their bio), see the 3D ship in the center, and pick any scene on the right —
- * guides and scenes combine freely. "Start voyage" opens the pair.
+ * Scene-first hub: pick a guide on the left (the name under a portrait opens
+ * their biography page), see the 3D ship in the center, and pick any scene on
+ * the right — guides and scenes combine freely. "Start voyage" opens the pair.
+ *
+ * ?narrator= & ?scene= preselect either half — that's how the biography pages
+ * hand their picks back — so this sits under a Suspense boundary (the page
+ * stays static despite useSearchParams).
  *
  * Sized compact for phone landscape (short viewport); the roomier `lg:` sizing
  * kicks in on real desktops/tablets (>=1024px).
  */
 export default function ExploreHub() {
-  const [narratorId, setNarratorId] = useState<string | null>(null);
-  const [sceneId, setSceneId] = useState<string | null>(null);
-  // Which guide's bio is showing (mouse hover, or touch long-press).
-  const [bioId, setBioId] = useState<string | null>(null);
-  const pressTimer = useRef<number | null>(null);
+  const searchParams = useSearchParams();
+  // Unknown ids (hand-typed deep links) are ignored rather than kept as
+  // un-startable selections.
+  const [narratorId, setNarratorId] = useState<string | null>(() => {
+    const requested = searchParams.get("narrator");
+    return requested && getNarrator(requested) ? requested : null;
+  });
+  const [sceneId, setSceneId] = useState<string | null>(() => {
+    const requested = searchParams.get("scene");
+    return requested && getScene(requested) ? requested : null;
+  });
+  const sceneListRef = useRef<HTMLUListElement | null>(null);
 
-  function cancelPress() {
-    if (pressTimer.current !== null) {
-      window.clearTimeout(pressTimer.current);
-      pressTimer.current = null;
-    }
-  }
+  // Scenes can be selected from outside the rail (a ship dot, or the bio
+  // page's ?scene=) while the rail is scrolled elsewhere — bring the
+  // selected entry into view so the change is visible.
+  useEffect(() => {
+    if (!sceneId) return;
+    const item = sceneListRef.current?.querySelector(
+      `[data-scene-id="${CSS.escape(sceneId)}"]`,
+    );
+    item?.scrollIntoView({
+      block: "nearest",
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "auto"
+        : "smooth",
+    });
+  }, [sceneId]);
 
   return (
     <main className="explore-hub relative flex h-dvh w-full flex-col overflow-x-hidden overflow-y-auto bg-ivory px-4 py-3 lg:px-8 lg:py-6">
@@ -51,43 +70,16 @@ export default function ExploreHub() {
       />
 
       <div className="explore-hub__layout mt-14 flex min-h-0 flex-1 gap-3 lg:mt-16 lg:gap-5">
-        {/* Left: guides as circular portrait options. Hover (mouse) or
-            long-press (touch) reveals the bio beside the portrait. */}
-        <aside className="explore-hub__guide-rail flex w-20 shrink-0 flex-col items-center justify-center gap-3 lg:w-32 lg:gap-5">
+        {/* Left: guides as circular portrait options. Tap the portrait to
+            select; the name beside it opens the guide's biography page. */}
+        <aside className="explore-hub__guide-rail flex w-40 shrink-0 flex-col items-center justify-center gap-1.5 lg:w-48 lg:gap-3">
           <p className="mt-3 text-center text-ig uppercase tracking-[0.16em] text-navy-soft">
               Narrators
           </p>
           {narrators.map((narrator) => {
             const active = narrator.id === narratorId;
             return (
-              <div
-                key={narrator.id}
-                className="relative"
-                onPointerEnter={(event) => {
-                  if (event.pointerType === "mouse") setBioId(narrator.id);
-                }}
-                onPointerLeave={() => {
-                  cancelPress();
-                  setBioId(null);
-                }}
-                onPointerDown={(event) => {
-                  if (event.pointerType === "mouse") return;
-                  cancelPress();
-                  pressTimer.current = window.setTimeout(
-                    () => setBioId(narrator.id),
-                    LONG_PRESS_MS,
-                  );
-                }}
-                onPointerUp={(event) => {
-                  cancelPress();
-                  if (event.pointerType !== "mouse") setBioId(null);
-                }}
-                onPointerCancel={() => {
-                  cancelPress();
-                  setBioId(null);
-                }}
-                onContextMenu={(event) => event.preventDefault()}
-              >
+              <div key={narrator.id} className="flex w-full items-center">
                 <NarratorButton
                   narrator={narratorButtonIds[narrator.id]}
                   variant="hub"
@@ -96,22 +88,22 @@ export default function ExploreHub() {
                   label={`${narrator.name}, ${narrator.role}${
                     active ? ", selected" : ""
                   }`}
-                  className="touch-none [-webkit-touch-callout:none]"
                 />
 
-                {bioId === narrator.id && (
-                  <div className="pointer-events-none absolute left-full top-1/2 z-20 ml-3 w-64 -translate-y-1/2 rounded-lg border border-brass/40 bg-card p-4 shadow-lg ring-1 ring-brass/10 lg:w-80">
-                    <p className="text-[0.65rem] font-semibold uppercase tracking-[0.22em] text-brass lg:text-xs">
-                      {narrator.role}
-                    </p>
-                    <p className="mt-1 font-display text-lg font-bold text-navy lg:text-xl">
-                      {narrator.name}
-                    </p>
-                    <p className="mt-2 text-xs leading-relaxed text-navy-soft lg:text-sm">
-                      {narrator.bio}
-                    </p>
-                  </div>
-                )}
+                <Link
+                  href={`/explore/${narrator.id}`}
+                  aria-label={`About ${narrator.name}`}
+                  className="flex min-h-11 min-w-0 flex-1 items-center py-1 pl-2 text-left text-[10px] font-semibold uppercase leading-snug tracking-[0.06em] text-navy-soft transition-colors hover:text-vermilion lg:text-xs lg:tracking-[0.08em]"
+                >
+                  {/* No-break space keeps the chevron glued to the last word. */}
+                  <span>
+                    {narrator.name}
+                    {" "}
+                    <span aria-hidden="true" className="text-brass">
+                      ›
+                    </span>
+                  </span>
+                </Link>
               </div>
             );
           })}
@@ -147,12 +139,19 @@ export default function ExploreHub() {
               Scenes
             </p>
 
-            <ul className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto p-1">
+            <ul
+              ref={sceneListRef}
+              className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto p-1"
+            >
               {scenes.map((scene) => {
                 const active = scene.id === sceneId;
 
                 return (
-                  <li key={scene.id} className="flex justify-center">
+                  <li
+                    key={scene.id}
+                    data-scene-id={scene.id}
+                    className="flex justify-center"
+                  >
                     <SceneButton
                       scene={scene}
                       selected={active}
@@ -163,10 +162,12 @@ export default function ExploreHub() {
                 );
               })}
             </ul>
-            <p className="mt-3 text-center text-ig uppercase tracking-[0.16em] text-navy-soft">
-              Select a narrator and a scene to begin.
-            </p>
-            <div className="explore-hub__start mt-4 flex shrink-0 justify-center">
+            {/* Hint + CTA share one width-capped footer so the hint can't
+                spread and squeeze the scene list on short viewports. */}
+            <div className="explore-hub__start mx-auto mt-2 flex w-48 shrink-0 flex-col items-center gap-1.5 lg:mt-4 lg:w-auto lg:gap-3">
+              <p className="text-center text-[10px] uppercase leading-snug tracking-[0.12em] text-navy-soft lg:text-ig lg:tracking-[0.16em]">
+                Select a narrator and a scene to begin.
+              </p>
               {sceneId && narratorId ? (
                 <ButtonLink
                   href={`/explore/voyage?scene=${sceneId}&narrator=${narratorId}`}

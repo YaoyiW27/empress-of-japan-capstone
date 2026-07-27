@@ -351,16 +351,18 @@ body {
   }
 
   .explore-hub__guide-rail {
-    width: 4rem;
+    /* Wide enough for a 48px portrait plus the bio name-link beside it. */
+    width: 8.5rem;
     justify-content: flex-start;
     gap: 0.65rem;
     padding-top: 4.25rem;
   }
 
+  /* 48px keeps the tap target above the 44px HIG/WCAG floor on phones. */
   .explore-hub__guide-rail .narrator-button,
   .explore-hub__guide-rail .narrator-button__portrait {
-    width: 44px;
-    height: 44px;
+    width: 48px;
+    height: 48px;
   }
 
   .explore-hub__ship {
@@ -502,8 +504,8 @@ body {
     padding-top: 3.25rem;
   }
 
-  .explore-hub__guide-rail .narrator-button,
-  .explore-hub__guide-rail .narrator-button__portrait,
+  /* Hub portraits stay 48px (set above); only the voyage rail may go
+     smaller — its 40px is a known HIG-floor violation, tracked separately. */
   .voyage-experience__narrator-rail .narrator-button,
   .voyage-experience__narrator-rail .narrator-button__portrait {
     width: 40px;
