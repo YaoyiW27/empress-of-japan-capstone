@@ -372,7 +372,7 @@ body {
   .explore-hub__scene-panel {
     /* Hugs the 13rem SceneButton: 13rem + 2x0.75rem padding + ul's 0.5rem. */
     width: 15rem;
-    padding: 0 0.75rem 0.75rem;
+    padding: 0.75rem;
   }
 
   .explore-hub__scene-panel ul {
@@ -476,7 +476,7 @@ body {
 
 @media (orientation: landscape) and (max-height: 420px) {
   .explore-hub__scene-panel {
-    padding: 0 0.5rem 0.5rem;
+    padding: 0.5rem;
   }
 
   .explore-hub__scene-panel ul {

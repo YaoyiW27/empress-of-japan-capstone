@@ -62,21 +62,21 @@ export default function ExploreHub() {
 
   return (
     <main className="explore-hub relative flex h-dvh w-full flex-col overflow-x-hidden overflow-y-auto bg-ivory px-4 py-3 lg:px-8 lg:py-6">
+      {/* Same spot as the voyage page's back button, for cross-page consistency. */}
+      <CircleBackLink
+        href="/"
+        label="Back to home"
+        className="absolute left-6 top-6 z-10"
+      />
+
       <div className="explore-hub__layout flex min-h-0 flex-1 gap-3 lg:gap-5">
-        {/* Left: guides as circular portrait options. Tap the portrait to
-            select; the name beside it opens the guide's biography page. */}
-        <aside className="explore-hub__guide-rail flex w-40 shrink-0 flex-col items-center gap-1.5 lg:w-48 lg:gap-3">
-          {/* Shared header band: the back button (in flow, near the voyage
-              page's top-left spot) and this label sit on one 44px row, and the
-              Scenes label opposite uses the same row height — so both column
-              labels and the button read as a single line and the columns
-              below start level. */}
-          <div className="flex h-11 w-full shrink-0 items-center">
-            <CircleBackLink href="/" label="Back to home" className="shrink-0" />
-            <p className="min-w-0 flex-1 text-center text-ig uppercase tracking-[0.16em] text-navy-soft">
-              Narrators
-            </p>
-          </div>
+        {/* Left: guides as circular portrait options, centered on the viewport
+            height so they sit beside the ship. Tap the portrait to select; the
+            name beside it opens the guide's biography page. */}
+        <aside className="explore-hub__guide-rail flex w-40 shrink-0 flex-col items-center justify-center gap-1.5 lg:w-48 lg:gap-3">
+          <p className="text-center text-ig uppercase tracking-[0.16em] text-navy-soft">
+            Narrators
+          </p>
           {narrators.map((narrator) => {
             const active = narrator.id === narratorId;
             return (
@@ -112,10 +112,11 @@ export default function ExploreHub() {
 
         {/* Center: the ship (no background). min-w-0 lets it shrink so the right
             panel never gets pushed off a narrow (phone-landscape) screen. The
-            canvas fills the whole column (capped only on ultra-wide screens) —
-            zoom/pan are off so the wheel keeps scrolling the page and the ship
-            can't be dragged out of frame, which is what let us drop the old
-            w-[60%] gesture guard. No overflow-hidden: marker labels near the
+            canvas fills the whole column (capped only on ultra-wide screens) so
+            the ship reads at the size the Figma gives it — the trade-off is
+            that OrbitControls owns wheel/touch gestures over most of the middle
+            of the page, which is fine because the hub fits h-dvh and never
+            needs to scroll. No overflow-hidden: marker labels near the
             bow/stern spill past the canvas edge instead of being clipped. */}
         <section className="explore-hub__ship relative min-h-0 min-w-0 flex-1">
           <div className="absolute inset-y-0 left-1/2 w-full max-w-5xl -translate-x-1/2">
@@ -123,27 +124,25 @@ export default function ExploreHub() {
               scenes={scenes}
               selectedSceneId={sceneId}
               onSelectScene={setSceneId}
-              enableZoom={false}
-              enablePan={false}
             />
           </div>
 
           <p className="pointer-events-none absolute bottom-2 left-1/2 z-10 w-full -translate-x-1/2 px-2 text-center text-ig uppercase tracking-[0.2em] text-navy-soft lg:bottom-3">
-            Drag to rotate · tap a glowing dot to pick a scene
+            Drag to rotate · scroll to zoom · tap a glowing dot to pick a scene
           </p>
         </section>
 
         {/* Right: every scene, scrollable; pick one and start the voyage.
             The rail hugs the fixed-width SceneButton (13rem) plus padding —
             the old 24rem reserved nearly double the content width. */}
-        <aside className="explore-hub__scene-panel flex min-h-0 w-60 shrink-0 flex-col overflow-hidden px-3 pb-3 lg:w-[17rem] lg:px-4 lg:pb-4">
-          <p className="flex h-11 shrink-0 items-center justify-center text-ig uppercase text-navy-soft">
+        <aside className="explore-hub__scene-panel flex min-h-0 w-60 shrink-0 flex-col overflow-hidden p-3 lg:w-[17rem] lg:p-4">
+          <p className="shrink-0 text-center text-ig uppercase text-navy-soft">
             Scenes
           </p>
 
           <ul
             ref={sceneListRef}
-            className="mt-2 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-1"
+            className="mt-3 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-1"
           >
             {scenes.map((scene) => {
               const active = scene.id === sceneId;

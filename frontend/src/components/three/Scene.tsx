@@ -16,16 +16,11 @@ import type { Scene as ExperienceScene, ShipSpot } from "@/lib/scenes";
 
 /**
  * The hub's 3D ship. The glTF's scale/position is unknown, so <Bounds fit> +
- * <Center> frame it to the view automatically. Drag to rotate; a gentle
- * auto-rotate showcases the model.
+ * <Center> frame it to the view automatically. Drag to rotate, scroll to zoom;
+ * a gentle auto-rotate showcases the model.
  *
  * Pass `scenes` to pin each one on the hull as a glowing marker: click a dot
  * to select that scene, and the selected scene's dot stays highlighted.
- *
- * Zoom/pan are opt-out: pages that embed the canvas beside other UI (the hub)
- * turn them off so the wheel keeps scrolling the page and a stray two-finger
- * drag can't push the ship out of frame. <Bounds fit> already frames the model,
- * so neither gesture is needed to see it.
  *
  * "use client" is the boundary — <Canvas> + three.js run on the client only
  * (R3F doesn't render Canvas children during SSR), so useGLTF here is safe.
@@ -34,15 +29,11 @@ export default function Scene({
   scenes,
   selectedSceneId = null,
   onSelectScene,
-  enableZoom = true,
-  enablePan = true,
 }: {
   /** Scenes to pin on the hull (omit for a plain, marker-less model). */
   scenes?: ExperienceScene[];
   selectedSceneId?: string | null;
   onSelectScene?: (id: string) => void;
-  enableZoom?: boolean;
-  enablePan?: boolean;
 } = {}) {
   return (
     <Canvas camera={{ position: [3, 2, 4], fov: 50 }} dpr={[1, 2]}>
@@ -75,8 +66,6 @@ export default function Scene({
         enableDamping
         autoRotate
         autoRotateSpeed={0.5}
-        enableZoom={enableZoom}
-        enablePan={enablePan}
       />
     </Canvas>
   );
