@@ -20,7 +20,7 @@ export default function Home() {
           The Empress of Japan
         </h1>
         <p className="mx-auto max-w-xl text-sm text-navy-soft lg:text-base">
-          A browser-based experience designed for the Vancouver Maritime Museum: Empress of Japan
+          Immersive experience designed for Vancouver Maritime Museum visitors
         </p>
       </div>
 
@@ -39,7 +39,7 @@ export default function Home() {
           sizes="(min-width: 768px) 640px, 90vw"
           className="max-h-[42vh] w-auto max-w-[min(88vw,640px)] rounded-sm [@media(max-height:520px)]:max-h-[32vh]"
         />
-
+       <Divider />
 
       <ButtonLink href="/explore">
         Step Aboard
