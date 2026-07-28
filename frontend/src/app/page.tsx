@@ -14,7 +14,7 @@ export default function Home() {
             Poster-style two-liner: the italic lead-in stays inside the h1 so
             the document title reads as the full phrase. */}
         <h1 className="font-display text-4xl font-bold tracking-tight text-navy lg:text-6xl">
-          <span className="mb-1 block text-3xl font-semibold italic tracking-normal text-brass lg:mb-1.5 lg:text-4xl [@media(max-height:520px)]:mb-0.5 [@media(max-height:520px)]:text-2xl">
+          <span className="mb-1 block text-2xl font-semibold italic tracking-normal text-brass lg:mb-1.5 lg:text-4xl [@media(max-height:520px)]:mb-0.5 [@media(max-height:520px)]:text-2xl">
             Echoes of 
           </span>
           The Empress of Japan
