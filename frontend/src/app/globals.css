@@ -589,36 +589,50 @@ body {
 }
 
 .ui-button {
-  width: 168px;
-  height: 42px;
-  background-color: var(--button-bg);
-  border-color: var(--button-border);
-  color: var(--button-fg);
-  
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
 
-  border: 2px solid;
+  background-color: var(--button-bg);
+  border: 3px solid var(--button-border);
   border-radius: 8px;
-
+  color: var(--button-fg);
 
   cursor: pointer;
+
   box-shadow:
-    0 0 8px rgb(from var(--color-navy) r g b / 50%);
+    0 0 8px rgb(from var(--color-navy) r g b / 75%);
+
   transition:
+    transform 0.2s ease,
     background-color 0.2s ease,
     border-color 0.2s ease,
     color 0.2s ease,
     box-shadow 0.2s ease;
 }
-.ui-button:hover {
+
+.ui-button--primary {
+  width: 176px;
+  height: 44px;
+
+  --button-bg: var(--color-navy);
+  --button-border: var(--color-brass);
+  --button-fg: var(--color-ivory);
+}
+
+.ui-button:not(:disabled):hover {
   transform: scale(1.02);
 }
-.ui-button:disabled {
+
+.ui-button--primary:disabled {
+  --button-bg: var(--color-navy-muted);
+  --button-border: var(--color-navy-faint);
+  --button-fg: var(--color-navy-faint);
+
   cursor: not-allowed;
-  opacity: 0.5;
+  opacity: 1;
+  box-shadow: none;
 }
 
 /* ---------- Overview ---------- */
