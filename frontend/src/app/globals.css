@@ -356,11 +356,11 @@ body {
 }
 
 /* SceneButton's first span is the thumbnail frame; scale it to the row
-   (2px border + 6px padding each side leaves 40px of content height). */
+   (2px border + 6px padding each side leaves 40px of content height). 
 .explore-hub__scene-panel li > button > span:first-child {
   width: 3.5rem;
   height: 2.5rem;
-}
+}*/
 
 /*
  * Compressed mobile landscape support.
@@ -413,7 +413,7 @@ body {
     height: 3rem;
   }
 
-  .explore-hub__scene-panel li > button > span:first-child {
+ /* .explore-hub__scene-panel li > button > span:first-child {
     width: 2.75rem;
     height: 2rem;
   }
@@ -421,7 +421,7 @@ body {
   .voyage-experience h1 {
     font-size: 2rem;
     line-height: 1;
-  }
+  }*/
 
   .voyage-experience {
     --scene-drawer-offset: min(46vw, 13rem);

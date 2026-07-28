@@ -43,7 +43,13 @@ export default function SceneButton({
 
   const content = (
     <>
-      <span className="relative block h-12 w-16 shrink-0 overflow-hidden rounded-md border border-current/30">
+      <span
+  className={`relative block shrink-0 overflow-hidden border border-current/30 ${
+    variant === "overview"
+      ? "h-10 w-10 rounded-full"
+      : "h-12 w-16 rounded-md"
+  }`}
+>
         <Image
           src={scene.photoSrc}
           alt={scene.title}
