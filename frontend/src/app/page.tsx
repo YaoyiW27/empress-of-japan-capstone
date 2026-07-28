@@ -15,12 +15,12 @@ export default function Home() {
             the document title reads as the full phrase. */}
         <h1 className="font-display text-4xl font-bold tracking-tight text-navy lg:text-6xl">
           <span className="mb-1 block text-3xl font-semibold italic tracking-normal text-brass lg:mb-1.5 lg:text-4xl [@media(max-height:520px)]:mb-0.5 [@media(max-height:520px)]:text-2xl">
-            Echoes of the
+            Echoes of 
           </span>
-          Empress of Japan
+          The Empress of Japan
         </h1>
         <p className="mx-auto max-w-xl text-sm text-navy-soft lg:text-base">
-          A Web XR experience for the Vancouver Maritime Museum.
+          A browser-based experience designed for the Vancouver Maritime Museum: Empress of Japan
         </p>
       </div>
 
@@ -29,7 +29,7 @@ export default function Home() {
       {/* Poster scales to the viewport height so the page stays on one screen
           when it can (min-h-dvh lets very short viewports scroll instead);
           capped at the image's native 640px to stay crisp. */}
-      <div className="rounded-md border border-brass/60 bg-card p-2 shadow-xl ring-1 ring-brass/20">
+
         <Image
           src="/home.jpg"
           alt="Canadian Pacific poster for the R.M.S. Empress of Japan, the Pacific Empress"
@@ -39,7 +39,7 @@ export default function Home() {
           sizes="(min-width: 768px) 640px, 90vw"
           className="max-h-[42vh] w-auto max-w-[min(88vw,640px)] rounded-sm [@media(max-height:520px)]:max-h-[32vh]"
         />
-      </div>
+
 
       <ButtonLink href="/explore">
         Step Aboard
