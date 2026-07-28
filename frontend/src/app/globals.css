@@ -204,8 +204,7 @@ body {
 
   border: 0;
   border-radius: 9999px;
-  outline: 4px solid var(--narrator-frame);
-  outline-offset: 0;
+
 
   background: transparent;
   cursor: pointer;
@@ -281,13 +280,25 @@ body {
 .narrator-button[data-state="notSelected"]:hover {
   opacity: 1;
 }
+.narrator-button::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  z-index: 2;
+
+  border: 4px solid var(--narrator-frame);
+  border-radius: 9999px;
+
+  pointer-events: none;
+}
+
 /* Speaking icon layered over the portrait */
 
 .narrator-button__speaking-icon {
   position: absolute;
   left: 50%;
   top: 50%;
-  z-index: 1;
+  z-index: 3;
 
   display: flex;
   width: 32px;
