@@ -13,10 +13,14 @@ export default function Home() {
             but far too short for 6xl — height is the real constraint here. */}
         <h1 className="font-display text-4xl font-bold tracking-tight text-navy lg:text-6xl">
 <<<<<<< HEAD
+<<<<<<< HEAD
           <span className="mb-1 block text-2xl font-semibold italic tracking-normal text-brass lg:mb-1.5 lg:text-4xl [@media(max-height:520px)]:mb-0.5 [@media(max-height:520px)]:text-2xl">
 =======
           <span className="mb-1 block text-3xl font-semibold italic tracking-normal text-brass lg:mb-1.5 lg:text-4xl [@media(max-height:520px)]:mb-0.5 [@media(max-height:520px)]:text-2xl">
 >>>>>>> bcde1bd (Removed the card style of the key art on the landing page to avoid confusing it with a button.)
+=======
+          <span className="mb-1 block text-2xl font-semibold italic tracking-normal text-brass lg:mb-1.5 lg:text-4xl [@media(max-height:520px)]:mb-0.5 [@media(max-height:520px)]:text-2xl">
+>>>>>>> 22cb4e5 (Now the title on the landing page has the same responsive ratio.)
             Echoes of 
           </span>
           The Empress of Japan
