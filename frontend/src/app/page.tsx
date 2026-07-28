@@ -23,10 +23,14 @@ export default function Home() {
         </h1>
         <p className="mx-auto max-w-xl text-sm text-navy-soft lg:text-base">
 <<<<<<< HEAD
+<<<<<<< HEAD
           Immersive experience designed for Vancouver Maritime Museum visitors
 =======
           A browser-based experience designed for the Vancouver Maritime Museum: Empress of Japan
 >>>>>>> bcde1bd (Removed the card style of the key art on the landing page to avoid confusing it with a button.)
+=======
+          Immersive experience designed for Vancouver Maritime Museum visitors
+>>>>>>> 77400a1 (Streamlined the description on the landing page, and added a divider to further separate the illustration and the button.)
         </p>
       </div>
 
@@ -46,10 +50,14 @@ export default function Home() {
           className="max-h-[42vh] w-auto max-w-[min(88vw,640px)] rounded-sm [@media(max-height:520px)]:max-h-[32vh]"
         />
 <<<<<<< HEAD
+<<<<<<< HEAD
        <Divider />
 =======
 
 >>>>>>> bcde1bd (Removed the card style of the key art on the landing page to avoid confusing it with a button.)
+=======
+       <Divider />
+>>>>>>> 77400a1 (Streamlined the description on the landing page, and added a divider to further separate the illustration and the button.)
 
       <ButtonLink href="/explore">
         Step Aboard
