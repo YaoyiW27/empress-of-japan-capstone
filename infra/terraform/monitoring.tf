@@ -283,13 +283,13 @@ resource "aws_cloudwatch_metric_alarm" "backend_target_5xx" {
 
 resource "aws_cloudwatch_metric_alarm" "backend_latency" {
   alarm_name          = "empress-backend-sustained-latency"
-  alarm_description   = "Average backend response time exceeded ${var.backend_alarm_latency_seconds} seconds for three minutes."
+  alarm_description   = "Average backend response time exceeded ${var.backend_alarm_latency_seconds} seconds for five minutes."
   namespace           = "AWS/ApplicationELB"
   metric_name         = "TargetResponseTime"
   comparison_operator = "GreaterThanThreshold"
   threshold           = var.backend_alarm_latency_seconds
-  evaluation_periods  = 3
-  datapoints_to_alarm = 3
+  evaluation_periods  = 5
+  datapoints_to_alarm = 5
   period              = 60
   statistic           = "Average"
   treat_missing_data  = "notBreaching"
