@@ -693,15 +693,26 @@ body {
     transform 0.2s ease,
     filter 0.2s ease;
 }
+/* Independent circular shadow layer */
+.ui-nav-button::before {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  z-index: -1;
+
+  border-radius: 50%;
+  background-color:var(--color-navy);
+  filter: blur(6px);
+
+  pointer-events: none;
+}
+
 .ui-nav-button img {
   display: block;
   width: 44px;
   height: 44px;
   max-width: none;
   flex-shrink: 0;
-  filter: drop-shadow(
-    0 0 8px rgb(from var(--color-navy) r g b / 50%)
-  );
 }
 
 .ui-nav-button:hover {
