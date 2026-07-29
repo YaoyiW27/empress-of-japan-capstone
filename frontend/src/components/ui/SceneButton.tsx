@@ -43,6 +43,7 @@ export default function SceneButton({
   const content = (
     <>
       <span
+<<<<<<< HEAD
   className={`relative block shrink-0 overflow-hidden border border-current/30 ${
     variant === "overview"
       ? "h-10 w-10 rounded-full"
@@ -50,6 +51,10 @@ export default function SceneButton({
   }`}
 >
 >>>>>>> 7424003 (Changed thumbnails on the Scene Buttons to round shape; commented out the size defination for both web and mobile use in the css sheet.)
+=======
+        className={`relative h-10 w-10 rounded-full block shrink-0 overflow-hidden border-current/30}`}
+      >
+>>>>>>> 4d31112 (Removed the logic giving different Scene Button style in the Voyage page.)
         <Image
           src={scene.photoSrc}
           alt={scene.title}
