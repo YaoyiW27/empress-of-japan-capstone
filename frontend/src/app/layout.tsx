@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Playfair_Display, Libre_Franklin } from "next/font/google";
 import "./globals.css";
 
@@ -17,6 +17,24 @@ const libreFranklin = Libre_Franklin({
 export const metadata: Metadata = {
   title: "Echoes of the Empress of Japan",
   description: "A Web XR experience for the Vancouver Maritime Museum.",
+  // Added-to-home-screen launch (see src/app/manifest.ts): standalone, with
+  // the status bar drawn over the page — safe-area paddings keep content clear.
+  appleWebApp: {
+    capable: true,
+    title: "Empress of Japan",
+    statusBarStyle: "black-translucent",
+  },
+  icons: {
+    apple: "/icons/apple-touch-icon.png",
+  },
+};
+
+// viewport-fit=cover extends the page under the iPhone notch/home indicator
+// (otherwise Safari letterboxes it in landscape); env(safe-area-inset-*)
+// paddings in globals.css keep controls out of those zones. A nested segment's
+// viewport export *replaces* this one — /explore/layout.tsx sets it too.
+export const viewport: Viewport = {
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
