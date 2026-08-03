@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  type MouseEvent,
   type SubmitEvent,
 } from "react";
 import type { Narrator, Scene } from "@/lib/scenes";
@@ -144,6 +145,16 @@ function readVoiceInputMode(): VoiceInputMode {
   return isLiveTranscriptionSupported() ? "recorder" : "text";
 }
 
+// Shared look for every standalone pill/circle control in the dock — each
+// button now owns its own border/shadow/radius instead of splitting one
+// joined capsule, so no button's focus ring bleeds into its neighbor.
+// onMouseDown's preventDefault stops the browser from focusing the button on
+// a mouse click/tap at all (keyboard Tab focus is untouched, since that's a
+// keydown path) — so outline-none is safe here without losing a11y.
+function preventMouseFocus(event: MouseEvent) {
+  event.preventDefault();
+}
+
 export default function NarratorOverlay({
   narrator,
   scene,
@@ -197,7 +208,7 @@ export default function NarratorOverlay({
   useEffect(() => {
     onStatusChange?.(interactionStatus);
   }, [interactionStatus, onStatusChange]);
-  
+
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
@@ -500,7 +511,7 @@ export default function NarratorOverlay({
   return (
     <div className="narrator-overlay pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-2 p-4 sm:p-6">
       {open && (
-        /* Transcript panel, rising from the capsule below. */
+        /* Transcript panel, rising from the dock below. */
         <div className="pointer-events-auto w-full max-w-md rounded-md border border-brass/40 bg-card/90 px-4 py-3 shadow-lg backdrop-blur-sm">
           <p className="font-display text-sm font-bold uppercase tracking-[0.18em] text-brass">
             {narrator.name}
@@ -542,13 +553,17 @@ export default function NarratorOverlay({
         </div>
       )}
 
-      {/* Split capsule: mic (or typed input) on the left, transcript chevron
-          on the right. */}
-      <div className="pointer-events-auto flex items-stretch overflow-hidden rounded-full border border-brass/40 bg-card/90 shadow-lg backdrop-blur-sm">
-        {voiceMode !== "text" ? (
+      {/* One unified dock now: mic on the left, a typed-input field that's
+          always available (not just a no-speech-recognition fallback) in
+          the middle, and the transcript toggle on the right. All three live
+          inside one pill, divided by hairline borders, matching the shape
+          this control had before it was split into separate buttons. */}
+      <div className="pointer-events-auto flex w-full max-w-md items-center gap-1 rounded-md  bg-card p-1 shadow-lg backdrop-blur-sm">
+        {voiceMode !== "text" && (
           <button
             type="button"
             onClick={voiceMode === "native" ? startListening : toggleRecording}
+            onMouseDown={preventMouseFocus}
             disabled={
               voiceMode === "native" ? isListening || isLoading : isLoading
             }
@@ -559,10 +574,12 @@ export default function NarratorOverlay({
                   ? "Listening"
                   : "Talk to the narrator"
             }
-            className={`flex h-12 w-14 items-center justify-center transition-colors disabled:cursor-not-allowed ${
+            className={`flex h-11 w-11 shrink-0 items-center justify-center self-center ml-2 rounded-full border-[3px] border-brass transition-colors focus-visible:ring-2 focus-visible:ring-brass disabled:cursor-not-allowed ${
               isListening
-                ? "animate-pulse bg-vermilion text-ivory"
-                : "text-navy hover:bg-ivory"
+                ? "animate-pulse bg-ai text-navy"
+                : isSpeaking
+                  ? "text-navy hover:bg-ivory"
+                  : "bg-navy text-ivory hover:bg-brass"
             }`}
           >
             {voiceMode === "recorder" && isListening ? (
@@ -594,47 +611,55 @@ export default function NarratorOverlay({
               </svg>
             )}
           </button>
-        ) : (
-          /* No SpeechRecognition (iOS Chrome/Edge/Firefox, in-app browsers,
-             Android Firefox…) — let the visitor type instead. */
-          <form onSubmit={handleTextSubmit} className="flex items-stretch">
-            <input
-              type="text"
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              placeholder="Ask the narrator..."
-              disabled={isLoading}
-              aria-label="Type a message to the narrator"
-              className="h-12 w-44 bg-transparent pl-5 pr-2 text-sm text-navy placeholder:text-navy-soft focus:outline-none disabled:cursor-not-allowed sm:w-64"
-            />
-            <button
-              type="submit"
-              disabled={isLoading || draft.trim().length === 0}
-              aria-label="Send message"
-              className="flex w-12 items-center justify-center text-navy transition-colors hover:bg-ivory disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="h-5 w-5"
-              >
-                <path d="M22 2 11 13" />
-                <path d="M22 2 15 22 11 13 2 9 22 2Z" />
-              </svg>
-            </button>
-          </form>
         )}
+
+        {/* Typed input — always here now, whether or not the browser also
+            supports voice. Enter submits; there's no separate send button
+            baked into this segment so it reads as one plain field inside
+            the shared pill, with the transcript toggle closing it out. */}
+        <form
+          onSubmit={handleTextSubmit}
+          className="flex min-w-0 flex-1 items-center"
+        >
+          <input
+            type="text"
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            placeholder="Ask the narrator..."
+            disabled={isLoading}
+            aria-label="Type a message to the narrator"
+            className="h-12 min-w-0 flex-1 bg-transparent px-4 text-sm text-navy placeholder:text-navy-soft outline-none disabled:cursor-not-allowed"
+          />
+          <button
+            type="submit"
+            disabled={isLoading || draft.trim().length === 0}
+            onMouseDown={preventMouseFocus}
+            aria-label="Send message"
+            className="flex h-11 w-11 shrink-0 items-center justify-center self-center rounded-full text-navy outline-none transition-colors hover:bg-ivory focus-visible:ring-2 focus-visible:ring-brass disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-5 w-5"
+            >
+              <path d="M22 2 11 13" />
+              <path d="M22 2 15 22 11 13 2 9 22 2Z" />
+            </svg>
+          </button>
+        </form>
+
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
+          onMouseDown={preventMouseFocus}
           aria-expanded={open}
           aria-label={open ? "Hide transcript" : "Show transcript"}
-          className="flex w-11 items-center justify-center border-l border-brass/40 text-navy transition-colors hover:bg-ivory focus:outline-none focus-visible:ring-2 focus-visible:ring-brass focus-visible:ring-offset-1"
+          className="flex h-11 w-11 shrink-0 items-center justify-center self-center rounded-full text-navy outline-none transition-colors hover:bg-ivory focus-visible:ring-2 focus-visible:ring-brass"
         >
           <svg
             aria-hidden="true"
