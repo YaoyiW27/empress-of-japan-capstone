@@ -36,7 +36,12 @@ export default function OrientationGate({ children }: { children: ReactNode }) {
 
   return (
     <>
-      {children}
+      {/* inert, not unmounted: state survives rotation, but keyboard focus
+          and screen readers can't reach the covered UI while the overlay
+          shows. display:contents keeps the wrapper out of the layout. */}
+      <div inert={isPortrait} className="contents">
+        {children}
+      </div>
       {isPortrait && <RotateOverlay />}
     </>
   );
