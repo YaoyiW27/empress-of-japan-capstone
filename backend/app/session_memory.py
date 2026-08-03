@@ -50,10 +50,29 @@ class PostgresSessionMemory:
             min_size=1,
             max_size=10,
             open=False,
+            # The pool keeps a long-lived idle connection (min_size=1). A NAT/firewall
+            # idle timeout (AWS NAT Gateway drops idle TCP after 350s) or an RDS
+            # stop/start silently kills it without an RST, so the next checkpoint
+            # write reuses a dead socket. Without the guards below that reuse hangs on
+            # TCP retransmission for minutes before failing (observed ~4m /chat, then a
+            # 503) instead of surfacing quickly. So:
+            #   - connect_timeout caps every (re)connect the way app.db already does;
+            #   - check validates a connection before it leaves the pool, recycling
+            #     dead ones instead of handing them out;
+            #   - max_idle/max_lifetime retire connections before NAT can reap them,
+            #     removing the trigger at the source;
+            #   - timeout bounds how long a caller waits for a connection so an
+            #     exhausted or unreachable pool fails fast (main.chat maps PoolTimeout
+            #     to a 503) rather than stacking the request behind a stalled connect.
+            timeout=10.0,
+            max_idle=180.0,
+            max_lifetime=1800.0,
+            check=ConnectionPool.check_connection,
             kwargs={
                 "autocommit": True,
                 "prepare_threshold": 0,
                 "row_factory": dict_row,
+                "connect_timeout": 5,
             },
         )
         self._checkpointer = PostgresSaver(self._pool)

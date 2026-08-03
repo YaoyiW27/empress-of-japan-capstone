@@ -1,16 +1,15 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import NarratorButton, {
   type NarratorId as NarratorButtonId,
 } from "@/components/ui/NarratorButton";
 import SceneButton from "@/components/ui/SceneButton";
 import Scene from "@/components/three/Scene";
-import { narrators, scenes } from "@/lib/scenes";
+import { getNarrator, getScene, narrators, scenes } from "@/lib/scenes";
 import { Button, ButtonLink, CircleBackLink } from "@/components/ui/Button";
-
-/** How long a touch press must last before the bio pops up. */
-const LONG_PRESS_MS = 450;
 
 /** Maps backend persona ids to the shorter ids used by NarratorButton assets. */
 const narratorButtonIds: Record<string, NarratorButtonId> = {
@@ -20,26 +19,46 @@ const narratorButtonIds: Record<string, NarratorButtonId> = {
 };
 
 /**
- * Scene-first hub: pick a guide on the left (hover / long-press a portrait for
- * their bio), see the 3D ship in the center, and pick any scene on the right —
- * guides and scenes combine freely. "Start voyage" opens the pair.
+ * Scene-first hub: pick a guide on the left (the name under a portrait opens
+ * their biography page), see the 3D ship in the center, and pick any scene on
+ * the right — guides and scenes combine freely. "Start voyage" opens the pair.
+ *
+ * ?narrator= & ?scene= preselect either half — that's how the biography pages
+ * hand their picks back — so this sits under a Suspense boundary (the page
+ * stays static despite useSearchParams).
  *
  * Sized compact for phone landscape (short viewport); the roomier `lg:` sizing
  * kicks in on real desktops/tablets (>=1024px).
  */
 export default function ExploreHub() {
-  const [narratorId, setNarratorId] = useState<string | null>(null);
-  const [sceneId, setSceneId] = useState<string | null>(null);
-  // Which guide's bio is showing (mouse hover, or touch long-press).
-  const [bioId, setBioId] = useState<string | null>(null);
-  const pressTimer = useRef<number | null>(null);
+  const searchParams = useSearchParams();
+  // Unknown ids (hand-typed deep links) are ignored rather than kept as
+  // un-startable selections.
+  const [narratorId, setNarratorId] = useState<string | null>(() => {
+    const requested = searchParams.get("narrator");
+    return requested && getNarrator(requested) ? requested : null;
+  });
+  const [sceneId, setSceneId] = useState<string | null>(() => {
+    const requested = searchParams.get("scene");
+    return requested && getScene(requested) ? requested : null;
+  });
+  const sceneListRef = useRef<HTMLUListElement | null>(null);
 
-  function cancelPress() {
-    if (pressTimer.current !== null) {
-      window.clearTimeout(pressTimer.current);
-      pressTimer.current = null;
-    }
-  }
+  // Scenes can be selected from outside the rail (a ship dot, or the bio
+  // page's ?scene=) while the rail is scrolled elsewhere — bring the
+  // selected entry into view so the change is visible.
+  useEffect(() => {
+    if (!sceneId) return;
+    const item = sceneListRef.current?.querySelector(
+      `[data-scene-id="${CSS.escape(sceneId)}"]`,
+    );
+    item?.scrollIntoView({
+      block: "nearest",
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "auto"
+        : "smooth",
+    });
+  }, [sceneId]);
 
   return (
     <main className="explore-hub relative flex h-dvh w-full flex-col overflow-x-hidden overflow-y-auto bg-ivory px-4 py-3 lg:px-8 lg:py-6">
@@ -50,44 +69,21 @@ export default function ExploreHub() {
         className="absolute left-6 top-6 z-10"
       />
 
-      <div className="explore-hub__layout mt-14 flex min-h-0 flex-1 gap-3 lg:mt-16 lg:gap-5">
-        {/* Left: guides as circular portrait options. Hover (mouse) or
-            long-press (touch) reveals the bio beside the portrait. */}
-        <aside className="explore-hub__guide-rail flex w-20 shrink-0 flex-col items-center justify-center gap-3 lg:w-32 lg:gap-5">
-          <p className="mt-3 text-center text-ig uppercase tracking-[0.16em] text-navy-soft">
-              Narrators
+      <div className="explore-hub__layout flex min-h-0 flex-1 gap-3 lg:gap-5">
+        {/* Left: guides as circular portrait options, centered on the viewport
+            height so they sit beside the ship. Tap the portrait to select; the
+            name beside it opens the guide's biography page. */}
+        {/* px-2 keeps the portraits off the screen edge (the scene rail gets
+            the same inset from its own padding); the widths are +1rem to
+            compensate so the name links keep their room. */}
+        <aside className="explore-hub__guide-rail flex w-44 shrink-0 flex-col items-center justify-center gap-3 px-2 lg:w-52 lg:gap-6">
+          <p className="text-center text-ig uppercase tracking-[0.16em] text-navy-soft">
+            Narrators
           </p>
           {narrators.map((narrator) => {
             const active = narrator.id === narratorId;
             return (
-              <div
-                key={narrator.id}
-                className="relative"
-                onPointerEnter={(event) => {
-                  if (event.pointerType === "mouse") setBioId(narrator.id);
-                }}
-                onPointerLeave={() => {
-                  cancelPress();
-                  setBioId(null);
-                }}
-                onPointerDown={(event) => {
-                  if (event.pointerType === "mouse") return;
-                  cancelPress();
-                  pressTimer.current = window.setTimeout(
-                    () => setBioId(narrator.id),
-                    LONG_PRESS_MS,
-                  );
-                }}
-                onPointerUp={(event) => {
-                  cancelPress();
-                  if (event.pointerType !== "mouse") setBioId(null);
-                }}
-                onPointerCancel={() => {
-                  cancelPress();
-                  setBioId(null);
-                }}
-                onContextMenu={(event) => event.preventDefault()}
-              >
+              <div key={narrator.id} className="flex w-full items-center">
                 <NarratorButton
                   narrator={narratorButtonIds[narrator.id]}
                   variant="hub"
@@ -96,87 +92,103 @@ export default function ExploreHub() {
                   label={`${narrator.name}, ${narrator.role}${
                     active ? ", selected" : ""
                   }`}
-                  className="touch-none [-webkit-touch-callout:none]"
                 />
 
-                {bioId === narrator.id && (
-                  <div className="pointer-events-none absolute left-full top-1/2 z-20 ml-3 w-64 -translate-y-1/2 rounded-lg border border-brass/40 bg-card p-4 shadow-lg ring-1 ring-brass/10 lg:w-80">
-                    <p className="text-[0.65rem] font-semibold uppercase tracking-[0.22em] text-brass lg:text-xs">
-                      {narrator.role}
-                    </p>
-                    <p className="mt-1 font-display text-lg font-bold text-navy lg:text-xl">
-                      {narrator.name}
-                    </p>
-                    <p className="mt-2 text-xs leading-relaxed text-navy-soft lg:text-sm">
-                      {narrator.bio}
-                    </p>
-                  </div>
-                )}
+                <Link
+                  href={`/explore/${narrator.id}`}
+                  aria-label={`About ${narrator.name}`}
+                  className="flex min-h-11 min-w-0 flex-1 items-center py-1 pl-2 text-left text-[10px] font-semibold uppercase leading-snug tracking-[0.06em] text-navy-soft transition-colors hover:text-vermilion lg:text-xs lg:tracking-[0.08em]"
+                >
+                  {/* No-break space keeps the chevron glued to the last word. */}
+                  <span>
+                    {narrator.name}
+                    {" "}
+                    <span aria-hidden="true" className="text-brass">
+                      ›
+                    </span>
+                  </span>
+                </Link>
               </div>
             );
           })}
         </aside>
-        {/*
-      <div className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 text-center sm:top-6">
-        <h1 className="whitespace-nowrap text-ig-header !text-brass lg:text-5xl">
-          Welcome Aboard
-        </h1>
-      </div>*/}
+
         {/* Center: the ship (no background). min-w-0 lets it shrink so the right
-            panel never gets pushed off a narrow (phone-landscape) screen. */}
-
+            panel never gets pushed off a narrow (phone-landscape) screen. The
+            canvas fills the whole column (capped only on ultra-wide screens) so
+            the ship reads at the size the Figma gives it — the trade-off is
+            that OrbitControls owns wheel/touch gestures over most of the middle
+            of the page, which is fine because the hub fits h-dvh and never
+            needs to scroll. No overflow-hidden: marker labels near the
+            bow/stern spill past the canvas edge instead of being clipped. */}
         <section className="explore-hub__ship relative min-h-0 min-w-0 flex-1">
-        <div className="absolute inset-y-0 left-1/2 w-[60%] max-w-xl -translate-x-1/2 overflow-hidden">
-          <Scene
-            scenes={scenes}
-            selectedSceneId={sceneId}
-            onSelectScene={setSceneId}
-          />
-        </div>
+          <div className="absolute inset-y-0 left-1/2 w-full max-w-5xl -translate-x-1/2">
+            <Scene
+              scenes={scenes}
+              selectedSceneId={sceneId}
+              onSelectScene={setSceneId}
+            />
+          </div>
 
-          <p className="pointer-events-none absolute bottom-2 left-1/2 z-10 w-full -translate-x-1/2 px-2 text-center text-ig text-[0.65rem] uppercase tracking-[0.2em] text-navy-soft lg:bottom-3 lg:text-xs">
-            Drag to rotate · scroll to zoom · tap a glowing dot to pick a scene
+          {/* The nowrap spans pin the only break point before "tap a glowing
+              dot", so on phones the hint splits into two clean phrases. */}
+          <p className="pointer-events-none absolute bottom-2 left-1/2 z-10 w-full -translate-x-1/2 px-2 text-center text-ig uppercase tracking-[0.2em] text-navy-soft lg:bottom-3">
+            <span className="whitespace-nowrap">
+              Drag to rotate · scroll to zoom ·
+            </span>{" "}
+            <span className="whitespace-nowrap">
+              tap a glowing dot to pick a scene
+            </span>
           </p>
         </section>
 
-        {/* Right: every scene, scrollable; pick one and start the voyage */}
-        {/* Right: every scene, scrollable; pick one and start the voyage */}
-        <aside className="explore-hub__scene-panel flex min-h-0 w-64 shrink-0 flex-col overflow-hidden lg:w-[24rem]">
-          <div className="flex min-h-0 flex-1 flex-col bg-transparent p-4">
-            <p className="shrink-0 text-center text-ig uppercase text-navy-soft">
-              Scenes
-            </p>
+        {/* Right: every scene, scrollable; pick one and start the voyage.
+            The rail is sized around SceneButton's 13rem default (the old
+            24rem reserved nearly double the content width), and globals.css
+            stretches the buttons to the rail so the two can't drift apart. */}
+        <aside className="explore-hub__scene-panel flex min-h-0 w-60 shrink-0 flex-col overflow-hidden p-3 lg:w-[17rem] lg:p-4">
+          <p className="shrink-0 text-center text-ig uppercase text-navy-soft">
+            Scenes
+          </p>
 
-            <ul className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto p-1">
-              {scenes.map((scene) => {
-                const active = scene.id === sceneId;
+          <ul
+            ref={sceneListRef}
+            className="mt-3 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-1"
+          >
+            {scenes.map((scene) => {
+              const active = scene.id === sceneId;
 
-                return (
-                  <li key={scene.id} className="flex justify-center">
-                    <SceneButton
-                      scene={scene}
-                      selected={active}
-                      variant="overview"
-                      onClick={() => setSceneId(scene.id)}
-                    />
-                  </li>
-                );
-              })}
-            </ul>
-            <p className="mt-3 text-center text-ig uppercase tracking-[0.16em] text-navy-soft">
+              return (
+                <li
+                  key={scene.id}
+                  data-scene-id={scene.id}
+                  className="flex shrink-0 justify-center"
+                >
+                  <SceneButton
+                    scene={scene}
+                    selected={active}
+                    variant="overview"
+                    onClick={() => setSceneId(scene.id)}
+                  />
+                </li>
+              );
+            })}
+          </ul>
+          {/* The hint spans the panel (~240px inner), wrapping to two
+              balanced lines — the old w-48 cap squeezed it into three. */}
+          <div className="explore-hub__start mt-2 flex w-full shrink-0 flex-col items-center gap-1.5 lg:mt-4 lg:gap-3">
+            <p className="text-center text-[10px] uppercase leading-snug tracking-[0.12em] text-navy-soft lg:tracking-[0.16em]">
               Select a narrator and a scene to begin.
             </p>
-            <div className="explore-hub__start mt-4 flex shrink-0 justify-center">
-              {sceneId && narratorId ? (
-                <ButtonLink
-                  href={`/explore/voyage?scene=${sceneId}&narrator=${narratorId}`}
-                >
-                  Start Voyage
-                </ButtonLink>
-              ) : (
-                <Button disabled>Start Voyage</Button>
-              )}
-            </div>
+            {sceneId && narratorId ? (
+              <ButtonLink
+                href={`/explore/voyage?scene=${sceneId}&narrator=${narratorId}`}
+              >
+                Start Voyage
+              </ButtonLink>
+            ) : (
+              <Button disabled>Start Voyage</Button>
+            )}
           </div>
         </aside>
       </div>

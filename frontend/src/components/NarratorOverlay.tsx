@@ -559,7 +559,7 @@ export default function NarratorOverlay({
                   ? "Listening"
                   : "Talk to the narrator"
             }
-            className={`flex h-14 w-16 items-center justify-center transition-colors disabled:cursor-not-allowed ${
+            className={`flex h-12 w-14 items-center justify-center transition-colors disabled:cursor-not-allowed ${
               isListening
                 ? "animate-pulse bg-vermilion text-ivory"
                 : "text-navy hover:bg-ivory"
@@ -585,7 +585,7 @@ export default function NarratorOverlay({
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className="h-6 w-6"
+                className="h-5 w-5"
               >
                 <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3Z" />
                 <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
@@ -605,7 +605,7 @@ export default function NarratorOverlay({
               placeholder="Ask the narrator..."
               disabled={isLoading}
               aria-label="Type a message to the narrator"
-              className="h-14 w-44 bg-transparent pl-5 pr-2 text-sm text-navy placeholder:text-navy-soft focus:outline-none disabled:cursor-not-allowed sm:w-64"
+              className="h-12 w-44 bg-transparent pl-5 pr-2 text-sm text-navy placeholder:text-navy-soft focus:outline-none disabled:cursor-not-allowed sm:w-64"
             />
             <button
               type="submit"

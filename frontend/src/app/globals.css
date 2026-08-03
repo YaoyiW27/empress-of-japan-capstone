@@ -356,11 +356,19 @@ body {
 }
 
 /* SceneButton's first span is the thumbnail frame; scale it to the row
+<<<<<<< HEAD
    (2px border + 6px padding each side leaves 40px of content height). 
 .explore-hub__scene-panel li > button > span:first-child {
   width: 3.5rem;
   height: 2.5rem;
 }*/
+=======
+   (2px border + 6px padding each side leaves 40px of content height). */
+.explore-hub__scene-panel li > button > span:first-child {
+  width: 3.5rem;
+  height: 2.5rem;
+}
+>>>>>>> origin/main
 
 /*
  * Compressed mobile landscape support.
@@ -376,43 +384,36 @@ body {
 
   .explore-hub__layout {
     gap: 0.75rem;
-    margin-top: 3.75rem;
   }
 
   .explore-hub__guide-rail {
-    width: 4rem;
-    justify-content: flex-start;
-    gap: 0.65rem;
-    padding-top: 4.25rem;
+    /* Wide enough for a 48px portrait plus the bio name-link beside it,
+       plus the px-2 edge inset. */
+    width: 9.5rem;
+    gap: 1rem;
   }
 
+  /* 48px keeps the tap target above the 44px HIG/WCAG floor on phones. */
   .explore-hub__guide-rail .narrator-button,
   .explore-hub__guide-rail .narrator-button__portrait {
-    width: 44px;
-    height: 44px;
-  }
-
-  .explore-hub__ship {
-    flex-basis: 36%;
+    width: 48px;
+    height: 48px;
   }
 
   .explore-hub__ship p {
     bottom: 0.25rem;
     padding-inline: 0.5rem;
-    font-size: 0.55rem;
+    font-size: 0.65rem;
     line-height: 1.35;
   }
 
   .explore-hub__scene-panel {
-    width: clamp(13rem, 30vw, 18rem);
-  }
-
-  .explore-hub__scene-panel > div {
+    /* Hugs the 13rem SceneButton: 13rem + 2x0.75rem padding + ul's 0.5rem. */
+    width: 15rem;
     padding: 0.75rem;
   }
 
   .explore-hub__scene-panel ul {
-    gap: 0.4rem;
     margin-top: 0.5rem;
   }
 
@@ -420,7 +421,11 @@ body {
     height: 3rem;
   }
 
+<<<<<<< HEAD
  /* .explore-hub__scene-panel li > button > span:first-child {
+=======
+  .explore-hub__scene-panel li > button > span:first-child {
+>>>>>>> origin/main
     width: 2.75rem;
     height: 2rem;
   }
@@ -520,28 +525,20 @@ body {
 }
 
 @media (orientation: landscape) and (max-height: 420px) {
-  .explore-hub__scene-panel > div {
+  .explore-hub__scene-panel {
     padding: 0.5rem;
   }
 
   .explore-hub__scene-panel ul {
     margin-top: 0.25rem;
-    gap: 0.25rem;
   }
 
   .explore-hub__start {
     margin-top: 0.5rem;
   }
-  .explore-hub__layout {
-    margin-top: 3.25rem;
-  }
 
-  .explore-hub__guide-rail {
-    padding-top: 3.25rem;
-  }
-
-  .explore-hub__guide-rail .narrator-button,
-  .explore-hub__guide-rail .narrator-button__portrait,
+  /* Hub portraits stay 48px (set above); only the voyage rail may go
+     smaller — its 40px is a known HIG-floor violation, tracked separately. */
   .voyage-experience__narrator-rail .narrator-button,
   .voyage-experience__narrator-rail .narrator-button__portrait {
     width: 40px;
@@ -696,6 +693,7 @@ body {
   display: inline-flex;
   width: 44px;
   height: 44px;
+
   padding: 0;
   border: 0;
   align-items: center;
@@ -709,10 +707,13 @@ body {
 }
 .ui-nav-button img {
   display: block;
-  width: 60px;
-  height: 60px;
+  width: 44px;
+  height: 44px;
   max-width: none;
   flex-shrink: 0;
+  filter: drop-shadow(
+    0 0 8px rgb(from var(--color-navy) r g b / 50%)
+  );
 }
 
 .ui-nav-button:hover {
