@@ -634,7 +634,7 @@ export default function NarratorOverlay({
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
           aria-label={open ? "Hide transcript" : "Show transcript"}
-          className="flex w-11 items-center justify-center border-l border-brass/40 text-navy transition-colors hover:bg-ivory"
+          className="flex w-11 items-center justify-center border-l border-brass/40 text-navy transition-colors hover:bg-ivory focus:outline-none focus-visible:ring-2 focus-visible:ring-brass focus-visible:ring-offset-1"
         >
           <svg
             aria-hidden="true"
