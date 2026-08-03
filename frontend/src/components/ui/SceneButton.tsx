@@ -41,21 +41,9 @@ export default function SceneButton({
   // instead of clipping against them.
   const className = `group flex h-16 w-52 max-w-full shrink-0 items-center gap-3 rounded-lg border-2 p-1.5 text-left shadow-[0_0_8px_rgb(from_var(--color-navy)_r_g_b_/_50%)] transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:scale-[1.02] ${stateClasses}`;
 
-<<<<<<< HEAD
-  return (
-    <button type="button" className={className} onClick={onClick}>
-      <span
-        className={`relative block shrink-0 overflow-hidden border border-current/30 ${
-          variant === "overview"
-            ? "h-10 w-10 rounded-full"
-            : "h-12 w-16 rounded-md"
-        }`}
-      >
-=======
   const content = (
     <>
-      <span className="relative block h-12 w-16 shrink-0 overflow-hidden rounded-md border border-current/30">
->>>>>>> origin/main
+      <span className="relative block h-12 w-12 shrink-0 overflow-hidden rounded-full border-current/30">
         <Image
           src={scene.photoSrc}
           alt={scene.title}

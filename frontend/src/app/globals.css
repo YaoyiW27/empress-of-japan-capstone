@@ -356,19 +356,11 @@ body {
 }
 
 /* SceneButton's first span is the thumbnail frame; scale it to the row
-<<<<<<< HEAD
    (2px border + 6px padding each side leaves 40px of content height). 
 .explore-hub__scene-panel li > button > span:first-child {
   width: 3.5rem;
   height: 2.5rem;
 }*/
-=======
-   (2px border + 6px padding each side leaves 40px of content height). */
-.explore-hub__scene-panel li > button > span:first-child {
-  width: 3.5rem;
-  height: 2.5rem;
-}
->>>>>>> origin/main
 
 /*
  * Compressed mobile landscape support.
@@ -421,11 +413,7 @@ body {
     height: 3rem;
   }
 
-<<<<<<< HEAD
  /* .explore-hub__scene-panel li > button > span:first-child {
-=======
-  .explore-hub__scene-panel li > button > span:first-child {
->>>>>>> origin/main
     width: 2.75rem;
     height: 2rem;
   }
