@@ -345,8 +345,6 @@ body {
 }
 
 /*
-<<<<<<< HEAD
-=======
  * Hub scene rail options. Bind the option width to the rail so no side gap
  * can open if either width changes (and the scrollbar's width is absorbed
  * automatically), and keep rows shorter than SceneButton's h-16 default so
@@ -365,7 +363,6 @@ body {
 }*/
 
 /*
->>>>>>> 7424003 (Changed thumbnails on the Scene Buttons to round shape; commented out the size defination for both web and mobile use in the css sheet.)
  * Compressed mobile landscape support.
  *
  * Phone browsers lose a surprising amount of vertical space to the address
@@ -419,8 +416,6 @@ body {
     margin-top: 0.5rem;
   }
 
-<<<<<<< HEAD
-=======
   .explore-hub__scene-panel li > button {
     height: 3rem;
   }
@@ -430,7 +425,6 @@ body {
     height: 2rem;
   }
 
->>>>>>> 7424003 (Changed thumbnails on the Scene Buttons to round shape; commented out the size defination for both web and mobile use in the css sheet.)
   .voyage-experience h1 {
     font-size: 2rem;
     line-height: 1;
@@ -713,20 +707,6 @@ body {
     transform 0.2s ease,
     filter 0.2s ease;
 }
-/* Independent circular shadow layer */
-.ui-nav-button::before {
-  content: "";
-  position: absolute;
-  inset: 3px;
-  z-index: -1;
-
-  border-radius: 50%;
-  background-color:var(--color-navy);
-  filter: blur(6px);
-
-  pointer-events: none;
-}
-
 .ui-nav-button img {
   display: block;
   width: 60px;
