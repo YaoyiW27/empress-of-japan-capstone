@@ -77,7 +77,7 @@ export default function ExploreHub() {
             the same inset from its own padding); the widths are +1rem to
             compensate so the name links keep their room. */}
         <aside className="explore-hub__guide-rail flex w-44 shrink-0 flex-col items-center justify-center gap-3 px-2 lg:w-52 lg:gap-6">
-          <p className="text-center text-ig uppercase tracking-[0.16em] text-navy-soft">
+          <p className="text-center text-ig uppercase tracking-[0.16em] text-brass">
             Narrators
           </p>
           {narrators.map((narrator) => {
@@ -97,7 +97,7 @@ export default function ExploreHub() {
                 <Link
                   href={`/explore/${narrator.id}`}
                   aria-label={`About ${narrator.name}`}
-                  className="flex min-h-11 min-w-0 flex-1 items-center py-1 pl-2 text-left text-[10px] font-semibold uppercase leading-snug tracking-[0.06em] text-navy-soft transition-colors hover:text-vermilion lg:text-xs lg:tracking-[0.08em]"
+                  className="flex min-h-11 min-w-0 flex-1 items-center py-1 pl-2 text-ui-scene uppercase leading-snug tracking-[0.06em] text-navy-soft transition-colors hover:text-brass lg:text-xs lg:tracking-[0.08em]"
                 >
                   {/* No-break space keeps the chevron glued to the last word. */}
                   <span>
@@ -132,7 +132,7 @@ export default function ExploreHub() {
 
           {/* The nowrap spans pin the only break point before "tap a glowing
               dot", so on phones the hint splits into two clean phrases. */}
-          <p className="pointer-events-none absolute bottom-2 left-1/2 z-10 w-full -translate-x-1/2 px-2 text-center text-ig uppercase tracking-[0.2em] text-navy-soft lg:bottom-3">
+          <p className="pointer-events-none absolute bottom-2 left-1/2 z-10 w-full -translate-x-1/2 px-2 text-center text-[10px] uppercase leading-snug tracking-[0.12em] text-navy-soft lg:tracking-[0.16em]">
             <span className="whitespace-nowrap">
               Drag to rotate · scroll to zoom ·
             </span>{" "}
@@ -147,7 +147,7 @@ export default function ExploreHub() {
             24rem reserved nearly double the content width), and globals.css
             stretches the buttons to the rail so the two can't drift apart. */}
         <aside className="explore-hub__scene-panel flex min-h-0 w-60 shrink-0 flex-col overflow-hidden p-3 lg:w-[17rem] lg:p-4">
-          <p className="shrink-0 text-center text-ig uppercase text-navy-soft">
+          <p className="shrink-0 text-center text-ig uppercase text-brass">
             Scenes
           </p>
 

@@ -37,7 +37,7 @@
 
   /* --- Type scale (Figma typography tokens) --- */
   --text-ig-header: 40px; /* Figma: IG_Header_darkBG — Playfair Display ExtraBold */
-  --text-ui-section: 24px; /* Figma: UI_section_header — Mplus 1p Thin */
+  --text-ui-section: 12px; /* Figma: UI_section_header — Mplus 1p Thin */
   --text-ui-hero: 20px; /* Figma: UI_hero_header — Mplus 1p ExtraBold */
   --text-ui: 14px; /* Figma: UI_text_description / UI_interaction — Mplus 1p */
   --text-ig: 12px; /* Figma: IG_text — Playfair Display Italic */
@@ -47,15 +47,35 @@
   --font-sans: var(--font-libre); /* Libre Franklin — body (Figma UI uses "Mplus 1p"; see note) */
 }
 
+/*
+ * Phone-landscape compression breakpoints, exposed as inline variants
+ * (e.g. short:gap-3, shorter:text-2xl). The @media blocks further down in
+ * this file use the same conditions — keep them in sync if these change.
+ */
+@custom-variant short (@media (orientation: landscape) and (max-height: 520px));
+@custom-variant shorter (@media (orientation: landscape) and (max-height: 420px));
+
 body {
   background: var(--color-ivory);
   color: var(--color-navy);
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
+/* Single source of truth for the scene drawer's slide distance AND its list
+   width — the two must match or the closed drawer peeks/overshoots. The
+   compressed-landscape block further down redefines the same variable. */
 .voyage-experience {
   --scene-drawer-offset: 14rem;
-  --scene-drawer-offset-lg: 16rem;
+}
+
+@media (min-width: 1024px) {
+  .voyage-experience {
+    --scene-drawer-offset: 16rem;
+  }
+}
+
+.voyage-experience__scene-list {
+  width: var(--scene-drawer-offset);
 }
 
 /* ---------- Chat transcript ---------- */
@@ -101,8 +121,13 @@ body {
     box-shadow 0.2s ease;
 }
 
-.chat-transcript__button:hover {
-  transform: scale(1.02);
+/* Hover effects are guarded so touch devices don't get sticky hover (a tap
+   leaves :hover applied until the next tap elsewhere). Tailwind's own hover:
+   variants are gated the same way in v4 — this mirrors that for raw CSS. */
+@media (hover: hover) {
+  .chat-transcript__button:hover {
+    transform: scale(1.02);
+  }
 }
 
 .chat-transcript__button:active {
@@ -273,12 +298,14 @@ body {
 /* Not selected: default appearance at 50% opacity */
 
 .narrator-button[data-state="notSelected"] {
-  --narrator-shadow: var(--color-navy-faint);
+  --narrator-shadow: var(--color-navy);
   opacity: 0.5;
 }
 
-.narrator-button[data-state="notSelected"]:hover {
-  opacity: 1;
+@media (hover: hover) {
+  .narrator-button[data-state="notSelected"]:hover {
+    opacity: 1;
+  }
 }
 .narrator-button::after {
   content: "";
@@ -350,7 +377,7 @@ body {
  * automatically), and keep rows shorter than SceneButton's h-16 default so
  * more scenes fit per screenful before scrolling.
  */
-.explore-hub__scene-panel li > button {
+.explore-hub__scene-panel .scene-button {
   width: 100%;
   height: 3.5rem;
 }
@@ -362,16 +389,42 @@ body {
   height: 2.5rem;
 }*/
 
+/* Keep the start CTA inside the panel: Button's fixed w-48 becomes a cap
+   here, so a narrower panel (compressed tiers, safe-area insets) shrinks the
+   button instead of clipping it. */
+.explore-hub__start :is(a, button) {
+  width: 100%;
+  max-width: 12rem;
+}
+
 /*
  * Compressed mobile landscape support.
  *
  * Phone browsers lose a surprising amount of vertical space to the address
  * bar/toolbars. These rules keep the scene-first UI usable when the viewport is
  * wide enough for the horizontal layout but too short for the desktop spacing.
+ *
+ * These blocks sit deliberately outside any @layer: unlayered author CSS wins
+ * over Tailwind's layered utilities, which is what lets them override the
+ * components' inline utility classes. For one-off overrides, prefer the
+ * short:/shorter: variants (defined near @theme) next to the element instead.
  */
 @media (orientation: landscape) and (max-height: 520px) {
   .explore-hub {
+    /* Longhands, not just the shorthand: the sides keep a safe-area floor
+       now that viewport-fit=cover puts the notch inside the page. */
     padding: 0.5rem 0.75rem;
+    padding-left: max(0.75rem, env(safe-area-inset-left));
+    padding-right: max(0.75rem, env(safe-area-inset-right));
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  }
+
+  /* Tuck the fixed back button into the corner; the guide rail gets a
+     matching top pad so its viewport-centered content can't ride up into
+     it on short screens (issue #193 overlap). */
+  .explore-hub .ui-nav-button {
+    top: 0.5rem;
+    left: max(0.5rem, env(safe-area-inset-left));
   }
 
   .explore-hub__layout {
@@ -383,6 +436,7 @@ body {
        plus the px-2 edge inset. */
     width: 9.5rem;
     gap: 1rem;
+    padding-top: 2.75rem;
   }
 
   /* 48px keeps the tap target above the 44px HIG/WCAG floor on phones. */
@@ -390,6 +444,12 @@ body {
   .explore-hub__guide-rail .narrator-button__portrait {
     width: 48px;
     height: 48px;
+  }
+
+  /* .text-ig carries Figma's fixed 30px line-height — dead vertical space
+     at this tier, so tighten every hub label at once. */
+  .explore-hub .text-ig {
+    line-height: 1.35;
   }
 
   .explore-hub__ship p {
@@ -409,7 +469,7 @@ body {
     margin-top: 0.5rem;
   }
 
-  .explore-hub__scene-panel li > button {
+  .explore-hub__scene-panel .scene-button {
     height: 3rem;
   }
 
@@ -425,12 +485,30 @@ body {
 
   .voyage-experience {
     --scene-drawer-offset: min(46vw, 13rem);
-    --scene-drawer-offset-lg: min(46vw, 13rem);
+  }
+
+  /* Edge-anchored voyage chrome tracks the notch inset on either rotation. */
+  .voyage-experience .ui-nav-button {
+    left: max(1.5rem, env(safe-area-inset-left));
+  }
+
+  .voyage-experience__look-toggle {
+    right: max(1.5rem, env(safe-area-inset-right));
+  }
+
+  .voyage-experience__cutout {
+    padding-left: max(1.5rem, env(safe-area-inset-left));
+  }
+
+  /* Insets the whole drawer (handle included); the slide offset still equals
+     the list width, so the closed state still shows exactly the handle. */
+  .voyage-experience__scene-drawer {
+    padding-right: env(safe-area-inset-right);
   }
 
   .voyage-experience__narrator-rail {
     top: 6.75rem;
-    left: 1.5rem;
+    left: max(1.5rem, env(safe-area-inset-left));
     gap: 0.55rem;
   }
 
@@ -446,7 +524,9 @@ body {
   }
 
   .voyage-experience__cutout img {
-    max-height: 38vh;
+    /* dvh: sized against the visible viewport so Safari's toolbar can't
+       push the cutout into the voice dock (same fix as the 46dvh base). */
+    max-height: 38dvh;
   }
 
   .voyage-experience__scene-handle {
@@ -459,21 +539,22 @@ body {
   }
 
   .voyage-experience__scene-list {
-    width: min(46vw, 13rem);
     padding: 0.5rem;
   }
 
   .narrator-overlay {
     gap: 0.35rem;
     padding: 0.5rem 0.75rem max(0.5rem, env(safe-area-inset-bottom));
+    padding-left: max(0.75rem, env(safe-area-inset-left));
+    padding-right: max(0.75rem, env(safe-area-inset-right));
   }
 
-  .narrator-overlay > div:first-child {
+  .narrator-overlay__transcript {
     max-width: min(26rem, 55vw);
     padding: 0.65rem 0.85rem;
   }
 
-  .narrator-overlay > div:first-child > div {
+  .narrator-overlay__transcript > div {
     max-height: 6.5rem;
   }
 
@@ -510,6 +591,43 @@ body {
     bottom: 3.1rem;
     max-width: min(24rem, 48vw);
   }
+
+  /* Biography page: same corner treatment for the back button, and the
+     desktop type/rows scaled down so the column fits a phone-landscape
+     height (a long bio scrolls — see narrator-bio__content on the page). */
+  .narrator-bio .ui-nav-button {
+    top: 0.5rem;
+    left: max(0.5rem, env(safe-area-inset-left));
+  }
+
+  .narrator-bio__content {
+    padding-right: max(5vw, env(safe-area-inset-right));
+  }
+
+  .narrator-bio__body {
+    gap: 0.5rem;
+  }
+
+  .narrator-bio h1 {
+    font-size: 1.5rem;
+    line-height: 1.15;
+  }
+
+  .narrator-bio__body > p:first-of-type {
+    font-size: 0.8125rem;
+    line-height: 1.45;
+  }
+
+  /* Featured-scene rows shrink like the hub's scene rail. */
+  .narrator-bio .scene-button {
+    width: 100%;
+    height: 3rem;
+  }
+
+  .narrator-bio .scene-button__thumb {
+    width: 2.75rem;
+    height: 2rem;
+  }
 }
 
 @media (orientation: landscape) and (max-height: 420px) {
@@ -535,12 +653,12 @@ body {
 
   .voyage-experience__narrator-rail {
     top: 6.25rem;
-    left: calc(1.5rem + 2px);
+    left: max(calc(1.5rem + 2px), env(safe-area-inset-left));
     gap: 0.45rem;
   }
 
   .voyage-experience__cutout img {
-    max-height: 34vh;
+    max-height: 34dvh;
   }
 
   .voyage-hints__guide,
@@ -565,7 +683,10 @@ body {
 .text-ig {
   font-family: var(--font-display);
   font-size: var(--text-ig);
-  font-style: black;
+  /* Figma IG_text is Playfair Display Italic. The previous `font-style:
+     black` was not a valid value — browsers dropped it, so these labels
+     had always rendered upright by accident. */
+  font-style: italic;
   font-weight: 400;
   line-height: 30px;
   letter-spacing: 0.08em;
@@ -587,14 +708,14 @@ body {
 .text-ui-interaction {
   font-family: var(--font-sans);
   font-size: var(--text-ui);
-  font-weight: 800;
+  font-weight: 600;
   line-height: normal;
   letter-spacing: 0;
 }
-.text-ui-section-header {
+.text-ui-scene {
   font-family: var(--font-sans);
   font-size: var(--text-ui-section);
-  font-weight: 100;
+  font-weight: 800;
   line-height: normal;
   letter-spacing: 0;
 }
@@ -613,7 +734,7 @@ body {
   cursor: pointer;
 
   box-shadow:
-    0 0 8px rgb(from var(--color-navy) r g b / 75%);
+    0 0 4px rgb(from var(--color-navy) r g b / 75%);
 
   transition:
     transform 0.2s ease,
@@ -715,6 +836,8 @@ body {
   flex-shrink: 0;
 }
 
-.ui-nav-button:hover {
-  transform: scale(1.08);
+@media (hover: hover) {
+  .ui-nav-button:hover {
+    transform: scale(1.08);
+  }
 }
