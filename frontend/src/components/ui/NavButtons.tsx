@@ -5,33 +5,47 @@ import type {
   ComponentPropsWithoutRef,
 } from "react";
 
-export type IconButtonType = "back" | "cancel" | "map";
+type NavIcon = "back" | "cancel" | "map";
 
-const iconSources: Record<IconButtonType, string> = {
+const iconSources: Record<NavIcon, string> = {
   back: "/icons/back-button.svg",
   cancel: "/icons/cancel-button.svg",
   map: "/icons/map-button.svg",
 };
 
-const iconLabels: Record<IconButtonType, string> = {
-  back: "Go back",
-  cancel: "Close",
-  map: "Open map",
-};
-
-type SharedProps = {
-  icon: IconButtonType;
+type ActionButtonProps = Omit<
+  ButtonHTMLAttributes<HTMLButtonElement>,
+  "children"
+> & {
   label?: string;
   className?: string;
 };
 
-export function IconButton({
+type BackButtonProps = Omit<
+  ComponentPropsWithoutRef<typeof Link>,
+  "href" | "className" | "children"
+> & {
+  href: string;
+  label?: string;
+  className?: string;
+};
+
+/**
+ * Shared internal renderer for icon-only action buttons.
+ *
+ * These buttons perform an action on the current page rather than navigating
+ * to another route.
+ */
+function ActionIconButton({
   icon,
-  label = iconLabels[icon],
+  label,
   className = "",
   type = "button",
   ...rest
-}: SharedProps & ButtonHTMLAttributes<HTMLButtonElement>) {
+}: ActionButtonProps & {
+  icon: "map" | "cancel";
+  label: string;
+}) {
   return (
     <button
       type={type}
@@ -42,26 +56,26 @@ export function IconButton({
       <Image
         src={iconSources[icon]}
         alt=""
-        width={42}
-        height={42}
+        width={44}
+        height={44}
         aria-hidden="true"
       />
     </button>
   );
 }
 
-export function NavButtonLink({
+/**
+ * Back navigation link.
+ *
+ * Use this when returning to another route, such as navigating from the
+ * Voyage page back to the Explore hub.
+ */
+export function BackButton({
   href,
-  icon,
-  label = iconLabels[icon],
+  label = "Go back",
   className = "",
   ...rest
-}: SharedProps & {
-  href: string;
-} & Omit<
-    ComponentPropsWithoutRef<typeof Link>,
-    "href" | "className" | "children"
-  >) {
+}: BackButtonProps) {
   return (
     <Link
       href={href}
@@ -70,12 +84,48 @@ export function NavButtonLink({
       {...rest}
     >
       <Image
-        src={iconSources[icon]}
+        src={iconSources.back}
         alt=""
-        width={42}
-        height={42}
+        width={44}
+        height={44}
         aria-hidden="true"
       />
     </Link>
+  );
+}
+
+/**
+ * Opens the ship map without navigating away from the current scene.
+ */
+export function MapButton({
+  label = "Open map",
+  className = "",
+  ...rest
+}: ActionButtonProps) {
+  return (
+    <ActionIconButton
+      icon="map"
+      label={label}
+      className={className}
+      {...rest}
+    />
+  );
+}
+
+/**
+ * Closes the ship map and returns to the current Voyage scene.
+ */
+export function CancelButton({
+  label = "Close map",
+  className = "",
+  ...rest
+}: ActionButtonProps) {
+  return (
+    <ActionIconButton
+      icon="cancel"
+      label={label}
+      className={className}
+      {...rest}
+    />
   );
 }

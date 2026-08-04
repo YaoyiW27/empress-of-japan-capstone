@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef,useState, useSyncExternalStore } from "react";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { useTexture } from "@react-three/drei";
 import PanoramaScene, { type LookMode } from "@/components/three/PanoramaScene";
+import ShipMapOverlay from "@/components/ShipMapOverlay";
 import NarratorOverlay, {
   type NarratorInteractionStatus,
 } from "@/components/NarratorOverlay";
@@ -13,8 +14,14 @@ import NarratorButton, {
 } from "@/components/ui/NarratorButton";
 import SceneButton from "./ui/SceneButton";
 import { Button, CircleBackLink } from "@/components/ui/Button";
+import {
+  BackButton,
+  MapButton,
+} from "@/components/ui/NavButtons";
 import { narrators, scenes } from "@/lib/scenes";
 
+const [mapOpen, setMapOpen] = useState(false);
+const voyageContentRef = useRef<HTMLDivElement>(null);
 /** sessionStorage flag: the one-time feature hints were already shown. */
 const HINTS_SEEN_KEY = "empress.voyage.hints.v1";
 

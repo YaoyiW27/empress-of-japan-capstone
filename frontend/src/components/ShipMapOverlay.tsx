@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { IconButton } from "@/components/ui/NavButtons";
+import { CancelButton } from "@/components/ui/NavButtons";
 import type { Scene } from "@/lib/scenes";
 
 const MAP_IMAGE = "/empress-deck-plan.png";
@@ -181,8 +181,7 @@ export default function ShipMapOverlay({
           )}
         </div>
 
-        <IconButton
-          icon="cancel"
+        <CancelButton
           label="Close ship map"
           onClick={onClose}
           className="ship-map-overlay__close"
@@ -233,10 +232,6 @@ export default function ShipMapOverlay({
           This scene has not been positioned on the ship map yet.
         </p>
       )}
-
-      <p className="ship-map-overlay__hint">
-        Drag or scroll to explore the deck plan
-      </p>
     </section>
   );
 }
