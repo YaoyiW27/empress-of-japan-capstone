@@ -26,12 +26,12 @@ const mapLocations: Record<string, MapLocation> = {
 
   "crew-bedroom": {
     x: 26.1,
-    y: 79.7,
+    y: 86.7,
   },
 
   "crew-mess-hall": {
-    x: 27.3,
-    y: 87.4,
+    x: 25.3,
+    y: 83.4,
   },
 
   "engine-room": {
@@ -41,17 +41,17 @@ const mapLocations: Record<string, MapLocation> = {
 
   "first-class-suite": {
     x: 65.3,
-    y: 91.1,
+    y: 89.1,
   },
 
   "first-class-dining-saloon": {
-    x: 67,
+    x: 63,
     y: 63.3,
   },
 
   "first-class-smoking-room": {
-    x: 44.1,
-    y: 39.7,
+    x: 41,
+    y: 37.7,
   },
 
   "loading-dock": {
@@ -65,12 +65,12 @@ const mapLocations: Record<string, MapLocation> = {
   },
 
   "promenade-deck": {
-    x: 67,
-    y: 46.3,
+    x: 48,
+    y: 43.3,
   },
 
   "swimming-pool": {
-    x: 44.9,
+    x: 41.9,
     y: 65.8,
   },
 };

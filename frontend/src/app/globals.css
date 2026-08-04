@@ -833,7 +833,7 @@ body {
   /* Figma IG_text is Playfair Display Italic. The previous `font-style:
      black` was not a valid value — browsers dropped it, so these labels
      had always rendered upright by accident. */
-  font-weight: 400;
+  font-weight: 600;
   line-height: 30px;
   letter-spacing: 0.08em;
 }
@@ -948,30 +948,27 @@ body {
   display: inline-flex;
   width: 44px;
   height: 44px;
+  flex-shrink: 0;
 
   padding: 0;
   border: 0;
+  border-radius: 50%;
+  background: transparent;
+
   align-items: center;
   justify-content: center;
+
   overflow: visible;
 
+  box-shadow:
+    0 0 4px
+    rgb(from var(--color-navy) r g b / 50%);
+
   transform-origin: center;
+
   transition:
     transform 0.2s ease,
-    filter 0.2s ease;
-}
-/* Independent circular shadow layer */
-.ui-nav-button::before {
-  content: "";
-  position: absolute;
-  inset: 3px;
-  z-index: -1;
-
-  border-radius: 50%;
-  background-color:var(--color-navy);
-  filter: blur(6px);
-
-  pointer-events: none;
+    box-shadow 0.2s ease;
 }
 
 .ui-nav-button img {
@@ -980,6 +977,15 @@ body {
   height: 44px;
   max-width: none;
   flex-shrink: 0;
+}
+
+.ui-nav-button:focus {
+  outline: none;
+}
+
+.ui-nav-button:focus-visible {
+  outline: 2px solid var(--color-ai);
+  outline-offset: 2px;
 }
 
 @media (hover: hover) {

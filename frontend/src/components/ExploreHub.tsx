@@ -9,7 +9,8 @@ import NarratorButton, {
 import SceneButton from "@/components/ui/SceneButton";
 import Scene from "@/components/three/Scene";
 import { getNarrator, getScene, narrators, scenes } from "@/lib/scenes";
-import { Button, ButtonLink, CircleBackLink } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Button";
+import { BackButton } from "@/components/ui/NavButtons";
 
 /** Maps backend persona ids to the shorter ids used by NarratorButton assets. */
 const narratorButtonIds: Record<string, NarratorButtonId> = {
@@ -63,9 +64,9 @@ export default function ExploreHub() {
   return (
     <main className="explore-hub relative flex h-dvh w-full flex-col overflow-x-hidden overflow-y-auto bg-ivory px-4 py-3 lg:px-8 lg:py-6">
       {/* Same spot as the voyage page's back button, for cross-page consistency. */}
-      <CircleBackLink
+      <BackButton
         href="/"
-        label="Back to home"
+        label="Back to Landing Page"
         className="absolute left-6 top-6 z-10"
       />
 
