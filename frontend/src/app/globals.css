@@ -468,12 +468,12 @@ body {
     padding: 0.5rem 0.75rem max(0.5rem, env(safe-area-inset-bottom));
   }
 
-  .narrator-overlay > div:first-child {
+  .narrator-overlay__transcript {
     max-width: min(26rem, 55vw);
     padding: 0.65rem 0.85rem;
   }
 
-  .narrator-overlay > div:first-child > div {
+  .narrator-overlay__transcript > div {
     max-height: 6.5rem;
   }
 
