@@ -31,8 +31,8 @@ export default function SceneButton({
   const stateClasses =
     variant === "overview"
       ? selected
-        ? "border-brass bg-brass text-ivory"
-        : "border-ivory bg-ivory text-brass"
+        ? "border-ivory bg-brass text-ivory"
+        : "border-brass bg-ivory text-navy"
       : selected
         ? "border-ai bg-ai-soft/50 text-ai-bg"
         : "border-neutral bg-ai-bg/50 text-ai/75";
@@ -53,7 +53,7 @@ export default function SceneButton({
         />
       </span>
 
-      <span className="min-w-0 flex-1 whitespace-normal break-words font-sans text-xs font-extrabold leading-tight text-current">
+      <span className="min-w-0 flex-1 whitespace-normal break-words text-ui-scene leading-tight text-current">
         {scene.title}
       </span>
     </>

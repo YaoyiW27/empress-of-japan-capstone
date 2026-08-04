@@ -37,7 +37,7 @@
 
   /* --- Type scale (Figma typography tokens) --- */
   --text-ig-header: 40px; /* Figma: IG_Header_darkBG — Playfair Display ExtraBold */
-  --text-ui-section: 24px; /* Figma: UI_section_header — Mplus 1p Thin */
+  --text-ui-section: 12px; /* Figma: UI_section_header — Mplus 1p Thin */
   --text-ui-hero: 20px; /* Figma: UI_hero_header — Mplus 1p ExtraBold */
   --text-ui: 14px; /* Figma: UI_text_description / UI_interaction — Mplus 1p */
   --text-ig: 12px; /* Figma: IG_text — Playfair Display Italic */
@@ -587,14 +587,14 @@ body {
 .text-ui-interaction {
   font-family: var(--font-sans);
   font-size: var(--text-ui);
-  font-weight: 800;
+  font-weight: 600;
   line-height: normal;
   letter-spacing: 0;
 }
-.text-ui-section-header {
+.text-ui-scene {
   font-family: var(--font-sans);
   font-size: var(--text-ui-section);
-  font-weight: 100;
+  font-weight: 800;
   line-height: normal;
   letter-spacing: 0;
 }
