@@ -1,27 +1,39 @@
 "use client";
 
-import { useEffect, useRef,useState, useSyncExternalStore } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { useTexture } from "@react-three/drei";
-import PanoramaScene, { type LookMode } from "@/components/three/PanoramaScene";
-import ShipMapOverlay from "@/components/ShipMapOverlay";
+
+import PanoramaScene, {
+  type LookMode,
+} from "@/components/three/PanoramaScene";
+
 import NarratorOverlay, {
   type NarratorInteractionStatus,
 } from "@/components/NarratorOverlay";
+
 import NarratorButton, {
   type NarratorId as NarratorButtonId,
 } from "@/components/ui/NarratorButton";
-import SceneButton from "./ui/SceneButton";
-import { Button, CircleBackLink } from "@/components/ui/Button";
+
+import SceneButton from "@/components/ui/SceneButton";
+import ShipMapOverlay from "@/components/ShipMapOverlay";
+
+import { Button } from "@/components/ui/Button";
+
 import {
   BackButton,
   MapButton,
 } from "@/components/ui/NavButtons";
+
 import { narrators, scenes } from "@/lib/scenes";
 
-const [mapOpen, setMapOpen] = useState(false);
-const voyageContentRef = useRef<HTMLDivElement>(null);
 /** sessionStorage flag: the one-time feature hints were already shown. */
 const HINTS_SEEN_KEY = "empress.voyage.hints.v1";
 
@@ -51,9 +63,13 @@ type DeviceOrientationEventStatic = {
   requestPermission?: () => Promise<"granted" | "denied" | "default">;
 };
 
-function getDeviceOrientationEvent(): DeviceOrientationEventStatic | undefined {
+function getDeviceOrientationEvent():
+  | DeviceOrientationEventStatic
+  | undefined {
   return (
-    window as unknown as { DeviceOrientationEvent?: DeviceOrientationEventStatic }
+    window as unknown as {
+      DeviceOrientationEvent?: DeviceOrientationEventStatic;
+    }
   ).DeviceOrientationEvent;
 }
 
@@ -67,10 +83,18 @@ function readGyroSupported() {
 
 function readDefaultLookMode(): LookMode {
   try {
-    const doe = getDeviceOrientationEvent();
-    if (!doe) return "drag";
-    const needsPermission = typeof doe.requestPermission === "function";
-    const isTouch = window.matchMedia?.("(pointer: coarse)").matches ?? false;
+    const deviceOrientationEvent = getDeviceOrientationEvent();
+
+    if (!deviceOrientationEvent) {
+      return "drag";
+    }
+
+    const needsPermission =
+      typeof deviceOrientationEvent.requestPermission === "function";
+
+    const isTouch =
+      window.matchMedia?.("(pointer: coarse)").matches ?? false;
+
     return isTouch && !needsPermission ? "gyro" : "drag";
   } catch {
     return "drag";
@@ -78,14 +102,16 @@ function readDefaultLookMode(): LookMode {
 }
 
 /**
- * The voyage: one persistent panorama viewer where both halves of the pair —
- * narrator and scene — switch in place (no remount, no navigation). The pair
- * arrives as ?scene= & ?narrator= from the hub; switching updates the address
- * bar via history.replaceState so the link stays shareable. On mobile you can
- * look around by tilting the phone (gyroscope); drag-to-look works everywhere.
+ * The voyage experience keeps one panorama viewer mounted while the selected
+ * narrator and scene change in place.
+ *
+ * The map opens as a modal overlay. While it is open, the Voyage interface
+ * beneath it becomes inert and cannot receive pointer, keyboard, microphone,
+ * narrator, scene-drawer, or panorama interactions.
  */
 export default function VoyageExperience() {
   const params = useSearchParams();
+
   const narratorParam = params.get("narrator");
   const sceneParam = params.get("scene");
 
@@ -94,31 +120,46 @@ export default function VoyageExperience() {
       ? narratorParam!
       : narrators[0].id,
   );
-  const [sceneId, setSceneId] = useState(() =>
-    scenes.some((scene) => scene.id === sceneParam) ? sceneParam! : scenes[0].id,
-  );
-  const narrator =
-    narrators.find((candidate) => candidate.id === narratorId) ?? narrators[0];
-  const scene = scenes.find((candidate) => candidate.id === sceneId) ?? scenes[0];
 
-  // Right-edge scene drawer, opened from its persistent handle.
+  const [sceneId, setSceneId] = useState(() =>
+    scenes.some((scene) => scene.id === sceneParam)
+      ? sceneParam!
+      : scenes[0].id,
+  );
+
+  const narrator =
+    narrators.find((candidate) => candidate.id === narratorId) ??
+    narrators[0];
+
+  const scene =
+    scenes.find((candidate) => candidate.id === sceneId) ??
+    scenes[0];
+
+  // Right-edge scene drawer.
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Full-screen ship map.
+  const [mapOpen, setMapOpen] = useState(false);
+
+  // Contains everything beneath the map overlay.
+  const voyageContentRef = useRef<HTMLDivElement>(null);
+
   const [narratorStatus, setNarratorStatus] =
     useState<NarratorInteractionStatus>("selected");
 
-  // One-time feature hints. useSyncExternalStore reads the flag with a
-  // server snapshot of "seen", so SSR renders no overlay and the client
-  // reveals it right after hydration — no mismatch, no effect-set-state.
+  // One-time feature hints.
   const hintsSeen = useSyncExternalStore(
     subscribeToNothing,
     readHintsSeen,
     () => true,
   );
+
   const [hintsDismissed, setHintsDismissed] = useState(false);
   const hintsOpen = !hintsSeen && !hintsDismissed;
 
   function dismissHints() {
     setHintsDismissed(true);
+
     try {
       window.sessionStorage.setItem(HINTS_SEEN_KEY, "seen");
     } catch {
@@ -126,30 +167,32 @@ export default function VoyageExperience() {
     }
   }
 
-  // Device-orientation support + default look mode. useSyncExternalStore uses
-  // server-safe snapshots during SSR, then reads the browser capability after
-  // hydration without creating a markup mismatch.
+  // Device-orientation support and default look mode.
   const gyroSupported = useSyncExternalStore(
     subscribeToNothing,
     readGyroSupported,
     () => false,
   );
+
   const defaultLookMode = useSyncExternalStore<LookMode>(
     subscribeToNothing,
     readDefaultLookMode,
     () => "drag",
   );
-  const [lookModeOverride, setLookModeOverride] = useState<LookMode | null>(
-    null,
-  );
+
+  const [lookModeOverride, setLookModeOverride] =
+    useState<LookMode | null>(null);
+
   const lookMode = lookModeOverride ?? defaultLookMode;
 
-  // Warm the texture cache once so switching scenes is instant (no reload flash).
+  // Warm the texture cache once so switching scenes is instant.
   useEffect(() => {
-    useTexture.preload(scenes.map((candidate) => candidate.photoSrc));
+    useTexture.preload(
+      scenes.map((candidate) => candidate.photoSrc),
+    );
   }, []);
 
-  // Keep the address bar shareable without triggering a navigation.
+  // Keep the current scene and narrator in the URL.
   useEffect(() => {
     window.history.replaceState(
       null,
@@ -158,17 +201,53 @@ export default function VoyageExperience() {
     );
   }, [sceneId, narratorId]);
 
+  /*
+   * Fully disable the Voyage interface underneath the map.
+   *
+   * inert prevents:
+   * - clicking and tapping
+   * - keyboard focus
+   * - scene switching
+   * - narrator switching
+   * - microphone interaction
+   * - panorama interaction
+   */
+  useEffect(() => {
+    const voyageContent = voyageContentRef.current;
+
+    if (!voyageContent) return;
+
+    if (mapOpen) {
+      voyageContent.setAttribute("inert", "");
+    } else {
+      voyageContent.removeAttribute("inert");
+    }
+
+    return () => {
+      voyageContent.removeAttribute("inert");
+    };
+  }, [mapOpen]);
+
   async function toggleLook() {
     if (lookMode === "gyro") {
       setLookModeOverride("drag");
       return;
     }
-    const doe = getDeviceOrientationEvent();
-    // iOS: requestPermission MUST run synchronously inside this click gesture.
-    if (doe && typeof doe.requestPermission === "function") {
+
+    const deviceOrientationEvent = getDeviceOrientationEvent();
+
+    // iOS requires requestPermission inside the click gesture.
+    if (
+      deviceOrientationEvent &&
+      typeof deviceOrientationEvent.requestPermission === "function"
+    ) {
       try {
-        const res = await doe.requestPermission();
-        setLookModeOverride(res === "granted" ? "gyro" : "drag");
+        const result =
+          await deviceOrientationEvent.requestPermission();
+
+        setLookModeOverride(
+          result === "granted" ? "gyro" : "drag",
+        );
       } catch {
         setLookModeOverride("drag");
       }
@@ -179,232 +258,273 @@ export default function VoyageExperience() {
 
   return (
     <main className="voyage-experience relative h-dvh w-full overflow-hidden bg-navy">
-      <div className="absolute inset-0">
-        <PanoramaScene scene={scene} mode={lookMode} />
-      </div>
-
-      {/* Top-left: circular back button to the hub */}
-      <CircleBackLink
-        href="/explore"
-        label="Back to the hub"
-        className="absolute h-11 w-11 left-3 top-3 sm:left-6 sm:top-6"
-      />
-
-      {/* Top-center: current scene title */}
-      <div className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 text-center sm:top-6">
-        <h1 className="whitespace-nowrap text-ig-header text-light drop-shadow-[0_2px_6px_rgba(0,0,0,0.7)] lg:text-5xl">
-          {scene.title}
-        </h1>
-      </div>
-
-      {/* Top-right: look-mode toggle (tilt ↔ drag; on iOS the first tap also
-          requests motion permission). */}
-      {gyroSupported && (
-        <button
-          type="button"
-          onClick={toggleLook}
-          aria-pressed={lookMode === "gyro"}
-          aria-label={
-            lookMode === "gyro" ? "Switch to drag view" : "Switch to phone view"
-          }
-          title={
-            lookMode === "gyro"
-              ? "Drag to look around"
-              : "Tilt the phone to look around"
-          }
-          className="voyage-experience__look-toggle absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-full  bg-neutral text-navy-soft shadow-[0_0_8px_rgb(from_var(--color-navy)_r_g_b/50%)] backdrop-blur-sm transition-colors sm:right-6 sm:top-6"
-        >
-          {lookMode === "gyro" ? (
-            /* Hand: tap to go back to drag-to-look. */
-            <svg
-              aria-hidden="true"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-5 w-5"
-            >
-              <path d="M18 11V6a2 2 0 0 0-4 0v5" />
-              <path d="M14 10V4a2 2 0 0 0-4 0v2" />
-              <path d="M10 10.5V6a2 2 0 0 0-4 0v8" />
-              <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" />
-            </svg>
-          ) : (
-            /* Phone with motion arcs: tap to look around by tilting. */
-            <svg
-              aria-hidden="true"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-5 w-5"
-            >
-              <rect x="8" y="3" width="8" height="18" rx="2" />
-              <path d="M4 9a6 6 0 0 0 0 6" />
-              <path d="M20 9a6 6 0 0 1 0 6" />
-            </svg>
-          )}
-        </button>
-      )}
-
-      {/* Narrator buttons — the active guide reflects NarratorOverlay's live
-          interaction status; the other guides remain not selected. */}
-      <div className="voyage-experience__narrator-rail absolute left-3 top-[calc(50%-108px)] z-10 flex flex-row gap-4 sm:left-6 lg:top-[calc(50%-164px)] lg:gap-5">
-        {narrators.map((candidate) => {
-          const active = candidate.id === narratorId;
-
-          return (
-            <NarratorButton
-              key={candidate.id}
-              narrator={narratorButtonIds[candidate.id]}
-              variant="scene"
-              state={active ? narratorStatus : "notSelected"}
-              onClick={() => {
-                if (active) return;
-                setNarratorStatus("selected");
-                setNarratorId(candidate.id);
-              }}
-              label={`${candidate.name}, ${candidate.role}${
-                active ? ", selected" : ""
-              }`}
-            />
-          );
-        })}
-      </div>
-
-      {/* Current narrator avatar — always visible at the bottom-left.
-          dvh, not vh: iOS vh is the toolbar-collapsed (largest) viewport, so a
-          vh-sized cutout overflows upward while Safari's bars are showing and
-          runs into the voice dock; dvh tracks the actually visible height. */}
-      <div className="voyage-experience__cutout absolute bottom-0 left-0 px-4 sm:px-6">
-        <Image
-          src={narrator.cutoutSrc ?? narrator.portraitSrc}
-          alt={narrator.name}
-          width={400}
-          height={600}
-          priority
-          className={`block h-[46vh] w-auto object-contain drop-shadow-[0_8px_24px_rgba(0,0,0,0.45)] ${
-            narrator.id === "captain_sinclair" ? "translate-y-[5.6%]" : ""
-          }`}
-        />
-      </div>
-
-      {/* Bottom-center: voice dock (mic + collapsible transcript). Keyed by
-          narrator so a guide switch resets the conversation panel. */}
-      <NarratorOverlay
-        key={narrator.id}
-        narrator={narrator}
-        scene={scene}
-        onStatusChange={setNarratorStatus}
-      />
-
-      {/* Right-edge scene drawer: a persistent vertical "Scenes" handle; the
-          thumbnail list slides out beside it. The panorama stays live behind
-          it, so picking a scene previews instantly — the drawer stays open
-          for flipping through and closes from the same handle. */}
+      {/*
+       * Everything inside this wrapper becomes inert while the map is open.
+       * ShipMapOverlay must remain outside this wrapper.
+       */}
       <div
-        className={`voyage-experience__scene-drawer pointer-events-none absolute inset-y-0 right-0 z-20 flex items-center transition-transform duration-300 ease-out ${
-          drawerOpen
-            ? "translate-x-0"
-            : "translate-x-[var(--scene-drawer-offset)]"
-        }`}
+        ref={voyageContentRef}
+        className="contents"
+        aria-hidden={mapOpen}
       >
-        <button
-          type="button"
-          onClick={() => setDrawerOpen((v) => !v)}
-          aria-expanded={drawerOpen}
-          aria-label={drawerOpen ? "Close scenes" : "Open scenes"}
-          className="pointer-events-auto flex flex-col items-center gap-1.5 rounded-l-md  bg-neutral px-2.5 py-4 text-navy shadow-md backdrop-blur-sm transition-colors hover:border-brass"
-        >
-          <svg
-            aria-hidden="true"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className={`h-4 w-4 transition-transform duration-300 ${
-              drawerOpen ? "rotate-180" : ""
-            }`}
-          >
-            <path d="M15 6l-6 6 6 6" />
-          </svg>
-          <span className="text-ui-interaction flex flex-col items-center leading-none tracking-[0.18em] [writing-mode:vertical-rl]">
-            SCENES
-          </span>
-        </button>
-        {/* Width comes from --scene-drawer-offset (globals.css) so the list
-            and the closed-drawer slide distance can never drift apart. */}
-        <div className="voyage-experience__scene-list pointer-events-auto h-full overflow-y-auto  bg-neutral/50 p-3 shadow-xl backdrop-blur-sm">
-        <div className="flex flex-col items-center gap-2">
-          {scenes.map((candidate) => {
-            const active = candidate.id === sceneId;
+        {/* Panorama */}
+        <div className="absolute inset-0">
+          <PanoramaScene scene={scene} mode={lookMode} />
+        </div>
+
+        {/* Top-left: back to the Explore hub */}
+        <BackButton
+          href="/explore"
+          label="Back to the hub"
+          className="absolute left-3 top-3 z-20 sm:left-6 sm:top-6"
+        />
+
+        {/* Top-center: current scene title */}
+        <div className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 text-center sm:top-6">
+          <h1 className="whitespace-nowrap text-ig-header text-light drop-shadow-[0_2px_6px_rgba(0,0,0,0.7)] lg:text-5xl">
+            {scene.title}
+          </h1>
+        </div>
+
+        {/* Top-right: map button and look-mode control */}
+        <div className="absolute right-3 top-3 z-20 flex items-center gap-3 sm:right-6 sm:top-6">
+          <MapButton
+            label="Open ship map"
+            onClick={() => setMapOpen(true)}
+          />
+
+          {gyroSupported && (
+            <button
+              type="button"
+              onClick={toggleLook}
+              aria-pressed={lookMode === "gyro"}
+              aria-label={
+                lookMode === "gyro"
+                  ? "Switch to drag view"
+                  : "Switch to phone view"
+              }
+              title={
+                lookMode === "gyro"
+                  ? "Drag to look around"
+                  : "Tilt the phone to look around"
+              }
+              className="flex h-11 w-11 items-center justify-center rounded-full bg-neutral text-navy-soft shadow-[0_0_8px_rgb(from_var(--color-navy)_r_g_b/50%)] backdrop-blur-sm transition-colors"
+            >
+              {lookMode === "gyro" ? (
+                /* Hand icon: switch back to drag-to-look. */
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-5 w-5"
+                >
+                  <path d="M18 11V6a2 2 0 0 0-4 0v5" />
+                  <path d="M14 10V4a2 2 0 0 0-4 0v2" />
+                  <path d="M10 10.5V6a2 2 0 0 0-4 0v8" />
+                  <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" />
+                </svg>
+              ) : (
+                /* Phone icon: switch to device-orientation view. */
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-5 w-5"
+                >
+                  <rect
+                    x="8"
+                    y="3"
+                    width="8"
+                    height="18"
+                    rx="2"
+                  />
+
+                  <path d="M4 9a6 6 0 0 0 0 6" />
+                  <path d="M20 9a6 6 0 0 1 0 6" />
+                </svg>
+              )}
+            </button>
+          )}
+        </div>
+
+        {/* Narrator buttons */}
+        <div className="voyage-experience__narrator-rail absolute left-3 top-[calc(50%-108px)] z-10 flex flex-row gap-4 sm:left-6 lg:top-[calc(50%-164px)] lg:gap-5">
+          {narrators.map((candidate) => {
+            const active = candidate.id === narratorId;
 
             return (
-              <SceneButton
+              <NarratorButton
                 key={candidate.id}
-                scene={candidate}
-                selected={active}
-                variant="panorama"
-                onClick={() => setSceneId(candidate.id)}
+                narrator={narratorButtonIds[candidate.id]}
+                variant="scene"
+                state={
+                  active
+                    ? narratorStatus
+                    : "notSelected"
+                }
+                onClick={() => {
+                  if (active) return;
+
+                  setNarratorStatus("selected");
+                  setNarratorId(candidate.id);
+                }}
+                label={`${candidate.name}, ${candidate.role}${
+                  active ? ", selected" : ""
+                }`}
               />
             );
           })}
         </div>
+
+        {/* Current narrator avatar */}
+        <div className="voyage-experience__cutout absolute bottom-0 left-0 px-4 sm:px-6">
+          <Image
+            src={
+              narrator.cutoutSrc ??
+              narrator.portraitSrc
+            }
+            alt={narrator.name}
+            width={400}
+            height={600}
+            priority
+            className={`block h-[46vh] w-auto object-contain drop-shadow-[0_8px_24px_rgba(0,0,0,0.45)] ${
+              narrator.id === "captain_sinclair"
+                ? "translate-y-[5.6%]"
+                : ""
+            }`}
+          />
         </div>
+
+        {/* Voice and transcript interface */}
+        <NarratorOverlay
+          key={narrator.id}
+          narrator={narrator}
+          scene={scene}
+          onStatusChange={setNarratorStatus}
+        />
+
+        {/* Right-edge scene drawer */}
+        <div
+          className={`voyage-experience__scene-drawer pointer-events-none absolute inset-y-0 right-0 z-20 flex items-center transition-transform duration-300 ease-out ${
+            drawerOpen
+              ? "translate-x-0"
+              : "translate-x-[var(--scene-drawer-offset)] lg:translate-x-[var(--scene-drawer-offset-lg)]"
+          }`}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              setDrawerOpen((current) => !current);
+            }}
+            aria-expanded={drawerOpen}
+            aria-label={
+              drawerOpen
+                ? "Close scenes"
+                : "Open scenes"
+            }
+            className="pointer-events-auto flex flex-col items-center gap-1.5 rounded-l-md bg-neutral px-2.5 py-4 text-navy shadow-md backdrop-blur-sm transition-colors hover:border-brass"
+          >
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className={`h-4 w-4 transition-transform duration-300 ${
+                drawerOpen ? "rotate-180" : ""
+              }`}
+            >
+              <path d="M15 6l-6 6 6 6" />
+            </svg>
+
+            <span className="text-ui-interaction flex flex-col items-center leading-none tracking-[0.18em] [writing-mode:vertical-rl]">
+              SCENES
+            </span>
+          </button>
+
+          <div className="voyage-experience__scene-list pointer-events-auto h-full w-56 overflow-y-auto bg-neutral/50 p-3 shadow-xl backdrop-blur-sm lg:w-64">
+            <div className="flex flex-col items-center gap-2">
+              {scenes.map((candidate) => {
+                const active =
+                  candidate.id === sceneId;
+
+                return (
+                  <SceneButton
+                    key={candidate.id}
+                    scene={candidate}
+                    selected={active}
+                    variant="panorama"
+                    onClick={() => {
+                      setSceneId(candidate.id);
+                    }}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* First-visit interaction hints */}
+        {hintsOpen && (
+          <div
+            role="dialog"
+            aria-label="How to explore"
+            className="absolute inset-0 z-30 bg-navy/70 backdrop-blur-[2px]"
+            onClick={dismissHints}
+          >
+            <div className="voyage-hints__center absolute left-1/2 top-[35%] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-3 text-center sm:top-1/2 sm:gap-4">
+              <p className="font-display text-xl font-bold text-ivory drop-shadow-[0_2px_6px_rgba(0,0,0,0.6)] sm:text-2xl lg:text-3xl">
+                Drag to Look Around
+              </p>
+
+              <Button
+                onClick={dismissHints}
+                className="scale-90 sm:scale-100"
+              >
+                Got it
+              </Button>
+            </div>
+
+            <p className="voyage-hints__guide absolute bottom-[48vh] left-4 max-w-[38vw] rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-xs font-semibold text-navy shadow-lg sm:left-6 sm:max-w-none sm:whitespace-nowrap">
+              Tap Your Guide to Switch Narrator
+            </p>
+
+            {gyroSupported && (
+              <p className="voyage-hints__look absolute right-16 top-4 whitespace-nowrap rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-xs font-semibold text-navy shadow-lg sm:right-20 sm:top-6">
+                Drag / Tilt View
+              </p>
+            )}
+
+            <p className="voyage-hints__scenes absolute right-12 top-[58%] max-w-[38vw] -translate-y-1/2 rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-xs font-semibold text-navy shadow-lg sm:right-14 sm:top-1/2 sm:max-w-none sm:whitespace-nowrap">
+              Browse Ship&apos;s Scenes Here
+            </p>
+
+            <p className="voyage-hints__mic absolute bottom-24 left-1/2 max-w-[85vw] -translate-x-1/2 rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-center text-xs font-semibold text-navy shadow-lg sm:bottom-28 sm:max-w-none sm:whitespace-nowrap">
+              Ask with the Mic · Read the Transcript
+            </p>
+          </div>
+        )}
       </div>
 
-      {/* First-visit hints: dimmed layer with a short callout beside each
-          interactive control. Any tap dismisses; sessionStorage keeps it to
-          once per visit (fresh for each museum visitor). */}
-      {hintsOpen && (
-        <div
-          role="dialog"
-          aria-label="How to explore"
-          className="absolute inset-0 z-30 bg-navy/70 backdrop-blur-[2px]"
-          onClick={dismissHints}
-        >
-          {/* Phones are too narrow for the side callouts and this block to
-              share the middle band. Below sm: the centerpiece shrinks and
-              moves up to 35%, the scene callout drops to 58%, and the nowrap
-              callouts become width-capped wrapping strips hugging their
-              edges — vertical bands separate center from sides, horizontal
-              caps separate the sides from each other. */}
-          <div className="voyage-hints__center absolute left-1/2 top-[35%] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-3 text-center sm:top-1/2 sm:gap-4">
-            <p className="font-display text-xl font-bold text-ivory drop-shadow-[0_2px_6px_rgba(0,0,0,0.6)] sm:text-2xl lg:text-3xl">
-              Drag to Look Around
-            </p>
-            <Button onClick={dismissHints} className="scale-90 sm:scale-100">
-              Got it
-            </Button>
-          </div>
-
-          {/* 48dvh, matching the cutout's 46dvh height reference, so the
-              callout stays just above the narrator at any toolbar state. */}
-          <p className="voyage-hints__guide absolute bottom-[48dvh] left-4 max-w-[38vw] rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-xs font-semibold text-navy shadow-lg sm:left-6 sm:max-w-none sm:whitespace-nowrap">
-            Tap Your Guide to Switch Narrator
-          </p>
-
-          {gyroSupported && (
-            <p className="voyage-hints__look absolute right-16 top-4 whitespace-nowrap rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-xs font-semibold text-navy shadow-lg sm:right-20 sm:top-6">
-              Drag / Tilt View
-            </p>
-          )}
-
-          <p className="voyage-hints__scenes absolute right-12 top-[58%] max-w-[38vw] -translate-y-1/2 rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-xs font-semibold text-navy shadow-lg sm:right-14 sm:top-1/2 sm:max-w-none sm:whitespace-nowrap">
-            Browse Ship&apos;s Scenes Here
-          </p>
-
-          <p className="voyage-hints__mic absolute bottom-24 left-1/2 max-w-[85vw] -translate-x-1/2 rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-center text-xs font-semibold text-navy shadow-lg sm:bottom-28 sm:max-w-none sm:whitespace-nowrap">
-            Ask with the Mic · Read the Transcript
-          </p>
-        </div>
-      )}
+      {/*
+       * This must remain outside voyageContentRef so that it does not become
+       * inert when mapOpen is true.
+       */}
+      <ShipMapOverlay
+        scene={scene}
+        open={mapOpen}
+        onClose={() => setMapOpen(false)}
+      />
     </main>
   );
 }

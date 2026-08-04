@@ -674,103 +674,21 @@ body {
 .ship-map-overlay {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: 9999;
+  isolation: isolate;
 
-  display: flex;
-  flex-direction: column;
-
-  width: 100%;
+  width: 100vw;
   height: 100dvh;
   overflow: hidden;
 
-  background: var(--color-navy);
-  color: var(--color-ivory);
-}
-
-.ship-map-overlay__header {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 3;
-
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-
-  padding:
-    max(1rem, env(safe-area-inset-top))
-    max(1rem, env(safe-area-inset-right))
-    1rem
-    max(1rem, env(safe-area-inset-left));
-
-  pointer-events: none;
-}
-
-.ship-map-overlay__title {
-  max-width: min(70vw, 28rem);
-  padding: 0.65rem 0.9rem;
-
-  border: 1px solid rgb(from var(--color-brass) r g b / 45%);
-  border-radius: 8px;
-  background: rgb(from var(--color-navy) r g b / 88%);
-  box-shadow: 0 0 12px rgb(0 0 0 / 35%);
-  backdrop-filter: blur(8px);
-
-  pointer-events: auto;
-}
-
-.ship-map-overlay__eyebrow {
-  margin: 0 0 0.15rem;
-
-  color: var(--color-brass);
-  font-family: var(--font-sans);
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  line-height: 1.2;
-  text-transform: uppercase;
-}
-
-.ship-map-overlay__title h2 {
-  margin: 0;
-
-  color: var(--color-ivory);
-  font-family: var(--font-display);
-  font-size: clamp(1.15rem, 3vw, 2rem);
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  line-height: 1.05;
-  text-transform: uppercase;
-}
-
-.ship-map-overlay__deck {
-  margin: 0.2rem 0 0;
-
-  color: var(--color-ivory);
-  font-family: var(--font-sans);
-  font-size: 0.8rem;
-  line-height: 1.2;
-  opacity: 0.75;
-}
-
-.ship-map-overlay__close {
-  position: absolute;
-  top: 0.75rem;
-  right: 0.75rem;
-  z-index: 60;
-
-  pointer-events: auto;
-}
-
-@media (min-width: 640px) {
-  .ship-map-overlay__close {
-    top: 1.5rem;
-    right: 1.5rem;
-  }
+  background-color: #101c3c;
 }
 
 .ship-map-overlay__viewport {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+
   width: 100%;
   height: 100%;
 
@@ -778,9 +696,12 @@ body {
   overscroll-behavior: contain;
   touch-action: pan-x pan-y;
 
+  background-color: #101c3c;
+
   scrollbar-color:
     rgb(from var(--color-brass) r g b / 60%)
     transparent;
+
   scrollbar-width: thin;
 }
 
@@ -788,24 +709,33 @@ body {
   position: relative;
 
   /*
-   * On large screens, the map fills most of the viewport.
-   * On small screens, it remains 1100px wide and becomes pannable instead
-   * of shrinking until its labels are unreadable.
+   * The actual source image is 2622 × 1206.
+   * Never use the previous 1390 / 927 ratio here.
    */
-  width: clamp(1100px, 90vw, 1720px);
-  aspect-ratio: 1390 / 927;
+  width: clamp(1100px, 100vw, 1720px);
+  aspect-ratio: 2622 / 1206;
 
   margin: 0 auto;
+  flex: none;
 }
 
 .ship-map-overlay__image {
+  position: absolute;
+  inset: 0;
+
   display: block;
 
   width: 100%;
   height: 100%;
 
-  object-fit: fill;
+  /*
+   * contain preserves the original proportions.
+   * Never use object-fit: fill for this image.
+   */
+  object-fit: contain;
+
   user-select: none;
+  pointer-events: none;
   -webkit-user-drag: none;
 }
 
@@ -813,82 +743,43 @@ body {
   position: absolute;
   z-index: 2;
 
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  width: 44px;
+  height: 44px;
 
   transform: translate(-50%, -50%);
+  pointer-events: none;
 }
 
 .ship-map-overlay__marker-icon {
   display: block;
 
-  width: clamp(36px, 3.2vw, 54px);
-  height: clamp(36px, 3.2vw, 54px);
+  width: 44px;
+  height: 44px;
 
   object-fit: contain;
 
   filter:
     drop-shadow(0 0 4px rgb(0 0 0 / 80%))
-    drop-shadow(0 0 10px rgb(from var(--color-brass) r g b / 65%));
+    drop-shadow(
+      0 0 10px
+      rgb(from var(--color-brass) r g b / 65%)
+    );
 
   user-select: none;
   -webkit-user-drag: none;
 
-  animation: ship-map-marker-pulse 1.8s ease-in-out infinite;
+  animation:
+    ship-map-marker-pulse
+    1.8s
+    ease-in-out
+    infinite;
 }
 
-.ship-map-overlay__marker-label {
-  margin-top: 0.3rem;
-  padding: 0.3rem 0.55rem;
-
-  border: 1px solid rgb(from var(--color-brass) r g b / 60%);
-  border-radius: 6px;
-  background: rgb(from var(--color-navy) r g b / 92%);
-
-  color: var(--color-ivory);
-  font-family: var(--font-sans);
-  font-size: 0.75rem;
-  font-weight: 700;
-  line-height: 1;
-  text-align: center;
-  white-space: nowrap;
-
-  box-shadow: 0 2px 8px rgb(0 0 0 / 45%);
-}
-
-.ship-map-overlay__hint,
-.ship-map-overlay__unavailable {
+.ship-map-overlay__close {
   position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
   z-index: 3;
-  left: 50%;
-
-  margin: 0;
-  padding: 0.45rem 0.75rem;
-
-  border: 1px solid rgb(from var(--color-brass) r g b / 40%);
-  border-radius: 6px;
-  background: rgb(from var(--color-navy) r g b / 88%);
-  backdrop-filter: blur(8px);
-
-  color: var(--color-ivory);
-  font-family: var(--font-sans);
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-align: center;
-
-  transform: translateX(-50%);
-  pointer-events: none;
-}
-
-.ship-map-overlay__hint {
-  bottom: max(1rem, env(safe-area-inset-bottom));
-  white-space: nowrap;
-}
-
-.ship-map-overlay__unavailable {
-  top: 50%;
-  transform: translate(-50%, -50%);
 }
 
 @keyframes ship-map-marker-pulse {
@@ -902,69 +793,28 @@ body {
   }
 }
 
-@media (min-width: 1100px) {
-  .ship-map-overlay__canvas {
-    min-height: 100dvh;
+@media (min-width: 640px) {
+  .ship-map-overlay__close {
+    top: 1.5rem;
+    right: 1.5rem;
   }
 }
 
 @media (max-width: 600px) {
-  .ship-map-overlay__header {
-    padding:
-      max(0.75rem, env(safe-area-inset-top))
-      max(0.75rem, env(safe-area-inset-right))
-      0.75rem
-      max(0.75rem, env(safe-area-inset-left));
-  }
-
-  .ship-map-overlay__title {
-    max-width: calc(100vw - 5rem);
-    padding: 0.5rem 0.7rem;
-  }
-
-  .ship-map-overlay__title h2 {
-    font-size: 1rem;
-  }
-
-  .ship-map-overlay__deck {
-    font-size: 0.7rem;
-  }
-
   .ship-map-overlay__canvas {
     width: 1100px;
-  }
-
-  .ship-map-overlay__marker-icon {
-    width: 44px;
-    height: 44px;
   }
 }
 
 @media (orientation: landscape) and (max-height: 500px) {
-  .ship-map-overlay__title {
-    padding: 0.4rem 0.65rem;
-  }
-
-  .ship-map-overlay__eyebrow {
-    display: none;
-  }
-
   .ship-map-overlay__canvas {
-    width: max(100vw, 1100px);
-  }
-
-  .ship-map-overlay__hint {
-    bottom: 0.5rem;
+    width: 1100px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .ship-map-overlay__marker-icon {
     animation: none;
-  }
-
-  .ship-map-overlay__viewport {
-    scroll-behavior: auto;
   }
 }
 /* ---------- Typography ---------- */
