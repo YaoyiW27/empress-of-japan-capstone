@@ -512,7 +512,7 @@ export default function NarratorOverlay({
     <div className="narrator-overlay pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-2 p-4 sm:p-6">
       {open && (
         /* Transcript panel, rising from the dock below. */
-        <div className="pointer-events-auto w-full max-w-md rounded-md border border-brass/40 bg-card/90 px-4 py-3 shadow-lg backdrop-blur-sm">
+        <div className="pointer-events-auto w-full max-w-md rounded-md  bg-card px-4 py-3 shadow-lg backdrop-blur-sm">
           <p className="font-display text-sm font-bold uppercase tracking-[0.18em] text-brass">
             {narrator.name}
           </p>
@@ -574,7 +574,7 @@ export default function NarratorOverlay({
                   ? "Listening"
                   : "Talk to the narrator"
             }
-            className={`flex h-11 w-11 shrink-0 items-center justify-center self-center ml-2 rounded-full border-[3px] border-brass transition-colors focus-visible:ring-2 focus-visible:ring-brass disabled:cursor-not-allowed ${
+            className={`flex h-11 w-11 shrink-0 items-center justify-center self-center ml-2 rounded-full border-[3px] border-ivory transition-colors focus-visible:ring-2 focus-visible:ring-brass disabled:cursor-not-allowed ${
               isListening
                 ? "animate-pulse bg-ai text-navy"
                   : "bg-navy text-ivory hover:bg-brass"

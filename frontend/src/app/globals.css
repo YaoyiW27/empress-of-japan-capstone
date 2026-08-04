@@ -273,7 +273,7 @@ body {
 /* Not selected: default appearance at 50% opacity */
 
 .narrator-button[data-state="notSelected"] {
-  --narrator-shadow: var(--color-navy-faint);
+  --narrator-shadow: var(--color-navy);
   opacity: 0.5;
 }
 
@@ -613,7 +613,7 @@ body {
   cursor: pointer;
 
   box-shadow:
-    0 0 8px rgb(from var(--color-navy) r g b / 75%);
+    0 0 4px rgb(from var(--color-navy) r g b / 75%);
 
   transition:
     transform 0.2s ease,
