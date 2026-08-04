@@ -577,8 +577,6 @@ export default function NarratorOverlay({
             className={`flex h-11 w-11 shrink-0 items-center justify-center self-center ml-2 rounded-full border-[3px] border-brass transition-colors focus-visible:ring-2 focus-visible:ring-brass disabled:cursor-not-allowed ${
               isListening
                 ? "animate-pulse bg-ai text-navy"
-                : isSpeaking
-                  ? "text-navy hover:bg-ivory"
                   : "bg-navy text-ivory hover:bg-brass"
             }`}
           >
