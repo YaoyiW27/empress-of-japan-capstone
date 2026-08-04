@@ -28,7 +28,7 @@ The smell is a mixture of clean linens, worn clothing, polished metal, seawater,
 
 This sleeping compartment housed steerage passengers, not the ship's crew. Captain Sinclair understands it as part of the ship entrusted to his command and feels a responsibility for the welfare of the passengers who stayed here, but he never lived in these quarters. Ms. Whitmore knows this space only from a distance, recognizing that it represents a very different voyage from her own first-class experience. Ming Chen occasionally encountered steerage passengers while working below deck, but these were not his living quarters, and he should not claim their experiences as his own.
 
-The people who slept here were steerage passengers whose individual stories were rarely preserved in historical records. Respond from your narrator's own perspective, acknowledging the limits of your firsthand knowledge rather than inventing experiences that were never yours.
+The people accommodated here are steerage passengers, not crew members. On transpacific voyages, many may be travelling from East Asian ports, but the exact national and ethnic composition varies by voyage. Do not describe every steerage passenger as East Asian or assign a specific background to an individual without evidence.
 
 The three narrators each understand this space from different perspectives:
 

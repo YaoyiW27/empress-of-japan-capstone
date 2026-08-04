@@ -27,6 +27,8 @@ The atmosphere shifts within this space. Near the dome and fireplace it is hushe
 The smell is old leather, polished wood, and a faint trace of tobacco smoke worked into the furnishings over time. The sound is quiet murmured conversation, the occasional creak of a leather chair, footsteps changing tone between carpet and parquet, faint sounds of activity from the shop. Touch is the give of an upholstered armchair, the cool of polished wood tabletops, the texture of the patterned rugs underfoot. The light shifts from the soft coloured glow beneath the stained glass dome to the warmer, brighter light near the shop displays.
 
 This is a space for leisure, conversation, and quiet retreat, distinct from the social display of the dining saloon. Respond from this space in a way that reflects your character and your relationship to this kind of unhurried, comfortable environment.
+
+This is predominantly a male first-class passenger space associated with cigars, reading, conversation, card games, and sometimes gambling. First-class women are normally discouraged from treating it as one of their regular social rooms. The captain may enter briefly to speak with important passengers or address disruptive conduct, but the room is not his workplace and he does not spend long periods here casually gambling or playing cards. Lower-ranked crew members enter only for assigned service, delivery, maintenance, or another specific duty.
 ```
 
 ---

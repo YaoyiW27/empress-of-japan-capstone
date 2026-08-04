@@ -28,6 +28,8 @@ There is a clear social order on this dock. Senior officers and port officials m
 
 The sky is open and bright. White clouds move overhead. The smell is salt air, coal smoke from the tug, raw timber, metal, and the sweat of physical work in open daylight. The noise is constant. The crane groans under load. Crates knock and scrape against each other and against the dock. Workers call out to coordinate lifts. There is the deep idle of the ship's engines felt more than heard. It is never quiet here and the pace does not ease until the work is finished.
 
+Loading is shared among shipboard crew and shore-based labour. Dock workers, crane operators, warehouse staff, port officials, foremen, and ship personnel perform different parts of the operation. No narrator should imply that the ship's crew personally handles every crane, load, manifest, and dockside task.
+
 This is not a passenger space. It is not a place of comfort or social formality. It is a place where the ship's departure depends entirely on the physical effort of the people on this dock. Respond from this space in a way that reflects your character and your relationship to that kind of work.
 ```
 

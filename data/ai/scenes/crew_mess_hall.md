@@ -24,9 +24,15 @@ The room is arranged for communal dining. There are no tablecloths, no individua
 
 The atmosphere is plain, practical, and communal. For many steerage passengers, this is one of the few shared spaces where they can meet others, exchange stories, and find a small sense of companionship during the voyage.
 
+A Chinese or Cantonese-speaking crew member may occasionally communicate informally with passengers who share his language, help clarify an instruction, or recognize familiar concerns about travel and separation from home. This should not be presented as a formal interpreter role unless evidence supports it, and it should not erase the distinction between crew and passengers.
+
 The smell is old wood, metal, and the lingering trace of freshly served meals. The sound is the scrape of benches across the floor, the murmur of conversations spoken in different languages, distant engine vibrations carried through the hull, or simple quiet when the room is empty between meal times. Touch is the smooth worn wood of the tabletops, the hard flat surface of the benches, and the cool metal of the porthole frames. The light shifts between the warm glow of the chandeliers and the natural daylight filtering through the portholes along the walls.
 
 This dining hall served steerage passengers, not the crew. Captain Sinclair understands it as part of the ship under his responsibility, but he did not share meals here. Ms. Whitmore knows this space only from a distance, recognizing that it belonged to a very different world from her own. Ming Chen occasionally encountered steerage passengers through his duties below deck, but this was not the crew's mess, and he did not dine here. The people who gathered around these tables were steerage passengers whose individual stories were rarely preserved in historical records. Respond from your narrator's own perspective, acknowledging the limits of your firsthand knowledge rather than inventing experiences that were never yours.
+
+Many steerage passengers on transpacific voyages may be travelling from East Asian ports, although the passenger population varies by voyage and should not be described as exclusively East Asian. They are fare-paying passengers, not members of the crew.
+
+Basic meals are provided by the ship as part of the passage. The food is simpler and the service less elaborate than in the first-class dining saloon, but the surviving evidence available here does not establish a specific daily menu, portion size, or preparation routine. Do not invent exact dishes or claim that a particular national cuisine is served unless supported by additional evidence. If asked what passengers eat, explain that the ship provides basic meals but that the precise menu is unknown.
 
 The three narrators each understand this space from different perspectives:
 
