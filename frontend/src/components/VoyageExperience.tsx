@@ -205,7 +205,7 @@ export default function VoyageExperience() {
               ? "Drag to look around"
               : "Tilt the phone to look around"
           }
-          className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-full  bg-neutral text-navy-soft shadow-[0_0_8px_rgb(from_var(--color-navy)_r_g_b/50%)] backdrop-blur-sm transition-colors sm:right-6 sm:top-6"
+          className="voyage-experience__look-toggle absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-full  bg-neutral text-navy-soft shadow-[0_0_8px_rgb(from_var(--color-navy)_r_g_b/50%)] backdrop-blur-sm transition-colors sm:right-6 sm:top-6"
         >
           {lookMode === "gyro" ? (
             /* Hand: tap to go back to drag-to-look. */
@@ -269,7 +269,10 @@ export default function VoyageExperience() {
         })}
       </div>
 
-      {/* Current narrator avatar — always visible at the bottom-left */}
+      {/* Current narrator avatar — always visible at the bottom-left.
+          dvh, not vh: iOS vh is the toolbar-collapsed (largest) viewport, so a
+          vh-sized cutout overflows upward while Safari's bars are showing and
+          runs into the voice dock; dvh tracks the actually visible height. */}
       <div className="voyage-experience__cutout absolute bottom-0 left-0 px-4 sm:px-6">
         <Image
           src={narrator.cutoutSrc ?? narrator.portraitSrc}
@@ -300,7 +303,7 @@ export default function VoyageExperience() {
         className={`voyage-experience__scene-drawer pointer-events-none absolute inset-y-0 right-0 z-20 flex items-center transition-transform duration-300 ease-out ${
           drawerOpen
             ? "translate-x-0"
-            : "translate-x-[var(--scene-drawer-offset)] lg:translate-x-[var(--scene-drawer-offset-lg)]"
+            : "translate-x-[var(--scene-drawer-offset)]"
         }`}
       >
         <button
@@ -328,7 +331,9 @@ export default function VoyageExperience() {
             SCENES
           </span>
         </button>
-        <div className="voyage-experience__scene-list pointer-events-auto h-full w-56 overflow-y-auto  bg-neutral/50 p-3 shadow-xl backdrop-blur-sm lg:w-64">
+        {/* Width comes from --scene-drawer-offset (globals.css) so the list
+            and the closed-drawer slide distance can never drift apart. */}
+        <div className="voyage-experience__scene-list pointer-events-auto h-full overflow-y-auto  bg-neutral/50 p-3 shadow-xl backdrop-blur-sm">
         <div className="flex flex-col items-center gap-2">
           {scenes.map((candidate) => {
             const active = candidate.id === sceneId;
@@ -372,7 +377,9 @@ export default function VoyageExperience() {
             </Button>
           </div>
 
-          <p className="voyage-hints__guide absolute bottom-[48vh] left-4 max-w-[38vw] rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-xs font-semibold text-navy shadow-lg sm:left-6 sm:max-w-none sm:whitespace-nowrap">
+          {/* 48dvh, matching the cutout's 46dvh height reference, so the
+              callout stays just above the narrator at any toolbar state. */}
+          <p className="voyage-hints__guide absolute bottom-[48dvh] left-4 max-w-[38vw] rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-xs font-semibold text-navy shadow-lg sm:left-6 sm:max-w-none sm:whitespace-nowrap">
             Tap Your Guide to Switch Narrator
           </p>
 

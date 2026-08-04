@@ -53,7 +53,7 @@ export default async function NarratorBioPage({
     .filter((scene): scene is Scene => scene !== undefined);
 
   return (
-    <main className="relative flex h-dvh w-full overflow-hidden bg-navy">
+    <main className="narrator-bio relative flex h-dvh w-full overflow-hidden bg-navy">
       {/* Blurred signature scene + scrim (darker on the text side). */}
       <Image
         src={narrator.bioBackdropSrc}
@@ -85,33 +85,41 @@ export default async function NarratorBioPage({
         />
       </div>
 
-      <section className="relative z-10 flex h-full min-w-0 flex-1 flex-col justify-center gap-3 pl-[2vw] pr-[5vw] lg:gap-5">
-        <h1 className="font-display text-4xl font-extrabold uppercase tracking-wide text-ivory [text-shadow:0_2px_12px_rgb(from_var(--color-navy)_r_g_b_/_60%)] lg:text-6xl">
-          {narrator.name}
-        </h1>
+      {/* The column scrolls when the bio outgrows a short phone-landscape
+          viewport (issue #193: the bottom used to be unreachable). my-auto on
+          the inner block — not justify-center on the scroller — because a
+          centered flex child that overflows its scroll container clips its
+          top edge out of scroll range; auto margins center only when the
+          content fits and collapse to 0 when it doesn't. */}
+      <section className="narrator-bio__content relative z-10 flex h-full min-w-0 flex-1 flex-col overflow-y-auto pl-[2vw] pr-[5vw]">
+        <div className="narrator-bio__body my-auto flex min-w-0 flex-col gap-3 py-4 lg:gap-5">
+          <h1 className="font-display text-4xl font-extrabold uppercase tracking-wide text-ivory [text-shadow:0_2px_12px_rgb(from_var(--color-navy)_r_g_b_/_60%)] lg:text-6xl">
+            {narrator.name}
+          </h1>
 
-        <p className="max-w-2xl text-sm leading-relaxed text-ivory/90 lg:text-lg">
-          {narrator.bio}
-        </p>
+          <p className="max-w-2xl text-sm leading-relaxed text-ivory/90 lg:text-lg">
+            {narrator.bio}
+          </p>
 
-        <p className="mt-1 text-[0.65rem] font-semibold uppercase tracking-[0.22em] text-brass lg:mt-2 lg:text-xs">
-          Recommended Scenes
-        </p>
+          <p className="mt-1 text-[0.65rem] font-semibold uppercase tracking-[0.22em] text-brass lg:mt-2 lg:text-xs">
+            Recommended Scenes
+          </p>
 
-        {/* Same SceneButton as the hub rail / voyage drawer, in link form —
-            picking one lands on the hub with narrator + scene preselected. */}
-        <ul className="grid max-w-md grid-cols-2 gap-3 lg:gap-4">
-          {featuredScenes.map((scene) => (
-            <li key={scene.id}>
-              <SceneButton
-                scene={scene}
-                selected={false}
-                variant="overview"
-                href={`/explore?narrator=${narrator.id}&scene=${scene.id}`}
-              />
-            </li>
-          ))}
-        </ul>
+          {/* Same SceneButton as the hub rail / voyage drawer, in link form —
+              picking one lands on the hub with narrator + scene preselected. */}
+          <ul className="grid max-w-md grid-cols-2 gap-3 lg:gap-4">
+            {featuredScenes.map((scene) => (
+              <li key={scene.id}>
+                <SceneButton
+                  scene={scene}
+                  selected={false}
+                  variant="overview"
+                  href={`/explore?narrator=${narrator.id}&scene=${scene.id}`}
+                />
+              </li>
+            ))}
+          </ul>
+        </div>
       </section>
     </main>
   );

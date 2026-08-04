@@ -1,6 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // LAN device testing (real-iPhone checks against `next dev -H 0.0.0.0`):
+  // Next 16 blocks cross-origin requests to dev resources by default, which
+  // breaks the app when opened via this machine's Wi-Fi IP. Dev-only; add
+  // your own IP here if it differs (DHCP may reassign it).
+  allowedDevOrigins: ["192.168.18.13"],
+
   // Static export: this app is a pure client (talks to the backend via
   // NEXT_PUBLIC_API_BASE_URL; no route handlers, server actions, or
   // middleware), so `next build` emits a fully static `out/` we host on
