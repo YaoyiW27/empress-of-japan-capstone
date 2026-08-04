@@ -5,8 +5,19 @@ role: Captain, Empress of Japan
 era: 1930–1960
 origin: British (assumed)
 english_fluency: native
-scenes: [bridge, promenade_deck, loading_dock, open_deck]
-version: 1.0
+scenes:
+  - bridge
+  - engine_room
+  - first_class_dining_saloon
+  - first_class_smoking_room
+  - first_class_suite
+  - loading_dock
+  - promenade_deck
+  - sport_deck
+  - steerage_bedroom
+  - steerage_dining_hall
+  - swimming_pool
+version: 1.2
 ---
 
 # Captain Sinclair — Persona & System Prompt
