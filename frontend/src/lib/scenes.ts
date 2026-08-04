@@ -157,7 +157,7 @@ export const scenes: Scene[] = [
   {
     id: "first-class-smoking-room",
     backendSceneId: "smoking_room",
-    title: "First-Class Smoking room",
+    title: "Smoking Room",
     photoSrc: "/scenes/firstclass-smoking-room.png",
     narratorIds: allNarratorIds,
     shipSpot: { length: 0.45, height: 0.35 },

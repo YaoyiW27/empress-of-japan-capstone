@@ -686,7 +686,6 @@ body {
   /* Figma IG_text is Playfair Display Italic. The previous `font-style:
      black` was not a valid value — browsers dropped it, so these labels
      had always rendered upright by accident. */
-  font-style: italic;
   font-weight: 400;
   line-height: 30px;
   letter-spacing: 0.08em;
