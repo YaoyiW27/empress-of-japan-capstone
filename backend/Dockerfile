@@ -13,8 +13,10 @@ RUN groupadd --system app \
 COPY backend/pyproject.toml backend/README.md ./
 COPY backend/app ./app
 
-RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir .
+# Pin security-fixed versions of transitive/base-image deps that Trivy flags
+# (setuptools ships in the base image; msgpack is an unpinned transitive dep).
+RUN pip install --no-cache-dir --upgrade pip "setuptools>=78.1.1" \
+    && pip install --no-cache-dir . "msgpack>=1.2.1"
 
 COPY backend/alembic.ini ./
 COPY backend/alembic ./alembic
