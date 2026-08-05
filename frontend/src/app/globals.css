@@ -37,7 +37,7 @@
 
   /* --- Type scale (Figma typography tokens) --- */
   --text-ig-header: 40px; /* Figma: IG_Header_darkBG — Playfair Display ExtraBold */
-  --text-ui-section: 24px; /* Figma: UI_section_header — Mplus 1p Thin */
+  --text-ui-section: 12px; /* Figma: UI_section_header — Mplus 1p Thin */
   --text-ui-hero: 20px; /* Figma: UI_hero_header — Mplus 1p ExtraBold */
   --text-ui: 14px; /* Figma: UI_text_description / UI_interaction — Mplus 1p */
   --text-ig: 12px; /* Figma: IG_text — Playfair Display Italic */
@@ -229,8 +229,7 @@ body {
 
   border: 0;
   border-radius: 9999px;
-  outline: 4px solid var(--narrator-frame);
-  outline-offset: 0;
+
 
   background: transparent;
   cursor: pointer;
@@ -299,7 +298,7 @@ body {
 /* Not selected: default appearance at 50% opacity */
 
 .narrator-button[data-state="notSelected"] {
-  --narrator-shadow: var(--color-navy-faint);
+  --narrator-shadow: var(--color-navy);
   opacity: 0.5;
 }
 
@@ -308,13 +307,25 @@ body {
     opacity: 1;
   }
 }
+.narrator-button::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  z-index: 2;
+
+  border: 4px solid var(--narrator-frame);
+  border-radius: 9999px;
+
+  pointer-events: none;
+}
+
 /* Speaking icon layered over the portrait */
 
 .narrator-button__speaking-icon {
   position: absolute;
   left: 50%;
   top: 50%;
-  z-index: 1;
+  z-index: 3;
 
   display: flex;
   width: 32px;
@@ -371,12 +382,12 @@ body {
   height: 3.5rem;
 }
 
-/* Scale the thumbnail frame to the row (2px border + 6px padding each side
-   leaves 40px of content height). */
-.explore-hub__scene-panel .scene-button__thumb {
+/* SceneButton's first span is the thumbnail frame; scale it to the row
+   (2px border + 6px padding each side leaves 40px of content height). 
+.explore-hub__scene-panel li > button > span:first-child {
   width: 3.5rem;
   height: 2.5rem;
-}
+}*/
 
 /* Keep the start CTA inside the panel: Button's fixed w-48 becomes a cap
    here, so a narrower panel (compressed tiers, safe-area insets) shrinks the
@@ -462,7 +473,7 @@ body {
     height: 3rem;
   }
 
-  .explore-hub__scene-panel .scene-button__thumb {
+ /* .explore-hub__scene-panel li > button > span:first-child {
     width: 2.75rem;
     height: 2rem;
   }
@@ -470,7 +481,7 @@ body {
   .voyage-experience h1 {
     font-size: 2rem;
     line-height: 1;
-  }
+  }*/
 
   .voyage-experience {
     --scene-drawer-offset: min(46vw, 13rem);
@@ -538,12 +549,12 @@ body {
     padding-right: max(0.75rem, env(safe-area-inset-right));
   }
 
-  .narrator-overlay > div:first-child {
+  .narrator-overlay__transcript {
     max-width: min(26rem, 55vw);
     padding: 0.65rem 0.85rem;
   }
 
-  .narrator-overlay > div:first-child > div {
+  .narrator-overlay__transcript > div {
     max-height: 6.5rem;
   }
 
@@ -697,51 +708,63 @@ body {
 .text-ui-interaction {
   font-family: var(--font-sans);
   font-size: var(--text-ui);
-  font-weight: 800;
+  font-weight: 600;
   line-height: normal;
   letter-spacing: 0;
 }
-.text-ui-section-header {
+.text-ui-scene {
   font-family: var(--font-sans);
   font-size: var(--text-ui-section);
-  font-weight: 100;
+  font-weight: 800;
   line-height: normal;
   letter-spacing: 0;
 }
 
 .ui-button {
-  width: 168px;
-  height: 42px;
-  background-color: var(--button-bg);
-  border-color: var(--button-border);
-  color: var(--button-fg);
-  
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
 
-  border: 2px solid;
+  background-color: var(--button-bg);
+  border: 3px solid var(--button-border);
   border-radius: 8px;
-
+  color: var(--button-fg);
 
   cursor: pointer;
+
   box-shadow:
-    0 0 8px rgb(from var(--color-navy) r g b / 50%);
+    0 0 4px rgb(from var(--color-navy) r g b / 75%);
+
   transition:
+    transform 0.2s ease,
     background-color 0.2s ease,
     border-color 0.2s ease,
     color 0.2s ease,
     box-shadow 0.2s ease;
 }
-@media (hover: hover) {
-  .ui-button:hover {
-    transform: scale(1.02);
-  }
+
+.ui-button--primary {
+  width: 176px;
+  height: 44px;
+
+  --button-bg: var(--color-navy);
+  --button-border: var(--color-brass);
+  --button-fg: var(--color-ivory);
 }
-.ui-button:disabled {
+
+.ui-button:not(:disabled):hover {
+  transform: scale(1.02);
+}
+
+.ui-button--primary:disabled {
+  --button-bg: var(--color-navy-muted);
+  --button-border: var(--color-navy-faint);
+  --button-fg: var(--color-navy-faint);
+
   cursor: not-allowed;
-  opacity: 0.5;
+  opacity: 1;
+  box-shadow: none;
 }
 
 /* ---------- Overview ---------- */

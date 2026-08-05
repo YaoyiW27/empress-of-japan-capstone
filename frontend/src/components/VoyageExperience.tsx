@@ -279,7 +279,8 @@ export default function VoyageExperience() {
           alt={narrator.name}
           width={400}
           height={600}
-          className={`block h-[46dvh] w-auto object-contain drop-shadow-[0_8px_24px_rgba(0,0,0,0.45)] ${
+          priority
+          className={`block h-[46vh] w-auto object-contain drop-shadow-[0_8px_24px_rgba(0,0,0,0.45)] ${
             narrator.id === "captain_sinclair" ? "translate-y-[5.6%]" : ""
           }`}
         />

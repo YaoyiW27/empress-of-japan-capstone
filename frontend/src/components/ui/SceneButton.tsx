@@ -31,21 +31,19 @@ export default function SceneButton({
   const stateClasses =
     variant === "overview"
       ? selected
-        ? "border-brass bg-brass text-ivory"
-        : "border-ivory bg-ivory text-brass"
+        ? "border-ivory bg-brass text-ivory"
+        : "border-brass bg-ivory text-navy"
       : selected
         ? "border-ai bg-ai-soft/50 text-ai-bg"
         : "border-neutral bg-ai-bg/50 text-ai/75";
 
   // max-w-full lets the fixed w-52 give way inside narrower rails/grids
-  // instead of clipping against them. scene-button / scene-button__thumb are
-  // stable hooks for the container-scoped size overrides in globals.css
-  // (hub scene panel, bio featured-scenes grid).
-  const className = `scene-button group flex h-16 w-52 max-w-full shrink-0 items-center gap-3 rounded-lg border-2 p-1.5 text-left shadow-[0_0_8px_rgb(from_var(--color-navy)_r_g_b_/_50%)] transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:scale-[1.02] ${stateClasses}`;
+  // instead of clipping against them.
+  const className = `group flex h-16 w-52 max-w-full shrink-0 items-center gap-3 rounded-lg border-2 p-1.5 text-left shadow-[0_0_4px_rgb(from_var(--color-navy)_r_g_b_/_50%)] transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:scale-[1.02] ${stateClasses}`;
 
   const content = (
     <>
-      <span className="scene-button__thumb relative block h-12 w-16 shrink-0 overflow-hidden rounded-md border border-current/30">
+      <span className="relative block h-9 w-9 shrink-0 overflow-hidden rounded-full border-current/30">
         <Image
           src={scene.photoSrc}
           alt={scene.title}
@@ -55,7 +53,7 @@ export default function SceneButton({
         />
       </span>
 
-      <span className="min-w-0 flex-1 whitespace-normal break-words font-sans text-xs font-extrabold leading-tight text-current">
+      <span className="min-w-0 flex-1 whitespace-normal break-words text-ui-scene leading-tight text-current">
         {scene.title}
       </span>
     </>
