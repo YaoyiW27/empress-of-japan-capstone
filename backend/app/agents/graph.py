@@ -11,6 +11,7 @@ then returns a voice-safe answer plus separately structured citations.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from collections.abc import Callable
 
@@ -24,6 +25,7 @@ from app.agents.state import AgentState
 from app.retrieval import Citation, RetrievalResponse
 
 tracer = trace.get_tracer(__name__)
+logger = logging.getLogger(__name__)
 
 NARRATOR_SOFT_RESPONSE_LENGTH = 800
 _TRUNCATION_PUNCTUATION = ".!?;:,。！？；：，、…"
@@ -203,19 +205,42 @@ def _persona_node(
             last_error: Exception | None = None
             grounded_result: GroundedChatResult | None = None
             citations: list[Citation] = []
-            for _attempt in range(2):
+            attempt_prompt = prompt
+            for attempt in range(2):
                 try:
-                    raw_result = chat_model.invoke_grounded(prompt, messages)
+                    raw_result = chat_model.invoke_grounded(attempt_prompt, messages)
                     grounded_result, citations = _validate_grounded_result(
                         raw_result, citations_by_id
                     )
                     break
                 except Exception as exc:
                     last_error = exc
+                    logger.exception(
+                        "Invalid grounded model response on attempt %s: %s",
+                        attempt + 1,
+                        exc,
+                    )
+                    attempt_prompt = (
+                        f"{prompt}\n\n"
+                        "CORRECTION: Your previous structured response was rejected. "
+                        f"Reason: {exc}. Return a corrected result that follows the "
+                        "answer_mode, response, and used_source_ids rules exactly."
+                    )
             if grounded_result is None:
-                raise InvalidGroundedResponseError(
-                    "chat model did not return a valid grounded response"
-                ) from last_error
+                logger.error(
+                    "Chat model failed structured validation twice; returning a safe "
+                    "insufficient-evidence response instead of failing the request.",
+                    exc_info=last_error,
+                )
+                grounded_result = GroundedChatResult(
+                    answer_mode="insufficient_evidence",
+                    response=(
+                        "I'm sorry, but I don't have enough reliable archival evidence "
+                        "to answer that confidently. A museum archivist may be able to help."
+                    ),
+                    used_source_ids=[],
+                )
+                citations = []
 
             response = truncate_response(
                 grounded_result.response,
