@@ -9,7 +9,8 @@ import NarratorButton, {
 import SceneButton from "@/components/ui/SceneButton";
 import Scene from "@/components/three/Scene";
 import { getNarrator, getScene, narrators, scenes } from "@/lib/scenes";
-import { Button, ButtonLink, CircleBackLink } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Button";
+import { BackButton } from "@/components/ui/NavButtons";
 
 /** Maps backend persona ids to the shorter ids used by NarratorButton assets. */
 const narratorButtonIds: Record<string, NarratorButtonId> = {
@@ -63,9 +64,9 @@ export default function ExploreHub() {
   return (
     <main className="explore-hub relative flex h-dvh w-full flex-col overflow-x-hidden overflow-y-auto bg-ivory px-4 py-3 lg:px-8 lg:py-6">
       {/* Same spot as the voyage page's back button, for cross-page consistency. */}
-      <CircleBackLink
+      <BackButton
         href="/"
-        label="Back to home"
+        label="Back to Landing Page"
         className="absolute left-6 top-6 z-10"
       />
 
@@ -97,7 +98,7 @@ export default function ExploreHub() {
                 <Link
                   href={`/explore/${narrator.id}`}
                   aria-label={`About ${narrator.name}`}
-                  className="flex min-h-11 min-w-0 flex-1 items-center py-1 pl-2 text-ui-scene uppercase leading-snug tracking-[0.06em] text-navy-soft transition-colors hover:text-vermilion lg:text-xs lg:tracking-[0.08em]"
+                  className="flex min-h-11 min-w-0 flex-1 items-center py-1 pl-2 text-ui-scene uppercase leading-snug tracking-[0.06em] text-navy-soft transition-colors hover:text-brass lg:text-xs lg:tracking-[0.08em]"
                 >
                   {/* No-break space keeps the chevron glued to the last word. */}
                   <span>

@@ -155,6 +155,14 @@ export const scenes: Scene[] = [
     shipSpot: { length: 0.6, height: 0.5 },
   },
   {
+    id: "first-class-smoking-room",
+    backendSceneId: "smoking_room",
+    title: "Smoking Room",
+    photoSrc: "/scenes/firstclass-smoking-room.png",
+    narratorIds: allNarratorIds,
+    shipSpot: { length: 0.45, height: 0.35 },
+  },
+  {
     id: "first-class-suite",
     backendSceneId: "first_class_suite",
     title: "First-Class Suite",
@@ -188,6 +196,17 @@ export const scenes: Scene[] = [
     narratorIds: allNarratorIds,
     shipSpot: { length: 0.12, height: 0.35 },
   },
+  {
+    // Historically a steerage passenger space (see data/ai persona notes);
+    // the ids stay stable backend keys.
+    id: "crew-mess-hall",
+    backendSceneId: "crew_mess_hall",
+    title: "Steerage Dining Hall",
+    photoSrc: "/scenes/crew-mess-hall.png",
+    narratorIds: allNarratorIds,
+    shipSpot: { length: 0.6, height: 0.35 },
+  },
+
 ];
 
 export function getNarrator(id: string): Narrator | undefined {
