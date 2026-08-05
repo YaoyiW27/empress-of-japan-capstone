@@ -748,12 +748,6 @@ body {
 
   object-fit: contain;
 
-  filter:
-    drop-shadow(0 0 4px rgb(0 0 0 / 80%))
-    drop-shadow(
-      0 0 10px
-      rgb(from var(--color-brass) r g b / 65%)
-    );
 
   user-select: none;
   -webkit-user-drag: none;

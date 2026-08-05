@@ -20,18 +20,18 @@ type MapLocation = {
  */
 const mapLocations: Record<string, MapLocation> = {
   bridge: {
-    x: 78.2,
+    x: 68.8,
     y: 40,
   },
 
   "crew-bedroom": {
     x: 26.1,
-    y: 86.7,
+    y: 87.7,
   },
 
   "crew-mess-hall": {
-    x: 25.3,
-    y: 83.4,
+    x: 25.,
+    y: 83.,
   },
 
   "engine-room": {
