@@ -224,6 +224,19 @@ variable "kb_db_stop_schedule_timezone" {
   default     = "America/Vancouver"
 }
 
+variable "backend_refresh_schedule" {
+  description = <<-EOT
+    EventBridge Scheduler expression that forces a fresh backend deployment each
+    morning so ECS tasks re-pull the RDS-managed master password after its
+    (~7-day) rotation (issue #198). ECS injects Secrets Manager values only at
+    container start, so a long-running task keeps a pre-rotation password and
+    fails DB auth. Set a few minutes after kb_db_start_schedule so the DB is up
+    when the tasks reconnect.
+  EOT
+  type        = string
+  default     = "cron(10 5 ? * * *)"
+}
+
 # --- Bedrock embeddings (issue #48, see bedrock.tf) ---
 
 variable "bedrock_embedding_model_id" {

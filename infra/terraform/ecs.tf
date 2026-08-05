@@ -619,3 +619,75 @@ resource "aws_appautoscaling_policy" "backend_cpu" {
     }
   }
 }
+
+# --- Daily backend refresh: re-pull the rotated RDS master password (#198) ---
+#
+# The RDS-managed master secret rotates on its own (~7-day) schedule. ECS injects
+# DB_PASSWORD from that secret only at container start and never refreshes a
+# running task, so once rotation happens a long-lived task authenticates with a
+# stale password and DB access (RAG retrieval, session memory) starts failing
+# with `password authentication failed` — which surfaced as "voice is broken".
+#
+# Rather than react to the rotation event (a CloudTrail service-event pattern
+# that silently no-ops if mismatched), force a fresh deployment every morning
+# just after the RDS start schedule. Tasks re-pull the current password at
+# startup, so it can never be more than ~a day stale. /health does not touch the
+# DB, so a refreshed task passes ALB health checks and rolls out cleanly even
+# right after a rotation. This also clears any stale connections left by the
+# nightly RDS stop/start.
+
+data "aws_iam_policy_document" "backend_refresh_scheduler_assume" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["scheduler.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "backend_refresh_scheduler" {
+  name               = "empress-backend-refresh-scheduler"
+  assume_role_policy = data.aws_iam_policy_document.backend_refresh_scheduler_assume.json
+}
+
+data "aws_iam_policy_document" "backend_refresh_scheduler" {
+  statement {
+    sid       = "ForceNewBackendDeployment"
+    effect    = "Allow"
+    actions   = ["ecs:UpdateService"]
+    resources = ["arn:aws:ecs:${var.region}:${data.aws_caller_identity.current.account_id}:service/${aws_ecs_cluster.app.name}/${aws_ecs_service.backend.name}"]
+  }
+}
+
+resource "aws_iam_role_policy" "backend_refresh_scheduler" {
+  name   = "empress-backend-refresh-scheduler"
+  role   = aws_iam_role.backend_refresh_scheduler.id
+  policy = data.aws_iam_policy_document.backend_refresh_scheduler.json
+}
+
+resource "aws_scheduler_schedule" "backend_refresh" {
+  name                         = "empress-backend-refresh"
+  description                  = "Force a fresh backend deployment each morning so ECS tasks re-pull the rotated RDS-managed DB password (issue #198)."
+  schedule_expression          = var.backend_refresh_schedule
+  schedule_expression_timezone = var.kb_db_stop_schedule_timezone
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  target {
+    arn      = "arn:aws:scheduler:::aws-sdk:ecs:updateService"
+    role_arn = aws_iam_role.backend_refresh_scheduler.arn
+
+    # Universal-target input mirrors the ECS UpdateService request in PascalCase
+    # (same convention as the rds:stopDBInstance schedules in rds.tf).
+    input = jsonencode({
+      Cluster            = aws_ecs_cluster.app.name
+      Service            = aws_ecs_service.backend.name
+      ForceNewDeployment = true
+    })
+  }
+}

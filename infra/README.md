@@ -322,6 +322,31 @@ AWS_PROFILE=empress aws ecs describe-services \
   --output table
 ```
 
+### "Grounding retrieval / DB auth" failures after a password rotation (issue #198)
+
+The RDS master password is managed by RDS and rotates on its own (~7-day)
+schedule. ECS injects `DB_PASSWORD` from that secret **only at container start**
+and never refreshes a running task, so a task that has been up since before a
+rotation keeps a stale password and every DB call fails with
+`password authentication failed`. Symptom: `/chat` returns `503 grounding
+retrieval is unavailable`, `/retrieve` returns `500`, and the frontend goes
+silent (it calls `/chat` before speaking) — it reads as "voice is broken" even
+though Polly/Transcribe are fine.
+
+This normally self-heals: `aws_scheduler_schedule.backend_refresh` force-deploys
+the backend every morning (`backend_refresh_schedule`, just after the RDS start),
+so tasks re-pull the current password daily. The
+`empress-backend-db-auth-failure` alarm fires (to the budget-alerts SNS topic) if
+it ever recurs between refreshes — e.g. a mid-day rotation. Fix is one command:
+
+```bash
+AWS_PROFILE=empress aws ecs update-service \
+  --region us-west-2 --cluster empress-app --service empress-backend \
+  --force-new-deployment
+```
+
+Then re-check `/health` and a `/chat` call. No code or Terraform change is needed.
+
 ### Read CloudWatch logs and traces
 
 Backend and OTel Collector stdout/stderr share `/ecs/empress-backend`, with
