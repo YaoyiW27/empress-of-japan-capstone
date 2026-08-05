@@ -395,11 +395,7 @@ export default function VoyageExperience() {
             width={400}
             height={600}
             priority
-            className={`block h-[46vh] w-auto object-contain drop-shadow-[0_8px_24px_rgba(0,0,0,0.45)] ${
-              narrator.id === "captain_sinclair"
-                ? "translate-y-[5.6%]"
-                : ""
-            }`}
+            className={`block h-[46vh] w-auto object-contain drop-shadow-[0_8px_24px_rgba(0,0,0,0.45)]`}
           />
         </div>
 
