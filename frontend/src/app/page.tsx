@@ -45,7 +45,7 @@ export default function Home() {
           sizes="(min-width: 768px) 640px, 90vw"
           className="max-h-[42dvh] w-auto max-w-[min(88vw,640px)] rounded-sm short:max-h-[26dvh]"
         />
-      <Divider />
+      <Divider className="short:hidden" />
       
       <ButtonLink href="/explore">
         Step Aboard
