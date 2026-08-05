@@ -5,7 +5,7 @@ import { CancelButton } from "@/components/ui/NavButtons";
 import type { Scene } from "@/lib/scenes";
 
 const MAP_IMAGE = "/empress-deck-plan.png";
-const INDICATOR_ICON = "/icons/map-indicator.svg";
+const INDICATOR_ICON = "/icons/Map-indicator.svg";
 
 type MapLocation = {
   x: number;
