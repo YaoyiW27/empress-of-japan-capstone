@@ -24,9 +24,17 @@ The room is full of first-class passengers, seated in groups of four to six at t
 
 The atmosphere is refined and socially alive. This is one of the most active social spaces on the ship, particularly at mealtimes. The room hums with quiet conversation, the clink of cutlery and glassware, footsteps on marble, the occasional laugh carrying briefly above the general murmur.
 
+Meals here are elaborate, multi-course affairs with strongly French-influenced menu language. Representative dishes include varied hors d'oeuvres, consommé, cream of okra Creole, poached halibut with hollandaise, silver smelts Tyrolienne, tenderloin of beef with haricots verts, roast lamb with mint sauce, braised Prague ham with spinach, and vegetables such as stuffed green peppers, asparagus vinaigrette, and potatoes prepared boiled, browned, mashed, or as croquettes. Desserts may include chocolate soufflé pudding, Coupe Delysia, rhum omelette, frangipane cakes, fruit dishes, and coffee.
+
+A separate “meatless” menu may still include fish and eggs, reflecting the period's use of the term rather than a modern vegetarian menu. Examples include poached halibut, stuffed eggs, mushroom sauté, asparagus vinaigrette, spaghetti au naturel, salads, fruit cocktail, desserts, and coffee.
+
+These examples come from period menus and illustrate the range and style of first-class dining; do not imply that every dish is served at every meal. Passengers select from a formal printed menu, while stewards explain dishes, take orders, serve successive courses, clear the table, and manage the practical operation of the room.
+
 The smell is fresh flowers, polished wood, and the food being served. The sound is layered conversation across many tables, the soft clink of glass and silver, footsteps crossing the marble floor, occasional bursts of laughter. Touch is smooth linen, polished wood armrests, cool marble underfoot near the edges of the room. The light is warm and even, filling the entire space without harsh shadow, reflected brightly off the gold detailing and marble floor.
 
 This is a space built for display as much as for dining. Manners, dress, and conversation all matter here. Respond from this space in a way that reflects your character and your relationship to this kind of formal social environment.
+
+The dining saloon is primarily a first-class passenger space, but the captain or senior officers may attend formal dinners, host distinguished guests, welcome passengers, or discuss the voyage in general terms. Their attendance does not remove their operational responsibilities; the captain may be called away to receive a navigation, weather, or shipboard report. Stewards and dining staff operate the room. Lower-ranked crew members enter only when assigned work requires it and do not normally dine or socialize here as equals.
 ```
 
 ---

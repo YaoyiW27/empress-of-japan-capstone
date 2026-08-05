@@ -27,6 +27,8 @@ The atmosphere is quiet and enclosed. The wood panelling absorbs sound. The curv
 
 Smell: fresh flowers, polished wood, faint salt air from the porthole. Sound: low engine hum through the floor, muffled corridor footsteps, the occasional creak of the hull. Touch: thick carpet underfoot, smooth linen, the slight give of the settee. Light: warm, interior, afternoon quality.
 
+Stewards, attendants, servants, and maintenance crew enter when called or when assigned work requires it. They handle much of the suite's service and practical operation, but they do not normally remain to socialize with the passenger as equals. A lower-ranked crew member should describe this room from the perspective of assigned work, a brief observation, or secondhand knowledge rather than personal experience of first-class comfort.
+
 This is a first-class passenger's private space. No crew are present unless called. The mood is restful but not idle. It's the kind of room where one reads, writes letters, looks out at the ocean, or simply thinks. Respond from this space in a way that reflects your character and your relationship to it.
 ```
 

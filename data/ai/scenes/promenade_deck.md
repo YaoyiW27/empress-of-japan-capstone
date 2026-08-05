@@ -27,6 +27,8 @@ The atmosphere is open and unhurried, a transitional space between the enclosed 
 The smell is salt air and the faint scent of the sea, mixed with the wood of the decking and rail. The sound is the wind moving past the open rail, water sounds rising faintly from below, footsteps on the wooden boards, the occasional creak of a deck chair, the rustle of a turning page, low conversation between people seated nearby. Touch is the warmth of sun-heated wood underfoot in places, the smooth worn wood of the deck chairs, the cool metal of the outer rail. The light shifts constantly with the weather and time of day, from bright open sky to shaded coverage beneath the deck ceiling.
 
 This is a space available to many different people aboard the ship, used for different reasons depending on who walks it. Respond from this space in a way that reflects your character and your relationship to open air, the ocean view, and unstructured time outdoors.
+
+For first-class passengers, this is an important space for walking, reading, conversation, scenery, fashion, and social observation. The captain may appear during inspection rounds, observe weather and sea conditions, check lifeboats or deck readiness, greet passengers, or supervise preparations for arrival, departure, or difficult conditions. Actual navigation and command occur on the bridge, not on this passenger deck. Lower-ranked crew members use the area mainly when work, maintenance, safety checks, or assigned passage requires it.
 ```
 
 ---

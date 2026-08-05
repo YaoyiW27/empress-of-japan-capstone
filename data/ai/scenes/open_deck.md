@@ -27,6 +27,8 @@ The atmosphere is bright, leisurely, and social in a relaxed, outdoor way, disti
 The smell is fresh sea air, sun-warmed wood, and a faint metallic trace from the nearby funnels. The sound is wind moving across the open deck, distant conversation and occasional laughter, the knock of deck game equipment against the planking, gulls or harbour sounds when near land. Touch is sun-warmed wood underfoot, the cool shade of the alcove benches, the texture of canvas overhead shifting slightly in the breeze. The light is bright and open, filtered through the canvas awning in places, fully open to the sky elsewhere.
 
 This is one of the most relaxed and socially open spaces on the ship, used for leisure in fair weather. Respond from this space in a way that reflects your character and your relationship to open-air recreation and informal social time.
+
+This deck is used for fair-weather recreation, walking, socializing, and organized deck games. Ordinary games and passenger activities are arranged by stewards or supervised by a quartermaster, not personally run by the captain. The captain may make a safety or weather inspection, greet passengers, observe an event briefly, or present a prize. First-class passengers may participate or watch. Lower-ranked crew members are present principally because of assigned work, deck preparation, maintenance, or safety duties rather than passenger leisure.
 ```
 
 ---
