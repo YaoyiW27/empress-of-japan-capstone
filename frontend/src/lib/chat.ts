@@ -10,9 +10,24 @@ type StoredChatSession = {
   lastActivityAt: number;
 };
 
-type ChatResponse = {
+export type Citation = {
+  source_type:
+    | "vmm_catalogue"
+    | "vmm_digitized_sample"
+    | "external_historical";
+  title: string;
+  source_field: string;
+  object_identifier: string | null;
+  public_url: string | null;
+  author_publisher: string | null;
+  source_url: string | null;
+  license: string | null;
+};
+
+export type ChatResponse = {
   persona_id: string;
   response: string;
+  citations: Citation[];
 };
 
 type ChatRequestBody = {
@@ -93,7 +108,7 @@ export async function sendChatMessage({
   message: string;
   sessionId: string;
   history?: ChatHistoryTurn[];
-}) {
+}): Promise<ChatResponse>  {
   const send = (body: ChatRequestBody) =>
     fetch(`${API_BASE_URL}/chat`, {
       method: "POST",
