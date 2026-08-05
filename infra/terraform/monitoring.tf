@@ -360,3 +360,38 @@ resource "aws_cloudwatch_metric_alarm" "jobs_dlq_visible" {
     QueueName = aws_sqs_queue.jobs_dlq.name
   }
 }
+
+# Targeted backstop for the #198 failure mode: if a rotation ever outpaces the
+# daily backend refresh (e.g. a mid-day rotation), the tasks log
+# `password authentication failed` on every DB call. Alarm on that exact string
+# so the next occurrence names its own root cause instead of resurfacing as a
+# vague "voice is broken" report. The generic backend_target_5xx alarm also
+# fires, but this one points straight at the fix (force a new deployment).
+resource "aws_cloudwatch_log_metric_filter" "backend_db_auth_failure" {
+  name           = "empress-backend-db-auth-failure"
+  log_group_name = aws_cloudwatch_log_group.backend.name
+  pattern        = "\"password authentication failed\""
+
+  metric_transformation {
+    name          = "DbAuthFailures"
+    namespace     = "Empress/Backend"
+    value         = "1"
+    default_value = "0"
+    unit          = "Count"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "backend_db_auth_failure" {
+  alarm_name          = "empress-backend-db-auth-failure"
+  alarm_description   = "Backend logged 'password authentication failed': ECS tasks hold a stale RDS master password after rotation. Force a new backend deployment (issue #198)."
+  namespace           = "Empress/Backend"
+  metric_name         = "DbAuthFailures"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  threshold           = 1
+  evaluation_periods  = 1
+  period              = 300
+  statistic           = "Sum"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.backend_alarm_actions
+  ok_actions          = local.backend_alarm_actions
+}
