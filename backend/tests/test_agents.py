@@ -1,5 +1,7 @@
 """Unit tests for the LangGraph persona agents (no DB, no AWS — stub chat model)."""
 
+import logging
+
 import pytest
 from fastapi.testclient import TestClient
 from langgraph.checkpoint.memory import MemorySaver
@@ -8,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.agents.graph import (
     OUT_OF_SCENE_INSTRUCTION,
+    RETRIEVAL_HISTORY_BUDGET,
     InvalidGroundedResponseError,
     RetrievalUnavailableError,
     build_graph,
@@ -406,7 +409,92 @@ def test_graph_retrieves_with_latest_user_turn_only() -> None:
         }
     )
 
-    assert queries == ["Current question"]
+    # No scene to anchor with, so only the conversation itself reaches the query.
+    [query] = queries
+    assert query.startswith("Current question")
+    assert "Earlier question" in query
+    assert "Earlier answer" not in query, "assistant turns must not steer retrieval"
+
+
+def test_retrieval_query_carries_back_recent_user_turns_for_pronouns() -> None:
+    """A pronoun resolves only if the turn that named the ship comes along too."""
+    queries: list[str] = []
+
+    def retrieve(query: str) -> RetrievalResponse:
+        queries.append(query)
+        return RetrievalResponse(results=[])
+
+    graph = build_graph(StubChatModel(), retrieve_candidates=retrieve)
+    graph.invoke(
+        {
+            "persona_id": "captain_sinclair",
+            "messages": [
+                {"role": "user", "content": "Tell me about the Empress of Scotland"},
+                {"role": "assistant", "content": "A fine ship."},
+                {"role": "user", "content": "When was she launched?"},
+            ],
+        }
+    )
+
+    [query] = queries
+    assert query.startswith("When was she launched?")
+    assert "Empress of Scotland" in query
+
+
+def test_retrieval_query_caps_how_much_conversation_it_carries() -> None:
+    """A stale topic must not outweigh the turn actually being asked."""
+    queries: list[str] = []
+
+    def retrieve(query: str) -> RetrievalResponse:
+        queries.append(query)
+        return RetrievalResponse(results=[])
+
+    messages: list[dict[str, str]] = [
+        {"role": "user", "content": f"Old question {index} " + "padding " * 40}
+        for index in range(6)
+    ]
+    messages.append({"role": "user", "content": "What is on the menu?"})
+
+    graph = build_graph(StubChatModel(), retrieve_candidates=retrieve)
+    graph.invoke({"persona_id": "captain_sinclair", "messages": messages})
+
+    [query] = queries
+    assert query.startswith("What is on the menu?")
+    # Only the two most recent earlier turns, and only up to the character budget.
+    assert "Old question 5" in query
+    assert "Old question 0" not in query
+    assert len(query) <= len("What is on the menu?") + RETRIEVAL_HISTORY_BUDGET + 1
+
+
+def test_graph_anchors_retrieval_query_with_scene_ship_and_room() -> None:
+    """A turn that says "this ship" carries no subject; the scene supplies one."""
+    queries: list[str] = []
+
+    def retrieve(query: str) -> RetrievalResponse:
+        queries.append(query)
+        return RetrievalResponse(results=[])
+
+    graph = build_graph(StubChatModel(), retrieve_candidates=retrieve)
+    graph.invoke(
+        {
+            "persona_id": "captain_sinclair",
+            "scene": "bridge",
+            "messages": [{"role": "user", "content": "Where was this ship built?"}],
+        }
+    )
+
+    [query] = queries
+    # The spoken turn leads so it keeps dominating the embedding.
+    assert query.startswith("Where was this ship built?")
+    assert "Empress of Japan" in query
+    assert "Bridge" in query
+
+
+def test_scene_files_carry_the_ship_the_retrieval_anchor_depends_on() -> None:
+    scenes = load_scenes()
+
+    assert scenes["bridge"].ship == "Empress of Japan"
+    assert all(scene.ship for scene in scenes.values())
 
 
 @pytest.mark.parametrize("mode", ["conversational", "insufficient_evidence"])
@@ -430,6 +518,102 @@ def test_non_grounded_modes_return_no_citations(mode: str) -> None:
 
     assert result["answer_mode"] == mode
     assert result["citations"] == []
+
+
+def test_every_turn_logs_the_classification_it_chose(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The mode is otherwise invisible: it reaches no log and no API field."""
+    model = ScriptedChatModel(
+        [
+            GroundedChatResult(
+                answer_mode="grounded",
+                response="Dinner was served in the saloon.",
+                used_source_ids=["document-10"],
+            )
+        ]
+    )
+    graph = build_graph(model, retrieve_candidates=lambda _: _candidate_response())
+
+    with caplog.at_level(logging.INFO, logger="app.agents.graph"):
+        graph.invoke(
+            {
+                "persona_id": "captain_sinclair",
+                "scene": "bridge",
+                "messages": [{"role": "user", "content": "What was for dinner?"}],
+            }
+        )
+
+    [record] = [r for r in caplog.records if r.message.startswith("grounding persona=")]
+    assert "answer_mode=grounded" in record.message
+    assert "persona=captain_sinclair" in record.message
+    assert "scene=bridge" in record.message
+    assert "citations=1" in record.message
+    assert "attempts=1" in record.message
+
+
+def test_log_separates_holdings_only_candidates_from_groundable_prose(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Distinguishes "nothing to cite" from "had prose and cited none"."""
+    holdings_only = RetrievalResponse(
+        results=[
+            # Content identical to the title: proves the museum holds it, nothing more.
+            _retrieved_chunk(
+                document_id=30, chunk_id=9, title="Dinner menu", content="Dinner menu"
+            ),
+            _retrieved_chunk(
+                document_id=31,
+                chunk_id=10,
+                title="Ship history",
+                content="The ship entered service in 1930.",
+                source_type="external_historical",
+            ),
+        ]
+    )
+    model = ScriptedChatModel(
+        [
+            GroundedChatResult(
+                answer_mode="conversational", response="Good day to you.", used_source_ids=[]
+            )
+        ]
+    )
+    graph = build_graph(model, retrieve_candidates=lambda _: holdings_only)
+
+    with caplog.at_level(logging.INFO, logger="app.agents.graph"):
+        graph.invoke(
+            {
+                "persona_id": "captain_sinclair",
+                "messages": [{"role": "user", "content": "Hello"}],
+            }
+        )
+
+    [record] = [r for r in caplog.records if r.message.startswith("grounding persona=")]
+    assert "candidates=2" in record.message
+    assert "groundable=1" in record.message
+    # The pattern worth counting: prose was available and nothing was cited.
+    assert "answer_mode=conversational" in record.message
+    assert "citations=0" in record.message
+
+
+def test_grounding_failure_is_logged_before_it_becomes_a_502(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    model = ScriptedChatModel([ValueError("boom"), ValueError("boom again")])
+    graph = build_graph(model, retrieve_candidates=lambda _: _candidate_response())
+
+    with caplog.at_level(logging.WARNING, logger="app.agents.graph"):
+        with pytest.raises(InvalidGroundedResponseError):
+            graph.invoke(
+                {
+                    "persona_id": "captain_sinclair",
+                    "messages": [{"role": "user", "content": "What was for dinner?"}],
+                }
+            )
+
+    [record] = [r for r in caplog.records if r.message.startswith("grounding failed")]
+    assert "attempts=2" in record.message
+    assert "boom again" in record.message
 
 
 def test_invalid_source_id_retries_once_then_accepts_valid_result() -> None:

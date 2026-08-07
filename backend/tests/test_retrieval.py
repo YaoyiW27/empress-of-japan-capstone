@@ -75,6 +75,21 @@ def test_retrieval_sql_only_reads_retrievable_chunks_view() -> None:
     assert "cast(:material_type as text) is null" in normalized
 
 
+def test_retrieval_sql_collapses_records_that_share_identical_text() -> None:
+    """20 separate physical menus compose to one string; they are one candidate."""
+    normalized = " ".join(RETRIEVAL_SQL.lower().split())
+
+    assert "distinct on (content)" in normalized
+
+
+def test_retrieval_sql_caps_chunks_that_carry_nothing_beyond_their_title() -> None:
+    """Holdings-only records stay eligible but cannot fill the whole result set."""
+    normalized = " ".join(RETRIEVAL_SQL.lower().split())
+
+    assert "btrim(content) = btrim(title) as holdings_only" in normalized
+    assert "not holdings_only or rank_in_group <= :max_holdings_only" in normalized
+
+
 class StubRetriever:
     def retrieve(
         self,

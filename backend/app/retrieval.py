@@ -20,9 +20,56 @@ from app.models import SourceType
 tracer = trace.get_tracer(__name__)
 
 MAX_TOP_K = 20
-DEFAULT_TOP_K = 5
+# The VMM catalogue is largely metadata-only, so a single question can otherwise
+# burn every slot on title-length chunks before any prose is reached.
+DEFAULT_TOP_K = 12
 
+# Most of the VMM catalogue carries no descriptive text: for 226 of 332 chunks the
+# composed content is character-for-character the record's own title. Such a chunk is
+# still real evidence — it shows the museum holds the object — but it can support no
+# claim about what the object says, so a question about history that fills every slot
+# with them gets nothing to answer from. Cap how many may occupy one result set rather
+# than dropping them, so "what does the collection hold" keeps working.
+MAX_HOLDINGS_ONLY_CHUNKS = 4
+
+# ``DISTINCT ON (content)`` collapses records that share identical text before the
+# LIMIT is applied. The catalogue holds many separate physical items with the same
+# composed title (20 rows read exactly "Dinner menu - Empress of Japan (I)"); as
+# retrieval candidates they are one piece of evidence, and without this they crowd
+# every other source out of the top-k. Deduplicating costs the ANN index — this is
+# a scan and sort — which is acceptable at the current corpus size but will need an
+# index-friendly rewrite (dedupe a wider ANN candidate set in Python) if the corpus
+# grows by orders of magnitude.
 RETRIEVAL_SQL = """
+WITH deduplicated AS (
+    SELECT DISTINCT ON (content)
+        chunk_id,
+        document_id,
+        content,
+        source_field,
+        source_type,
+        title,
+        ship,
+        era,
+        material_type,
+        object_identifier,
+        public_url,
+        source_url,
+        author_publisher,
+        license,
+        btrim(content) = btrim(title) AS holdings_only,
+        embedding <=> CAST(:query_embedding AS vector) AS distance
+    FROM retrievable_chunks
+    WHERE (CAST(:ship AS ship_enum) IS NULL OR ship = CAST(:ship AS ship_enum))
+      AND (CAST(:material_type AS text) IS NULL OR material_type = CAST(:material_type AS text))
+    ORDER BY content, embedding <=> CAST(:query_embedding AS vector)
+),
+quota AS (
+    SELECT
+        deduplicated.*,
+        ROW_NUMBER() OVER (PARTITION BY holdings_only ORDER BY distance) AS rank_in_group
+    FROM deduplicated
+)
 SELECT
     chunk_id,
     document_id,
@@ -38,11 +85,10 @@ SELECT
     source_url,
     author_publisher,
     license,
-    embedding <=> CAST(:query_embedding AS vector) AS distance
-FROM retrievable_chunks
-WHERE (CAST(:ship AS ship_enum) IS NULL OR ship = CAST(:ship AS ship_enum))
-  AND (CAST(:material_type AS text) IS NULL OR material_type = CAST(:material_type AS text))
-ORDER BY embedding <=> CAST(:query_embedding AS vector)
+    distance
+FROM quota
+WHERE NOT holdings_only OR rank_in_group <= :max_holdings_only
+ORDER BY distance
 LIMIT :top_k
 """
 
@@ -141,6 +187,7 @@ class RetrievalService:
                 {
                     "query_embedding": _vector_literal(query_embedding),
                     "top_k": top_k,
+                    "max_holdings_only": MAX_HOLDINGS_ONLY_CHUNKS,
                     "ship": ship,
                     "material_type": material_type,
                 },
