@@ -26,6 +26,11 @@ from app.retrieval import Citation, RetrievalResponse
 tracer = trace.get_tracer(__name__)
 
 NARRATOR_SOFT_RESPONSE_LENGTH = 800
+# How much of the conversation the retrieval query may carry back. Enough to resolve
+# a pronoun to what the visitor just named, short enough that a stale topic cannot
+# outweigh the turn actually being asked.
+RETRIEVAL_HISTORY_TURNS = 2
+RETRIEVAL_HISTORY_BUDGET = 240
 _TRUNCATION_PUNCTUATION = ".!?;:,。！？；：，、…"
 _CITATION_MARKER_RE = re.compile(r"(?:\[\s*\d+\s*\]|【\s*\d+\s*】)")
 
@@ -49,6 +54,54 @@ def _latest_user_message(messages: list[dict[str, str]]) -> str:
         (message["content"] for message in reversed(messages) if message.get("role") == "user"),
         "",
     )
+
+
+def _earlier_user_messages(messages: list[dict[str, str]], limit: int) -> list[str]:
+    """The user turns before the latest one, most recent first."""
+    spoken = [
+        message["content"].strip()
+        for message in messages
+        if message.get("role") == "user" and message.get("content", "").strip()
+    ]
+    return list(reversed(spoken[:-1]))[:limit]
+
+
+def _retrieval_query(messages: list[dict[str, str]], scene: Scene | None) -> str:
+    """Compose the vector-search query from the turn plus the context it leans on.
+
+    Visitors speak from inside the scene and inside the conversation — "where was
+    this ship built", "what was served here", "and when was she launched" — so the
+    bare user turn frequently names no retrievable subject at all. Searching on it
+    alone ranks every long shipping article alike and the vessel actually being
+    asked about loses to unrelated ones. Two anchors are appended to give the
+    embedding a subject to hold onto:
+
+    - the scene's ship and room, which resolve "this ship" and "here";
+    - the preceding user turns, which resolve "she" and "that one" back to whatever
+      the visitor last named. These are capped and truncated because an earlier turn
+      on an unrelated topic pulls the search off course as readily as it helps.
+
+    The spoken turn stays first so it keeps dominating the embedding; the anchors
+    only break ties between otherwise indistinguishable candidates.
+    """
+    latest = _latest_user_message(messages).strip()
+    if not latest:
+        return ""
+
+    parts = [latest]
+
+    earlier = _earlier_user_messages(messages, RETRIEVAL_HISTORY_TURNS)
+    if earlier:
+        recalled = " ".join(earlier)[:RETRIEVAL_HISTORY_BUDGET].rstrip()
+        if recalled:
+            parts.append(recalled)
+
+    if scene is not None:
+        anchor = " ".join(part for part in (scene.ship, scene.name) if part)
+        if anchor:
+            parts.append(anchor)
+
+    return " ".join(parts)
 
 
 def _candidate_context(
@@ -190,7 +243,7 @@ def _persona_node(
                 "agent.out_of_scene",
                 bool(scene is not None and scene.id not in persona.scenes),
             )
-            query = _latest_user_message(messages).strip()
+            query = _retrieval_query(messages, scene)
             try:
                 retrieval = retrieve_candidates(query) if query else RetrievalResponse(results=[])
             except Exception as exc:

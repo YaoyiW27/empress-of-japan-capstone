@@ -23,6 +23,9 @@ class Scene:
     id: str
     name: str
     context_prompt: str
+    # Every scene file names the vessel it belongs to. Optional here so a Scene can
+    # still be constructed from id/name/prompt alone (tests, fixtures).
+    ship: str | None = None
 
 
 def _parse(text: str, source: str) -> Scene:
@@ -36,10 +39,12 @@ def _parse(text: str, source: str) -> Scene:
         raise ValueError(f"{source}: no fenced block under '## Scene Context Prompt'")
 
     try:
+        ship = metadata.get("ship")
         return Scene(
             id=str(metadata["id"]),
             name=str(metadata["name"]),
             context_prompt=prompt_match.group(1).strip(),
+            ship=str(ship) if ship else None,
         )
     except KeyError as exc:
         raise ValueError(f"{source}: frontmatter missing {exc}") from exc

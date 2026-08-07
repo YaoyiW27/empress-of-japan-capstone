@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.agents.graph import (
     OUT_OF_SCENE_INSTRUCTION,
+    RETRIEVAL_HISTORY_BUDGET,
     InvalidGroundedResponseError,
     RetrievalUnavailableError,
     build_graph,
@@ -406,7 +407,92 @@ def test_graph_retrieves_with_latest_user_turn_only() -> None:
         }
     )
 
-    assert queries == ["Current question"]
+    # No scene to anchor with, so only the conversation itself reaches the query.
+    [query] = queries
+    assert query.startswith("Current question")
+    assert "Earlier question" in query
+    assert "Earlier answer" not in query, "assistant turns must not steer retrieval"
+
+
+def test_retrieval_query_carries_back_recent_user_turns_for_pronouns() -> None:
+    """A pronoun resolves only if the turn that named the ship comes along too."""
+    queries: list[str] = []
+
+    def retrieve(query: str) -> RetrievalResponse:
+        queries.append(query)
+        return RetrievalResponse(results=[])
+
+    graph = build_graph(StubChatModel(), retrieve_candidates=retrieve)
+    graph.invoke(
+        {
+            "persona_id": "captain_sinclair",
+            "messages": [
+                {"role": "user", "content": "Tell me about the Empress of Scotland"},
+                {"role": "assistant", "content": "A fine ship."},
+                {"role": "user", "content": "When was she launched?"},
+            ],
+        }
+    )
+
+    [query] = queries
+    assert query.startswith("When was she launched?")
+    assert "Empress of Scotland" in query
+
+
+def test_retrieval_query_caps_how_much_conversation_it_carries() -> None:
+    """A stale topic must not outweigh the turn actually being asked."""
+    queries: list[str] = []
+
+    def retrieve(query: str) -> RetrievalResponse:
+        queries.append(query)
+        return RetrievalResponse(results=[])
+
+    messages: list[dict[str, str]] = [
+        {"role": "user", "content": f"Old question {index} " + "padding " * 40}
+        for index in range(6)
+    ]
+    messages.append({"role": "user", "content": "What is on the menu?"})
+
+    graph = build_graph(StubChatModel(), retrieve_candidates=retrieve)
+    graph.invoke({"persona_id": "captain_sinclair", "messages": messages})
+
+    [query] = queries
+    assert query.startswith("What is on the menu?")
+    # Only the two most recent earlier turns, and only up to the character budget.
+    assert "Old question 5" in query
+    assert "Old question 0" not in query
+    assert len(query) <= len("What is on the menu?") + RETRIEVAL_HISTORY_BUDGET + 1
+
+
+def test_graph_anchors_retrieval_query_with_scene_ship_and_room() -> None:
+    """A turn that says "this ship" carries no subject; the scene supplies one."""
+    queries: list[str] = []
+
+    def retrieve(query: str) -> RetrievalResponse:
+        queries.append(query)
+        return RetrievalResponse(results=[])
+
+    graph = build_graph(StubChatModel(), retrieve_candidates=retrieve)
+    graph.invoke(
+        {
+            "persona_id": "captain_sinclair",
+            "scene": "bridge",
+            "messages": [{"role": "user", "content": "Where was this ship built?"}],
+        }
+    )
+
+    [query] = queries
+    # The spoken turn leads so it keeps dominating the embedding.
+    assert query.startswith("Where was this ship built?")
+    assert "Empress of Japan" in query
+    assert "Bridge" in query
+
+
+def test_scene_files_carry_the_ship_the_retrieval_anchor_depends_on() -> None:
+    scenes = load_scenes()
+
+    assert scenes["bridge"].ship == "Empress of Japan"
+    assert all(scene.ship for scene in scenes.values())
 
 
 @pytest.mark.parametrize("mode", ["conversational", "insufficient_evidence"])
