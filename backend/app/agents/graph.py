@@ -11,6 +11,7 @@ then returns a voice-safe answer plus separately structured citations.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from collections.abc import Callable
 
@@ -24,6 +25,7 @@ from app.agents.state import AgentState
 from app.retrieval import Citation, RetrievalResponse
 
 tracer = trace.get_tracer(__name__)
+log = logging.getLogger(__name__)
 
 NARRATOR_SOFT_RESPONSE_LENGTH = 800
 # How much of the conversation the retrieval query may carry back. Enough to resolve
@@ -102,6 +104,18 @@ def _retrieval_query(messages: list[dict[str, str]], scene: Scene | None) -> str
             parts.append(anchor)
 
     return " ".join(parts)
+
+
+def _groundable_candidate_count(response: RetrievalResponse) -> int:
+    """Candidates carrying text beyond their own title.
+
+    A chunk whose content is exactly its record title shows the museum holds the
+    object but can support no claim about what the object says, so counting these
+    separately is what distinguishes "nothing to cite" from "had prose, cited none".
+    """
+    return sum(
+        1 for result in response.results if result.content.strip() != result.citation.title.strip()
+    )
 
 
 def _candidate_context(
@@ -256,7 +270,9 @@ def _persona_node(
             last_error: Exception | None = None
             grounded_result: GroundedChatResult | None = None
             citations: list[Citation] = []
+            attempts = 0
             for _attempt in range(2):
+                attempts += 1
                 try:
                     raw_result = chat_model.invoke_grounded(prompt, messages)
                     grounded_result, citations = _validate_grounded_result(
@@ -266,6 +282,14 @@ def _persona_node(
                 except Exception as exc:
                     last_error = exc
             if grounded_result is None:
+                log.warning(
+                    "grounding failed persona=%s scene=%s candidates=%d attempts=%d error=%s",
+                    persona.id,
+                    scene_id or "-",
+                    len(retrieval.results),
+                    attempts,
+                    last_error,
+                )
                 raise InvalidGroundedResponseError(
                     "chat model did not return a valid grounded response"
                 ) from last_error
@@ -274,8 +298,26 @@ def _persona_node(
                 grounded_result.response,
                 max_response_length,
             )
+            groundable = _groundable_candidate_count(retrieval)
             span.set_attribute("rag.used_citation_count", len(citations))
             span.set_attribute("rag.answer_mode", grounded_result.answer_mode)
+            span.set_attribute("rag.groundable_candidate_count", groundable)
+            # One line per turn so the classification can actually be counted. The
+            # case worth watching is answer_mode != grounded while groundable > 0:
+            # the model had prose it could have cited and answered without sources.
+            # That is legitimate for small talk and for prose about another subject,
+            # so this is reported, not treated as an error.
+            log.info(
+                "grounding persona=%s scene=%s answer_mode=%s "
+                "candidates=%d groundable=%d citations=%d attempts=%d",
+                persona.id,
+                scene_id or "-",
+                grounded_result.answer_mode,
+                len(retrieval.results),
+                groundable,
+                len(citations),
+                attempts,
+            )
         # Return only deltas: the assistant turn is appended to history (via the
         # `messages` reducer) so the next turn in this session sees it.
         return {

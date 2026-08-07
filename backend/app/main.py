@@ -7,6 +7,7 @@ Run locally with:
 import asyncio
 import hmac
 import json
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 from typing import Annotated
@@ -197,6 +198,23 @@ def _build_transcriber(settings: Settings) -> Transcriber:
     )
 
 
+def _configure_logging(settings: Settings) -> None:
+    """Give this package's loggers a level and a destination.
+
+    uvicorn configures only its own ``uvicorn*`` loggers and leaves the root logger
+    at WARNING with no handler attached, so until now every ``log.info`` under
+    ``app.*`` was written and silently dropped — ``LOG_LEVEL`` was read from the
+    environment and never applied. Attach to the ``app`` logger rather than the root
+    so raising the level does not also turn on INFO for botocore, httpx and psycopg.
+    """
+    package_logger = logging.getLogger("app")
+    package_logger.setLevel(settings.log_level.upper())
+    if not package_logger.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
+        package_logger.addHandler(handler)
+
+
 def create_app(
     settings: Settings | None = None,
     *,
@@ -207,6 +225,7 @@ def create_app(
     session_memory_backend: SessionMemoryBackend | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
+    _configure_logging(settings)
     retrieval_service = retriever or RetrievalService(
         make_embedder(
             settings.embedder,
