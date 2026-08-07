@@ -12,6 +12,7 @@ import type { Narrator, Scene } from "@/lib/scenes";
 import {
   getOrCreateTabChatSession,
   sendChatMessage,
+  type Citation,
   type ChatHistoryTurn,
 } from "@/lib/chat";
 import {
@@ -155,6 +156,83 @@ function preventMouseFocus(event: MouseEvent) {
   event.preventDefault();
 }
 
+function CitationDisclosure({ citations }: { citations: Citation[] }) {
+  if (citations.length === 0) return null;
+
+  return (
+    <details className="mt-3 border-t border-navy/15 pt-3">
+      <summary className="cursor-pointer rounded-sm text-sm font-semibold text-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brass">
+        {citations.length === 1
+          ? "View 1 source"
+          : `View ${citations.length} sources`}
+      </summary>
+
+      <ul className="mt-3 space-y-3">
+        {citations.map((citation, index) => {
+          const href = citation.public_url ?? citation.source_url;
+          const isVmm =
+            citation.source_type === "vmm_catalogue" ||
+            citation.source_type === "vmm_digitized_sample";
+
+          return (
+            <li
+              key={`${citation.source_type}-${citation.object_identifier ?? citation.source_url ?? index}`}
+              className="rounded-md bg-navy/5 p-3 text-xs text-navy"
+            >
+              <span
+                className={
+                  isVmm
+                    ? "inline-flex rounded-full bg-brass/20 px-2 py-1 font-semibold text-navy"
+                    : "inline-flex rounded-full bg-ai/20 px-2 py-1 font-semibold text-navy"
+                }
+              >
+                {isVmm
+                  ? "VMM archival source"
+                  : "External historical source"}
+              </span>
+
+              <div className="mt-2">
+                {href ? (
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-semibold text-navy underline decoration-brass underline-offset-2"
+                  >
+                    {citation.title}
+                  </a>
+                ) : (
+                  <span className="font-semibold text-navy">
+                    {citation.title}
+                  </span>
+                )}
+              </div>
+
+              {isVmm && citation.object_identifier && (
+                <p className="mt-1 text-navy-soft">
+                  Object {citation.object_identifier}
+                </p>
+              )}
+
+              {!isVmm && citation.author_publisher && (
+                <p className="mt-1 text-navy-soft">
+                  {citation.author_publisher}
+                </p>
+              )}
+
+              {!isVmm && citation.license && (
+                <p className="mt-1 text-navy-soft">
+                  License: {citation.license}
+                </p>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </details>
+  );
+}
+
 export default function NarratorOverlay({
   narrator,
   scene,
@@ -167,6 +245,7 @@ export default function NarratorOverlay({
   const [open, setOpen] = useState(false);
   const [history, setHistory] = useState<ChatHistoryTurn[]>([]);
   const [response, setResponse] = useState(narrator.bio);
+  const [citations, setCitations] = useState<Citation[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -311,6 +390,7 @@ export default function NarratorOverlay({
   async function submitMessage(message: string) {
     setIsLoading(true);
     setNotice(null);
+    setCitations([]);
 
     try {
       const { sessionId, isNew } = getOrCreateTabChatSession(narrator.id);
@@ -333,9 +413,11 @@ export default function NarratorOverlay({
       ]);
 
       setResponse(result.response);
+      setCitations(result.citations);
       void speak(result.response);
     } catch (error) {
       console.error(error);
+      setCitations([]);
       setNotice("Sorry, I could not reach the narrator service.");
       setOpen(true);
     } finally {
@@ -550,6 +632,8 @@ export default function NarratorOverlay({
 
             <div ref={historyEndRef} />
           </div>
+
+          <CitationDisclosure citations={citations} />
         </div>
       )}
 
