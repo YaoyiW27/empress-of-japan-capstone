@@ -276,7 +276,7 @@ export default function VoyageExperience() {
         <BackButton
           href="/explore"
           label="Back to the hub"
-          className="absolute left-3 top-3 z-20 sm:left-6 sm:top-6"
+          className="voyage-experience__back absolute left-3 top-3 z-20 sm:left-6 sm:top-6"
         />
 
         {/* Top-center: current scene title */}
@@ -287,7 +287,7 @@ export default function VoyageExperience() {
         </div>
 
         {/* Top-right: map button and look-mode control */}
-        <div className="absolute right-3 top-3 z-20 flex items-center gap-3 sm:right-6 sm:top-6">
+        <div className="voyage-experience__top-controls absolute right-3 top-3 z-20 flex items-center gap-3 sm:right-6 sm:top-6">
           <MapButton
             label="Open ship map"
             onClick={() => setMapOpen(true)}
@@ -384,7 +384,10 @@ export default function VoyageExperience() {
           })}
         </div>
 
-        {/* Current narrator avatar */}
+        {/* Current narrator avatar. dvh, not vh — do not revert: iOS vh is
+            the toolbar-collapsed (largest) viewport, so a vh-sized cutout
+            overflows upward while Safari's bars are showing and runs into
+            the voice dock (the exact overlap from issue #193). */}
         <div className="voyage-experience__cutout absolute bottom-0 left-0 px-4 sm:px-6">
           <Image
             src={
@@ -395,11 +398,7 @@ export default function VoyageExperience() {
             width={400}
             height={600}
             priority
-            className={`block h-[46vh] w-auto object-contain drop-shadow-[0_8px_24px_rgba(0,0,0,0.45)] ${
-              narrator.id === "captain_sinclair"
-                ? "translate-y-[5.6%]"
-                : ""
-            }`}
+            className={`block h-[46dvh] w-auto object-contain drop-shadow-[0_8px_24px_rgba(0,0,0,0.45)]`}
           />
         </div>
 
@@ -411,12 +410,16 @@ export default function VoyageExperience() {
           onStatusChange={setNarratorStatus}
         />
 
-        {/* Right-edge scene drawer */}
+        {/* Right-edge scene drawer. The closed-state slide distance is the
+            single --scene-drawer-offset var (its lg value is a media-query
+            redefinition in globals.css). Do not reintroduce a `-lg` variant:
+            referencing an undefined var makes the whole translate invalid,
+            so the drawer can never close on desktop. */}
         <div
           className={`voyage-experience__scene-drawer pointer-events-none absolute inset-y-0 right-0 z-20 flex items-center transition-transform duration-300 ease-out ${
             drawerOpen
               ? "translate-x-0"
-              : "translate-x-[var(--scene-drawer-offset)] lg:translate-x-[var(--scene-drawer-offset-lg)]"
+              : "translate-x-[var(--scene-drawer-offset)]"
           }`}
         >
           <button
@@ -495,7 +498,8 @@ export default function VoyageExperience() {
               </Button>
             </div>
 
-            <p className="voyage-hints__guide absolute bottom-[48vh] left-4 max-w-[38vw] rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-xs font-semibold text-navy shadow-lg sm:left-6 sm:max-w-none sm:whitespace-nowrap">
+            {/* 48dvh pairs with the cutout's 46dvh reference frame above. */}
+            <p className="voyage-hints__guide absolute bottom-[48dvh] left-4 max-w-[38vw] rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-xs font-semibold text-navy shadow-lg sm:left-6 sm:max-w-none sm:whitespace-nowrap">
               Tap Your Guide to Switch Narrator
             </p>
 

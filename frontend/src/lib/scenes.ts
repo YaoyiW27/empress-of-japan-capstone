@@ -144,7 +144,7 @@ export const scenes: Scene[] = [
     title: "Sport Deck",
     photoSrc: "/scenes/first-class/deck.png",
     narratorIds: allNarratorIds,
-    shipSpot: { length: 0.78, height: 0.35 },
+    shipSpot: { length: 0.12, height: 0.4 },
   },
   {
     id: "first-class-dining-saloon",
@@ -152,15 +152,15 @@ export const scenes: Scene[] = [
     title: "Dining Saloon",
     photoSrc: "/scenes/first-class/first-class-dining-saloon.png",
     narratorIds: allNarratorIds,
-    shipSpot: { length: 0.6, height: 0.5 },
+    shipSpot: { length: 0.72, height: 0.24 },
   },
   {
     id: "first-class-smoking-room",
     backendSceneId: "smoking_room",
     title: "Smoking Room",
-    photoSrc: "/scenes/firstclass-smoking-room.png",
+    photoSrc: "/scenes/FirstClass-Smoking-Room.png",
     narratorIds: allNarratorIds,
-    shipSpot: { length: 0.45, height: 0.35 },
+    shipSpot: { length: 0.36, height: 0.32 },
   },
   {
     id: "first-class-suite",
@@ -168,7 +168,7 @@ export const scenes: Scene[] = [
     title: "First-Class Suite",
     photoSrc: "/scenes/first-class/first-class-suite.png",
     narratorIds: allNarratorIds,
-    shipSpot: { length: 0.6, height: 0.35 },
+    shipSpot: { length: 0.72, height: 0.16 },
   },
   {
     id: "swimming-pool",
@@ -176,7 +176,7 @@ export const scenes: Scene[] = [
     title: "Swimming Pool",
     photoSrc: "/scenes/first-class/swimming-pool.png",
     narratorIds: allNarratorIds,
-    shipSpot: { length: 0.35, height: 0.32 },
+    shipSpot: { length: 0.48, height: 0.24 },
   },
   {
     id: "engine-room",
@@ -184,7 +184,7 @@ export const scenes: Scene[] = [
     title: "Engine Room",
     photoSrc: "/scenes/crew/engine-room.png",
     narratorIds: allNarratorIds,
-    shipSpot: { length: 0.45, height: 0.16 },
+    shipSpot: { length: 0.32, height: 0.16 },
   },
   {
     // Historically a steerage passenger space (see data/ai persona notes);
@@ -194,7 +194,7 @@ export const scenes: Scene[] = [
     title: "Steerage Bedroom",
     photoSrc: "/scenes/crew/crew-bedroom.png",
     narratorIds: allNarratorIds,
-    shipSpot: { length: 0.12, height: 0.35 },
+    shipSpot: { length: 0.12, height: 0.16 },
   },
   {
     // Historically a steerage passenger space (see data/ai persona notes);
@@ -202,9 +202,9 @@ export const scenes: Scene[] = [
     id: "crew-mess-hall",
     backendSceneId: "crew_mess_hall",
     title: "Steerage Dining Hall",
-    photoSrc: "/scenes/crew-mess-hall.png",
+    photoSrc: "/scenes/Crew-Mess-Hall.png",
     narratorIds: allNarratorIds,
-    shipSpot: { length: 0.6, height: 0.35 },
+    shipSpot: { length: 0.16, height: 0.16 },
   },
 
 ];

@@ -382,19 +382,13 @@ body {
   height: 3.5rem;
 }
 
-/* SceneButton's first span is the thumbnail frame; scale it to the row
-   (2px border + 6px padding each side leaves 40px of content height). 
-.explore-hub__scene-panel li > button > span:first-child {
-  width: 3.5rem;
-  height: 2.5rem;
-}*/
-
-/* Keep the start CTA inside the panel: Button's fixed w-48 becomes a cap
-   here, so a narrower panel (compressed tiers, safe-area insets) shrinks the
-   button instead of clipping it. */
+/* Keep the start CTA inside the panel: the shared button's fixed width
+   (ui-button--primary, 176px) becomes a cap here, so a narrower panel
+   (compressed tiers, safe-area insets) shrinks the button instead of
+   clipping it. */
 .explore-hub__start :is(a, button) {
   width: 100%;
-  max-width: 12rem;
+  max-width: 11rem;
 }
 
 /*
@@ -473,37 +467,32 @@ body {
     height: 3rem;
   }
 
- /* .explore-hub__scene-panel li > button > span:first-child {
-    width: 2.75rem;
-    height: 2rem;
-  }
-
   .voyage-experience h1 {
     font-size: 2rem;
     line-height: 1;
-  }*/
+  }
 
   .voyage-experience {
     --scene-drawer-offset: min(46vw, 13rem);
   }
 
-  /* Edge-anchored voyage chrome tracks the notch inset on either rotation. */
-  .voyage-experience .ui-nav-button {
-    left: max(1.5rem, env(safe-area-inset-left));
+  /* Edge-anchored voyage chrome: tuck into the corners like the hub's back
+     button (same 0.5rem treatment) and track the notch inset. Scoped to
+     these hooks on purpose — a bare `.voyage-experience .ui-nav-button`
+     also matches the ship map's close button and, by setting `left` on an
+     element positioned with `right`, yanks it to the wrong edge. */
+  .voyage-experience__back {
+    top: 0.5rem;
+    left: max(0.5rem, env(safe-area-inset-left));
   }
 
-  .voyage-experience__look-toggle {
-    right: max(1.5rem, env(safe-area-inset-right));
+  .voyage-experience__top-controls {
+    top: 0.5rem;
+    right: max(0.5rem, env(safe-area-inset-right));
   }
 
   .voyage-experience__cutout {
     padding-left: max(1.5rem, env(safe-area-inset-left));
-  }
-
-  /* Insets the whole drawer (handle included); the slide offset still equals
-     the list width, so the closed state still shows exactly the handle. */
-  .voyage-experience__scene-drawer {
-    padding-right: env(safe-area-inset-right);
   }
 
   .voyage-experience__narrator-rail {
@@ -539,7 +528,12 @@ body {
   }
 
   .voyage-experience__scene-list {
+    /* The safe-area inset lives INSIDE the list: border-box keeps its width
+       equal to the slide offset, so the closed drawer hides completely.
+       Padding on the drawer container instead leaves an inset-wide strip of
+       the list on screen when closed (it covered the look-mode toggle). */
     padding: 0.5rem;
+    padding-right: max(0.5rem, env(safe-area-inset-right));
   }
 
   .narrator-overlay {
@@ -618,15 +612,11 @@ body {
     line-height: 1.45;
   }
 
-  /* Featured-scene rows shrink like the hub's scene rail. */
+  /* Featured-scene rows shrink like the hub's scene rail. (No thumb rule:
+     the circular 36px thumbnail from #195 already fits a 3rem row.) */
   .narrator-bio .scene-button {
     width: 100%;
     height: 3rem;
-  }
-
-  .narrator-bio .scene-button__thumb {
-    width: 2.75rem;
-    height: 2rem;
   }
 }
 
@@ -758,12 +748,6 @@ body {
 
   object-fit: contain;
 
-  filter:
-    drop-shadow(0 0 4px rgb(0 0 0 / 80%))
-    drop-shadow(
-      0 0 10px
-      rgb(from var(--color-brass) r g b / 65%)
-    );
 
   user-select: none;
   -webkit-user-drag: none;
@@ -778,7 +762,8 @@ body {
 .ship-map-overlay__close {
   position: absolute;
   top: 0.75rem;
-  right: 0.75rem;
+  /* max() keeps the button clear of the notch in landscape (viewport-fit=cover). */
+  right: max(0.75rem, env(safe-area-inset-right));
   z-index: 3;
 }
 
@@ -796,7 +781,7 @@ body {
 @media (min-width: 640px) {
   .ship-map-overlay__close {
     top: 1.5rem;
-    right: 1.5rem;
+    right: max(1.5rem, env(safe-area-inset-right));
   }
 }
 
@@ -830,9 +815,9 @@ body {
 .text-ig {
   font-family: var(--font-display);
   font-size: var(--text-ig);
-  /* Figma IG_text is Playfair Display Italic. The previous `font-style:
-     black` was not a valid value — browsers dropped it, so these labels
-     had always rendered upright by accident. */
+  /* Upright on purpose (2026-08 team decision), diverging from Figma's
+     IG_text italic spec — italic read poorly at this size. Weight 600 is
+     the deliberate choice from #195. */
   font-weight: 600;
   line-height: 30px;
   letter-spacing: 0.08em;
@@ -899,8 +884,12 @@ body {
   --button-fg: var(--color-ivory);
 }
 
-.ui-button:not(:disabled):hover {
-  transform: scale(1.02);
+/* Gated like every other hover in this file: without it, a tap on touch
+   devices leaves the button stuck in its hover state. */
+@media (hover: hover) {
+  .ui-button:not(:disabled):hover {
+    transform: scale(1.02);
+  }
 }
 
 .ui-button--primary:disabled {

@@ -121,12 +121,14 @@ jobs:
           severity: "HIGH,CRITICAL"
           ignore-unfixed: true
           exit-code: "1"
-          # Wheels ship PEP 770 SBOMs under .dist-info/sboms/ describing components
-          # vendored into the wheel rather than installed in this image — psycopg_binary's
-          # auditwheel.cdx.json declares CentOS 7 RPMs while the image is Debian 13.
-          # Trivy ingests them as real packages, producing HIGH findings that no
-          # dependency bump can clear. Real site-packages metadata is still scanned.
-          skip-files: "**/*.dist-info/sboms/*"
+          # pip ships a CycloneDX SBOM at pip/_vendor/bom.cdx.json listing the
+          # packages it vendors — including msgpack 1.1.2 and setuptools 70.3.0.
+          # Trivy ingests it as a third-party SBOM and reports those as installed,
+          # so no dependency pin can clear them. Neither is reachable here: pip's
+          # vendored msgpack only runs when pip runs, and only pkg_resources is
+          # vendored, not setuptools' vulnerable package_index. Real installed
+          # packages are still scanned and still fail the gate.
+          skip-files: "**/pip/_vendor/bom.cdx.json"
 
       - name: Push immutable image tags
         env:
