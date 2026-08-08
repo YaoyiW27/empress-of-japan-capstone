@@ -5,12 +5,13 @@ import type {
   ComponentPropsWithoutRef,
 } from "react";
 
-type NavIcon = "back" | "cancel" | "map";
+type NavIcon = "back" | "cancel" | "map" | "photo";
 
 const iconSources: Record<NavIcon, string> = {
   back: "/icons/back-button.svg",
   cancel: "/icons/cancel-button.svg",
   map: "/icons/map-button.svg",
+  photo: "/icons/photo-button.svg",
 };
 
 type ActionButtonProps = Omit<
@@ -43,7 +44,7 @@ function ActionIconButton({
   type = "button",
   ...rest
 }: ActionButtonProps & {
-  icon: "map" | "cancel";
+  icon: "map" | "cancel" | "photo";
   label: string;
 }) {
   return (
@@ -105,6 +106,25 @@ export function MapButton({
   return (
     <ActionIconButton
       icon="map"
+      label={label}
+      className={className}
+      {...rest}
+    />
+  );
+}
+
+/**
+ * Opens the archival photograph the current scene's panorama was restored
+ * from, without navigating away from the scene.
+ */
+export function PhotoButton({
+  label = "Open the original photograph",
+  className = "",
+  ...rest
+}: ActionButtonProps) {
+  return (
+    <ActionIconButton
+      icon="photo"
       label={label}
       className={className}
       {...rest}
