@@ -1,6 +1,17 @@
 <svg width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
 <circle cx="22" cy="22" r="22" fill="#9EADBE"/>
-<rect x="11" y="14" width="22" height="17" rx="2.5" fill="#4C556D"/>
-<circle cx="17" cy="19.5" r="2.25" fill="#9EADBE"/>
-<path d="M12 31L18.75 22L23 27L26.75 23.25L32 31H12Z" fill="#9EADBE"/>
+<rect x="6" y="11" width="32" height="22" rx="2.5" fill="#4C556D"/>
+<rect x="8.8" y="13" width="3" height="2.5" rx="0.75" fill="#9EADBE"/>
+<rect x="14.6" y="13" width="3" height="2.5" rx="0.75" fill="#9EADBE"/>
+<rect x="20.5" y="13" width="3" height="2.5" rx="0.75" fill="#9EADBE"/>
+<rect x="26.4" y="13" width="3" height="2.5" rx="0.75" fill="#9EADBE"/>
+<rect x="32.2" y="13" width="3" height="2.5" rx="0.75" fill="#9EADBE"/>
+<rect x="8.8" y="28.5" width="3" height="2.5" rx="0.75" fill="#9EADBE"/>
+<rect x="14.6" y="28.5" width="3" height="2.5" rx="0.75" fill="#9EADBE"/>
+<rect x="20.5" y="28.5" width="3" height="2.5" rx="0.75" fill="#9EADBE"/>
+<rect x="26.4" y="28.5" width="3" height="2.5" rx="0.75" fill="#9EADBE"/>
+<rect x="32.2" y="28.5" width="3" height="2.5" rx="0.75" fill="#9EADBE"/>
+<rect x="10" y="17" width="24" height="10" rx="1" fill="#9EADBE"/>
+<circle cx="14" cy="19.8" r="1.8" fill="#4C556D"/>
+<path d="M10 27L17.5 20.5L22 24.5L26 21L34 27H10Z" fill="#4C556D"/>
 </svg>

@@ -36,8 +36,12 @@ import {
 
 import { narrators, scenes } from "@/lib/scenes";
 
-/** sessionStorage flag: the one-time feature hints were already shown. */
-const HINTS_SEEN_KEY = "empress.voyage.hints.v1";
+/**
+ * sessionStorage flag: the one-time feature hints were already shown. Bump the
+ * version whenever a hint is added, so a visitor who dismissed the old tour
+ * still gets introduced to the new control.
+ */
+const HINTS_SEEN_KEY = "empress.voyage.hints.v2";
 
 /** Maps backend persona ids to the shorter ids used by NarratorButton assets. */
 const narratorButtonIds: Record<string, NarratorButtonId> = {
@@ -531,8 +535,14 @@ export default function VoyageExperience() {
               Tap Your Guide to Switch Narrator
             </p>
 
+            {/* One label per top-right control, stacked under the cluster in
+                the same order as the buttons themselves. */}
+            <p className="voyage-hints__map absolute right-3 top-16 whitespace-nowrap rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-xs font-semibold text-navy shadow-lg sm:right-6 sm:top-20">
+              Open the Ship Map
+            </p>
+
             {gyroSupported && (
-              <p className="voyage-hints__look absolute right-16 top-4 whitespace-nowrap rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-xs font-semibold text-navy shadow-lg sm:right-20 sm:top-6">
+              <p className="voyage-hints__look absolute right-3 top-[6.5rem] whitespace-nowrap rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-xs font-semibold text-navy shadow-lg sm:right-6 sm:top-[7.5rem]">
                 Drag / Tilt View
               </p>
             )}
@@ -544,6 +554,14 @@ export default function VoyageExperience() {
             <p className="voyage-hints__mic absolute bottom-24 left-1/2 max-w-[85vw] -translate-x-1/2 rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-center text-xs font-semibold text-navy shadow-lg sm:bottom-28 sm:max-w-none sm:whitespace-nowrap">
               Ask with the Mic · Read the Transcript
             </p>
+
+            {/* Sits above the button rather than beside it: the mic hint owns
+                the centre of this edge. */}
+            {scene.originalPhotoSrc && (
+              <p className="voyage-hints__photo absolute bottom-16 right-3 max-w-[52vw] rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-xs font-semibold text-navy shadow-lg sm:bottom-20 sm:right-6 sm:max-w-none sm:whitespace-nowrap">
+                See the Original Photo
+              </p>
+            )}
           </div>
         )}
       </div>

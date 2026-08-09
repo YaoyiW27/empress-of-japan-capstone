@@ -575,9 +575,16 @@ body {
     transform: translateY(-50%);
   }
 
+  /* The top-right labels track the controls they describe, which tuck into
+     the corner at this tier (top: 0.5rem + a 44px button = ~3.4rem). */
+  .voyage-hints__map {
+    top: 3.5rem;
+    right: max(0.5rem, env(safe-area-inset-right));
+  }
+
   .voyage-hints__look {
-    top: 3.75rem;
-    right: 4.75rem;
+    top: 5.5rem;
+    right: max(0.5rem, env(safe-area-inset-right));
   }
 
   .voyage-hints__scenes {
@@ -589,6 +596,14 @@ body {
   .voyage-hints__mic {
     bottom: 3.1rem;
     max-width: min(24rem, 48vw);
+  }
+
+  /* The mic label is centred and may run to 24vw either side of centre, so
+     cap this one at the remaining quarter to keep the two from touching. */
+  .voyage-hints__photo {
+    bottom: 3.5rem;
+    right: max(0.5rem, env(safe-area-inset-right));
+    max-width: 24vw;
   }
 
   /* Give the photograph itself as much of the short viewport as possible:
@@ -675,9 +690,11 @@ body {
   }
 
   .voyage-hints__guide,
+  .voyage-hints__map,
   .voyage-hints__look,
   .voyage-hints__scenes,
-  .voyage-hints__mic {
+  .voyage-hints__mic,
+  .voyage-hints__photo {
     font-size: 0.7rem;
     line-height: 1.25;
   }
