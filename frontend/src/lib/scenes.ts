@@ -61,6 +61,12 @@ export type Scene = {
   title: string;
   /** Full equirectangular 360x180 panorama under /public. */
   photoSrc: string;
+  /**
+   * The archival black-and-white photograph the panorama was AI-restored
+   * from, under `public/original/`. Optional: a scene without a sourced
+   * photograph simply hides the voyage's "original photograph" button.
+   */
+  originalPhotoSrc?: string;
   /** Narrators available in this scene (currently: everyone, everywhere). */
   narratorIds: string[];
   /** Marker position on the hub's 3D ship. */
@@ -118,6 +124,7 @@ export const scenes: Scene[] = [
     backendSceneId: "bridge",
     title: "Bridge",
     photoSrc: "/scenes/captain/bridge.png",
+    originalPhotoSrc: "/original/bridge.jpg",
     narratorIds: allNarratorIds,
     shipSpot: { length: 0.7, height: 0.35 },
   },
@@ -126,6 +133,7 @@ export const scenes: Scene[] = [
     backendSceneId: "loading_dock",
     title: "Loading Dock",
     photoSrc: "/scenes/captain/loading-dock.png",
+    originalPhotoSrc: "/original/loading-deck.jpg",
     narratorIds: allNarratorIds,
     shipSpot: { length: 0.5, height: 0.1, beam: 2.4 },
   },
@@ -134,6 +142,7 @@ export const scenes: Scene[] = [
     backendSceneId: "promenade_deck",
     title: "Promenade Deck",
     photoSrc: "/scenes/first-class/promenade-deck.png",
+    originalPhotoSrc: "/original/promenade-deck.jpg",
     narratorIds: allNarratorIds,
     shipSpot: { length: 0.5, height: 0.35, beam: 0.7 },
   },
@@ -143,6 +152,7 @@ export const scenes: Scene[] = [
     backendSceneId: "open_deck",
     title: "Sport Deck",
     photoSrc: "/scenes/first-class/deck.png",
+    originalPhotoSrc: "/original/sport-deck.jpg",
     narratorIds: allNarratorIds,
     shipSpot: { length: 0.12, height: 0.4 },
   },
@@ -151,6 +161,7 @@ export const scenes: Scene[] = [
     backendSceneId: "dining_saloon",
     title: "Dining Saloon",
     photoSrc: "/scenes/first-class/first-class-dining-saloon.png",
+    originalPhotoSrc: "/original/dining-saloon.jpg",
     narratorIds: allNarratorIds,
     shipSpot: { length: 0.72, height: 0.24 },
   },
@@ -159,6 +170,7 @@ export const scenes: Scene[] = [
     backendSceneId: "smoking_room",
     title: "Smoking Room",
     photoSrc: "/scenes/FirstClass-Smoking-Room.png",
+    originalPhotoSrc: "/original/smoking-room.jpg",
     narratorIds: allNarratorIds,
     shipSpot: { length: 0.36, height: 0.32 },
   },
@@ -167,6 +179,7 @@ export const scenes: Scene[] = [
     backendSceneId: "first_class_suite",
     title: "First-Class Suite",
     photoSrc: "/scenes/first-class/first-class-suite.png",
+    originalPhotoSrc: "/original/first-class-suite.jpg",
     narratorIds: allNarratorIds,
     shipSpot: { length: 0.72, height: 0.16 },
   },
@@ -175,6 +188,7 @@ export const scenes: Scene[] = [
     backendSceneId: "swimming_pool",
     title: "Swimming Pool",
     photoSrc: "/scenes/first-class/swimming-pool.png",
+    originalPhotoSrc: "/original/swimming-pool.jpg",
     narratorIds: allNarratorIds,
     shipSpot: { length: 0.48, height: 0.24 },
   },
@@ -183,6 +197,7 @@ export const scenes: Scene[] = [
     backendSceneId: "engine_room",
     title: "Engine Room",
     photoSrc: "/scenes/crew/engine-room.png",
+    originalPhotoSrc: "/original/engine-room.jpg",
     narratorIds: allNarratorIds,
     shipSpot: { length: 0.32, height: 0.16 },
   },
@@ -193,6 +208,7 @@ export const scenes: Scene[] = [
     backendSceneId: "crew_bedroom",
     title: "Steerage Bedroom",
     photoSrc: "/scenes/crew/crew-bedroom.png",
+    originalPhotoSrc: "/original/steerage-bedroom.jpg",
     narratorIds: allNarratorIds,
     shipSpot: { length: 0.12, height: 0.16 },
   },
@@ -203,6 +219,7 @@ export const scenes: Scene[] = [
     backendSceneId: "crew_mess_hall",
     title: "Steerage Dining Hall",
     photoSrc: "/scenes/Crew-Mess-Hall.png",
+    originalPhotoSrc: "/original/steerage-dining-hall.jpg",
     narratorIds: allNarratorIds,
     shipSpot: { length: 0.16, height: 0.16 },
   },
