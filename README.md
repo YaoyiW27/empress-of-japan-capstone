@@ -6,7 +6,6 @@ converse with historical personas (a captain, a first-class passenger, a crew
 member) grounded in VMM archival material.
 
 - **Live app:** https://d2kekuy8p1ofvv.cloudfront.net
-- **Backend API:** https://d1dtybjmib9ba7.cloudfront.net
 - **Course:** Northeastern CS 7980 Capstone, Summer 2026
 - **Primary stakeholder:** Ashley Smith, VMM curator
 - **Final showcase:** 2026-08-10
