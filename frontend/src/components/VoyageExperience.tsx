@@ -24,18 +24,24 @@ import NarratorButton, {
 
 import SceneButton from "@/components/ui/SceneButton";
 import ShipMapOverlay from "@/components/ShipMapOverlay";
+import OriginalPhotoOverlay from "@/components/OriginalPhotoOverlay";
 
 import { Button } from "@/components/ui/Button";
 
 import {
   BackButton,
   MapButton,
+  PhotoButton,
 } from "@/components/ui/NavButtons";
 
 import { narrators, scenes } from "@/lib/scenes";
 
-/** sessionStorage flag: the one-time feature hints were already shown. */
-const HINTS_SEEN_KEY = "empress.voyage.hints.v1";
+/**
+ * sessionStorage flag: the one-time feature hints were already shown. Bump the
+ * version whenever a hint is added, so a visitor who dismissed the old tour
+ * still gets introduced to the new control.
+ */
+const HINTS_SEEN_KEY = "empress.voyage.hints.v2";
 
 /** Maps backend persona ids to the shorter ids used by NarratorButton assets. */
 const narratorButtonIds: Record<string, NarratorButtonId> = {
@@ -105,9 +111,10 @@ function readDefaultLookMode(): LookMode {
  * The voyage experience keeps one panorama viewer mounted while the selected
  * narrator and scene change in place.
  *
- * The map opens as a modal overlay. While it is open, the Voyage interface
- * beneath it becomes inert and cannot receive pointer, keyboard, microphone,
- * narrator, scene-drawer, or panorama interactions.
+ * The ship map and the scene's original archival photograph open as modal
+ * overlays. While either is open, the Voyage interface beneath it becomes
+ * inert and cannot receive pointer, keyboard, microphone, narrator,
+ * scene-drawer, or panorama interactions.
  */
 export default function VoyageExperience() {
   const params = useSearchParams();
@@ -141,7 +148,13 @@ export default function VoyageExperience() {
   // Full-screen ship map.
   const [mapOpen, setMapOpen] = useState(false);
 
-  // Contains everything beneath the map overlay.
+  // Full-screen archival photograph for the current scene.
+  const [photoOpen, setPhotoOpen] = useState(false);
+
+  // Either full-screen overlay makes the Voyage interface beneath it inert.
+  const overlayOpen = mapOpen || photoOpen;
+
+  // Contains everything beneath the full-screen overlays.
   const voyageContentRef = useRef<HTMLDivElement>(null);
 
   const [narratorStatus, setNarratorStatus] =
@@ -202,7 +215,7 @@ export default function VoyageExperience() {
   }, [sceneId, narratorId]);
 
   /*
-   * Fully disable the Voyage interface underneath the map.
+   * Fully disable the Voyage interface underneath a full-screen overlay.
    *
    * inert prevents:
    * - clicking and tapping
@@ -217,7 +230,7 @@ export default function VoyageExperience() {
 
     if (!voyageContent) return;
 
-    if (mapOpen) {
+    if (overlayOpen) {
       voyageContent.setAttribute("inert", "");
     } else {
       voyageContent.removeAttribute("inert");
@@ -226,7 +239,7 @@ export default function VoyageExperience() {
     return () => {
       voyageContent.removeAttribute("inert");
     };
-  }, [mapOpen]);
+  }, [overlayOpen]);
 
   async function toggleLook() {
     if (lookMode === "gyro") {
@@ -259,13 +272,14 @@ export default function VoyageExperience() {
   return (
     <main className="voyage-experience relative h-dvh w-full overflow-hidden bg-navy">
       {/*
-       * Everything inside this wrapper becomes inert while the map is open.
-       * ShipMapOverlay must remain outside this wrapper.
+       * Everything inside this wrapper becomes inert while a full-screen
+       * overlay is open. ShipMapOverlay and OriginalPhotoOverlay must remain
+       * outside this wrapper.
        */}
       <div
         ref={voyageContentRef}
         className="contents"
-        aria-hidden={mapOpen}
+        aria-hidden={overlayOpen}
       >
         {/* Panorama */}
         <div className="absolute inset-0">
@@ -410,6 +424,24 @@ export default function VoyageExperience() {
           onStatusChange={setNarratorStatus}
         />
 
+        {/* Bottom-right: the scene's original archival photograph. The open
+            scene drawer covers this corner, so the button steps aside for it
+            instead of sitting under an opaque panel. */}
+        {scene.originalPhotoSrc && (
+          <PhotoButton
+            label={`See the original photograph of the ${scene.title}`}
+            title="See the original photograph"
+            onClick={() => setPhotoOpen(true)}
+            aria-hidden={drawerOpen}
+            tabIndex={drawerOpen ? -1 : undefined}
+            className={`voyage-experience__photo absolute bottom-3 right-3 z-20 transition-opacity duration-300 sm:bottom-6 sm:right-6 ${
+              drawerOpen
+                ? "pointer-events-none opacity-0"
+                : "opacity-100"
+            }`}
+          />
+        )}
+
         {/* Right-edge scene drawer. The closed-state slide distance is the
             single --scene-drawer-offset var (its lg value is a media-query
             redefinition in globals.css). Do not reintroduce a `-lg` variant:
@@ -503,8 +535,14 @@ export default function VoyageExperience() {
               Tap Your Guide to Switch Narrator
             </p>
 
+            {/* One label per top-right control, stacked under the cluster in
+                the same order as the buttons themselves. */}
+            <p className="voyage-hints__map absolute right-3 top-16 whitespace-nowrap rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-xs font-semibold text-navy shadow-lg sm:right-6 sm:top-20">
+              Open the Ship Map
+            </p>
+
             {gyroSupported && (
-              <p className="voyage-hints__look absolute right-16 top-4 whitespace-nowrap rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-xs font-semibold text-navy shadow-lg sm:right-20 sm:top-6">
+              <p className="voyage-hints__look absolute right-3 top-[6.5rem] whitespace-nowrap rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-xs font-semibold text-navy shadow-lg sm:right-6 sm:top-[7.5rem]">
                 Drag / Tilt View
               </p>
             )}
@@ -516,18 +554,32 @@ export default function VoyageExperience() {
             <p className="voyage-hints__mic absolute bottom-24 left-1/2 max-w-[85vw] -translate-x-1/2 rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-center text-xs font-semibold text-navy shadow-lg sm:bottom-28 sm:max-w-none sm:whitespace-nowrap">
               Ask with the Mic · Read the Transcript
             </p>
+
+            {/* Sits above the button rather than beside it: the mic hint owns
+                the centre of this edge. */}
+            {scene.originalPhotoSrc && (
+              <p className="voyage-hints__photo absolute bottom-16 right-3 max-w-[52vw] rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-xs font-semibold text-navy shadow-lg sm:bottom-20 sm:right-6 sm:max-w-none sm:whitespace-nowrap">
+                See the Original Photo
+              </p>
+            )}
           </div>
         )}
       </div>
 
       {/*
-       * This must remain outside voyageContentRef so that it does not become
-       * inert when mapOpen is true.
+       * These must remain outside voyageContentRef so that they do not become
+       * inert along with the interface they sit above.
        */}
       <ShipMapOverlay
         scene={scene}
         open={mapOpen}
         onClose={() => setMapOpen(false)}
+      />
+
+      <OriginalPhotoOverlay
+        scene={scene}
+        open={photoOpen}
+        onClose={() => setPhotoOpen(false)}
       />
     </main>
   );

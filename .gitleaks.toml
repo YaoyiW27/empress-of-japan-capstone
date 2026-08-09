@@ -9,5 +9,8 @@ description = "Confirmed false positives (client-side storage key names, not sec
 regexes = [
   # sessionStorage flag in frontend/src/components/VoyageExperience.tsx — the
   # generic-api-key rule mistakes this literal key name for a credential.
-  '''empress\.voyage\.hints\.v1''',
+  # The version suffix is matched loosely on purpose: that key is bumped
+  # whenever a hint is added to the voyage tour, and pinning the exact version
+  # here means every bump fails the scan until someone edits this file.
+  '''empress\.voyage\.hints\.v\d+''',
 ]

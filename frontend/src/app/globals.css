@@ -491,6 +491,11 @@ body {
     right: max(0.5rem, env(safe-area-inset-right));
   }
 
+  .voyage-experience__photo {
+    bottom: max(0.5rem, env(safe-area-inset-bottom));
+    right: max(0.5rem, env(safe-area-inset-right));
+  }
+
   .voyage-experience__cutout {
     padding-left: max(1.5rem, env(safe-area-inset-left));
   }
@@ -570,9 +575,16 @@ body {
     transform: translateY(-50%);
   }
 
+  /* The top-right labels track the controls they describe, which tuck into
+     the corner at this tier (top: 0.5rem + a 44px button = ~3.4rem). */
+  .voyage-hints__map {
+    top: 3.5rem;
+    right: max(0.5rem, env(safe-area-inset-right));
+  }
+
   .voyage-hints__look {
-    top: 3.75rem;
-    right: 4.75rem;
+    top: 5.5rem;
+    right: max(0.5rem, env(safe-area-inset-right));
   }
 
   .voyage-hints__scenes {
@@ -584,6 +596,32 @@ body {
   .voyage-hints__mic {
     bottom: 3.1rem;
     max-width: min(24rem, 48vw);
+  }
+
+  /* The mic label is centred and may run to 24vw either side of centre, so
+     cap this one at the remaining quarter to keep the two from touching. */
+  .voyage-hints__photo {
+    bottom: 3.5rem;
+    right: max(0.5rem, env(safe-area-inset-right));
+    max-width: 24vw;
+  }
+
+  /* Give the photograph itself as much of the short viewport as possible:
+     trim the close button's reserved corner and the caption around it. */
+  .original-photo-overlay {
+    padding-top: 3rem;
+  }
+
+  .original-photo-overlay__figure {
+    gap: 0.5rem;
+  }
+
+  .original-photo-overlay__title {
+    font-size: 1rem;
+  }
+
+  .original-photo-overlay__note {
+    font-size: 0.75rem;
   }
 
   /* Biography page: same corner treatment for the back button, and the
@@ -652,9 +690,11 @@ body {
   }
 
   .voyage-hints__guide,
+  .voyage-hints__map,
   .voyage-hints__look,
   .voyage-hints__scenes,
-  .voyage-hints__mic {
+  .voyage-hints__mic,
+  .voyage-hints__photo {
     font-size: 0.7rem;
     line-height: 1.25;
   }
@@ -802,6 +842,116 @@ body {
     animation: none;
   }
 }
+
+/* ---------- Original photograph overlay ---------- */
+
+/* Same shell as the ship map (fixed, full-viewport, navy, close button in the
+   top-right corner) so the two full-screen views read as one pattern. */
+.original-photo-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  isolation: isolate;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 100vw;
+  height: 100dvh;
+  overflow: hidden;
+
+  /* Longhands so the notch keeps a floor in landscape (viewport-fit=cover).
+     The wider top pad reserves the close button's corner, so a portrait scan
+     can't run underneath it. */
+  padding: 3.75rem 1rem 1rem;
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+
+  background-color: rgb(from var(--color-navy) r g b / 96%);
+  backdrop-filter: blur(4px);
+}
+
+.original-photo-overlay__figure {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+/* min-height: 0 lets this flex child actually shrink, so the caption below is
+   never pushed off the bottom of a short viewport. */
+.original-photo-overlay__frame {
+  position: relative;
+
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+}
+
+.original-photo-overlay__image {
+  /* contain: the archival scans arrive at whatever aspect ratio the original
+     print had. Never crop them to fill. */
+  object-fit: contain;
+
+  /* drop-shadow follows the letterboxed photograph rather than the frame's
+     box, so the glow hugs the print's real edges. */
+  filter: drop-shadow(
+    0 0 18px rgb(from var(--color-ivory) r g b / 25%)
+  );
+
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.original-photo-overlay__caption {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+
+  max-width: 44rem;
+  flex: none;
+
+  text-align: center;
+}
+
+.original-photo-overlay__title {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-ivory);
+}
+
+.original-photo-overlay__note {
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--color-navy-faint);
+}
+
+.original-photo-overlay__close {
+  position: absolute;
+  top: 0.75rem;
+  right: max(0.75rem, env(safe-area-inset-right));
+  z-index: 3;
+}
+
+@media (min-width: 640px) {
+  .original-photo-overlay__close {
+    top: 1.5rem;
+    right: max(1.5rem, env(safe-area-inset-right));
+  }
+}
+
 /* ---------- Typography ---------- */
 .text-ig-header {
   font-family: var(--font-display);
