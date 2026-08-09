@@ -173,6 +173,21 @@ Required Honeycomb/CloudWatch views:
 - Transcribe WebSocket close/error counts and recording-duration rejections;
 - Bedrock, Polly, Transcribe, Fargate, RDS, and CloudWatch cost by service.
 
+### Offline groundedness evaluator
+
+Before exporting grounded/unsupported answer counters to dashboards, run the
+offline evaluator against sanitized or hand-authored answer-mode decisions:
+
+```bash
+python -m app.evaluation.groundedness tests/fixtures/groundedness_eval.jsonl
+```
+
+The JSONL input keeps one case per line with `expected_mode`, `actual_mode`,
+spoken `response`, and either a `citation_count` or structured `citations`.
+The evaluator fails a case when grounded answers have no citations,
+non-grounded answers select citations, the answer mode differs from the
+expected label, or the spoken response contains inline citation markers.
+
 Follow-up implementation work:
 
 - backend middleware for session/client-key limits and CloudFront WAF for true
@@ -180,8 +195,6 @@ Follow-up implementation work:
 - Bedrock client timeout/retry configuration, `502` exception mapping, and
   explicit telemetry;
 - token counting/summarization for client-provided chat history;
-- an offline groundedness evaluator before exporting grounded/unsupported
-  answer counters (#119).
 
 ### Migrations (Alembic)
 

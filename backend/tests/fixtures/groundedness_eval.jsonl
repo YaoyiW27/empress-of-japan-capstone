@@ -1,0 +1,4 @@
+{"id":"grounded-voyage-date","question":"When did Empress of Japan II enter service?","expected_mode":"grounded","actual_mode":"grounded","response":"The Empress of Japan II entered service in the early 1930s after being built for Canadian Pacific.","citations":[{"title":"Empress of Japan II service history"}],"expected_citation_titles":["service history"]}
+{"id":"visitor-greeting","question":"Hello, who are you?","expected_mode":"conversational","actual_mode":"conversational","response":"Welcome aboard. I can help you explore the ship and the stories around it.","citations":[]}
+{"id":"missing-manifest","question":"What was the name of the third passenger in cabin 12 on a specific crossing?","expected_mode":"insufficient_evidence","actual_mode":"insufficient_evidence","response":"I do not have enough archival evidence here to answer that confidently.","citations":[]}
+
