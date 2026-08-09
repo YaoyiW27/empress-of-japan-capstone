@@ -10,7 +10,8 @@ The deployed backend stayed healthy for the tested final-demo workload. The
 public liveness endpoint handled a 20-user, 3-minute Locust smoke test with zero
 failures and low latency. After the sandbox RDS database was started, the
 Bedrock/RAG-backed chat path handled a small 5-user, 2-minute chat smoke test
-with zero request failures.
+with zero request failures. A follow-up 10-user chat test also completed with
+zero failures across 69 chat requests.
 
 This supports a careful claim that the app is ready for a small capstone/demo
 audience. It does not prove production-scale concurrency.
@@ -87,6 +88,8 @@ the app should show clear loading states during chat.
   minutes and had zero failures.
 - The full chat/RAG path was tested with 5 concurrent Locust users for 2 minutes
   and had zero failures across 17 chat requests.
+- A follow-up 10-user chat run completed with zero failures across 69 chat
+  requests; chat p95 was about 9.8 seconds.
 - Role/scene clicking is mostly frontend interaction. It should be fine for many
   visitors as long as it does not trigger repeated chat, voice, or retrieval
   calls. The expensive/limited path is simultaneous chat/voice, not clicking
@@ -95,9 +98,26 @@ the app should show clear loading states during chat.
 For the final showcase, a reasonable operational expectation is:
 
 - 20-30 people can open and explore the site at the same time;
-- 3-5 people can chat at the same time based on the completed smoke test;
+- 5-10 people can chat at the same time based on the completed smoke tests;
 - more simultaneous chat users may work, but should be treated as untested until
   a larger Bedrock/RDS load test is run.
+
+## Follow-up 10-user chat run
+
+This run was started from the Locust Web UI at `http://127.0.0.1:8089` with
+`LOCUST_ENABLE_CHAT=true`, target host
+`https://d1dtybjmib9ba7.cloudfront.net`, 10 users, and spawn rate 1.
+
+Result from `chat-10users-web_stats.csv`:
+
+| Endpoint | Requests | Failures | Avg | Median | p95 | Max |
+|---|---:|---:|---:|---:|---:|---:|
+| `GET /health` | 661 | 0 | 26 ms | 23 ms | 41 ms | 159 ms |
+| `POST /chat` | 69 | 0 | 7400 ms | 8600 ms | 9800 ms | 10390 ms |
+
+Interpretation: the 10-user chat run still showed zero request failures. Chat
+latency stayed in the same seconds-level range as the 5-user run, with p95 under
+10 seconds.
 
 ## Interpretation
 
@@ -114,7 +134,8 @@ For the final showcase, a reasonable operational expectation is:
 ## Future work
 
 - Run a larger chat test only after confirming Bedrock quotas, RDS availability,
-  and acceptable budget impact. A next step could be 10 chat users for 5 minutes.
+  and acceptable budget impact. A next step could be 20 chat users for 3-5
+  minutes.
 - Add frontend loading/error states around chat and voice so seconds-level AI
   latency feels intentional rather than broken.
 - Add explicit rate limiting or per-session request caps before any public or
