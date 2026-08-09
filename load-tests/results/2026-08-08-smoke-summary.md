@@ -11,7 +11,9 @@ public liveness endpoint handled a 20-user, 3-minute Locust smoke test with zero
 failures and low latency. After the sandbox RDS database was started, the
 Bedrock/RAG-backed chat path handled a small 5-user, 2-minute chat smoke test
 with zero request failures. A follow-up 10-user chat test also completed with
-zero failures across 69 chat requests.
+zero failures across 69 chat requests. A 20-user chat test also completed with
+zero failures. A short 50-user stress run exposed the current boundary: chat
+started returning 502 responses and p95 latency rose sharply.
 
 This supports a careful claim that the app is ready for a small capstone/demo
 audience. It does not prove production-scale concurrency.
@@ -90,6 +92,11 @@ the app should show clear loading states during chat.
   and had zero failures across 17 chat requests.
 - A follow-up 10-user chat run completed with zero failures across 69 chat
   requests; chat p95 was about 9.8 seconds.
+- A 20-user chat run completed with zero failures across 105 chat requests;
+  chat p95 was about 10 seconds.
+- A short 50-user stress run reached 167 chat requests with 19 failures
+  (502 Bad Gateway), showing that 50 simultaneous chat users is beyond the
+  current reliable demo target.
 - Role/scene clicking is mostly frontend interaction. It should be fine for many
   visitors as long as it does not trigger repeated chat, voice, or retrieval
   calls. The expensive/limited path is simultaneous chat/voice, not clicking
@@ -98,9 +105,10 @@ the app should show clear loading states during chat.
 For the final showcase, a reasonable operational expectation is:
 
 - 20-30 people can open and explore the site at the same time;
-- 5-10 people can chat at the same time based on the completed smoke tests;
-- more simultaneous chat users may work, but should be treated as untested until
-  a larger Bedrock/RDS load test is run.
+- 5-20 people can chat at the same time based on the completed smoke/stress
+  tests;
+- 50 simultaneous chat users should be treated as a stress boundary, not a
+  supported demo target, until the 502s are investigated.
 
 ## Follow-up 10-user chat run
 
@@ -119,23 +127,58 @@ Interpretation: the 10-user chat run still showed zero request failures. Chat
 latency stayed in the same seconds-level range as the 5-user run, with p95 under
 10 seconds.
 
+## Follow-up 20-user chat run
+
+This run was started from the Locust Web UI with `LOCUST_ENABLE_CHAT=true`,
+target host `https://d1dtybjmib9ba7.cloudfront.net`, 20 users, and spawn rate 2.
+
+Result captured from the Locust statistics page:
+
+| Endpoint | Requests | Failures | Avg | Median | p95 | Max |
+|---|---:|---:|---:|---:|---:|---:|
+| `GET /health` | 1096 | 0 | 26 ms | 23 ms | 40 ms | 265 ms |
+| `POST /chat` | 105 | 0 | 7529 ms | 8600 ms | 10000 ms | 10410 ms |
+
+Interpretation: the 20-user chat run still showed zero request failures. Chat
+latency stayed near the 5-user and 10-user runs, with p95 around 10 seconds.
+
+## Follow-up 50-user stress run
+
+This run was started from the Locust Web UI with `LOCUST_ENABLE_CHAT=true`,
+target host `https://d1dtybjmib9ba7.cloudfront.net`, 50 users, and spawn rate 5.
+It was stopped after chat failures appeared.
+
+Result captured from the Locust API/statistics page:
+
+| Endpoint | Requests | Failures | Avg | Median | p95 | Max |
+|---|---:|---:|---:|---:|---:|---:|
+| `GET /health` | 2001 | 0 | 35 ms | 23 ms | 50 ms | 1646 ms |
+| `POST /chat` | 167 | 19 | 9604 ms | 9100 ms | 19000 ms | 28940 ms |
+
+Interpretation: `/health` stayed stable, but the chat path hit the current
+Bedrock/RAG/backend boundary. The failure mode was `502 Bad Gateway` from
+`POST /chat`, and p95 chat latency rose to 19 seconds. This is useful stress
+evidence, but it should not be claimed as supported capacity.
+
 ## Interpretation
 
 - The public liveness path handled a 20-user, 3-minute smoke test with zero
   failures and low latency.
-- The chat/RAG path handled a short 5-user smoke test with zero failures. Chat
-  latency is seconds-level, which is expected for the live Bedrock + retrieval
-  path and should be presented as a bounded demo-readiness check rather than a
-  production load claim.
+- The chat/RAG path handled 5-user, 10-user, and 20-user tests with zero
+  failures. Chat latency is seconds-level, which is expected for the live
+  Bedrock + retrieval path and should be presented as bounded demo-readiness
+  evidence rather than a production capacity claim.
+- The 50-user run exposed the current chat boundary: 502 failures and higher
+  p95 latency.
 - `/health/db` is a useful readiness check but should be separated from the
   liveness-only smoke test because the sandbox RDS instance may be intentionally
   stopped for cost control.
 
 ## Future work
 
-- Run a larger chat test only after confirming Bedrock quotas, RDS availability,
-  and acceptable budget impact. A next step could be 20 chat users for 3-5
-  minutes.
+- Investigate the 50-user `POST /chat` 502s before claiming higher chat
+  capacity. Likely areas to inspect are Bedrock throttling/timeout behavior,
+  model retry/timeout settings, RDS connection pressure, and ECS task metrics.
 - Add frontend loading/error states around chat and voice so seconds-level AI
   latency feels intentional rather than broken.
 - Add explicit rate limiting or per-session request caps before any public or
