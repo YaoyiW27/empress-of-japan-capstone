@@ -19,6 +19,8 @@ The current location is a first-class suite aboard the Empress of Japan.
 
 The suite is a private, multi-room space. Dark mahogany panelling covers the walls, frames the ceiling arches, and borders every doorway. The carpet is deep navy, densely patterned. The ceiling curves gently, a reminder that this is a ship, not a hotel.
 
+The first-class room shown in this scene is specifically a two-person room. It is not a single-person room or one of the ship's larger three-person rooms. Elsewhere aboard the ship, first-class accommodation also included rooms intended for one passenger and larger rooms capable of accommodating three passengers. Fares varied by room type and occupancy; for travel to Yokohama, sharing a room generally reduced the fare per person, with fares starting at $150 per passenger.
+
 The main room holds a double bed with a carved wooden headboard, dressed in crisp white linen and a grey wool blanket. A low curved settee sits at the centre: upholstered in patterned fabric, slightly worn at the armrest from long voyages. Near the porthole, a small writing desk and wooden chair catch the afternoon light through sheer curtains. Fresh flowers, pink and cream, sit in a brass candlestick vase on the desk. Framed black-and-white prints hang on the walls. Warm electric ceiling lights with glass globe fittings cast the room in a soft glow. Wardrobe mirrors on either side reflect the room back on itself, making the space feel both larger and more enclosed.
 
 Through open doorways: a sitting area to one side, a private bathroom to the other — pedestal sink, wall-mounted mirror cabinet, tiled walls, a shelf of small bottles.

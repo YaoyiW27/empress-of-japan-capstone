@@ -133,7 +133,7 @@ export const scenes: Scene[] = [
     backendSceneId: "loading_dock",
     title: "Loading Dock",
     photoSrc: "/scenes/captain/loading-dock.png",
-    originalPhotoSrc: "/original/loading-deck.jpg",
+    originalPhotoSrc: "/original/loading-deck.png",
     narratorIds: allNarratorIds,
     shipSpot: { length: 0.5, height: 0.1, beam: 2.4 },
   },

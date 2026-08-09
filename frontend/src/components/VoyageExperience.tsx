@@ -526,7 +526,7 @@ export default function VoyageExperience() {
                 onClick={dismissHints}
                 className="scale-90 sm:scale-100"
               >
-                Got it
+                Got It
               </Button>
             </div>
 
@@ -538,12 +538,12 @@ export default function VoyageExperience() {
             {/* One label per top-right control, stacked under the cluster in
                 the same order as the buttons themselves. */}
             <p className="voyage-hints__map absolute right-3 top-16 whitespace-nowrap rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-xs font-semibold text-navy shadow-lg sm:right-6 sm:top-20">
-              Open the Ship Map
+              Open the Map to See Your Location
             </p>
 
             {gyroSupported && (
               <p className="voyage-hints__look absolute right-3 top-[6.5rem] whitespace-nowrap rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-xs font-semibold text-navy shadow-lg sm:right-6 sm:top-[7.5rem]">
-                Drag / Tilt View
+                Switch Between Drag and Tilt Controls
               </p>
             )}
 
@@ -552,14 +552,14 @@ export default function VoyageExperience() {
             </p>
 
             <p className="voyage-hints__mic absolute bottom-24 left-1/2 max-w-[85vw] -translate-x-1/2 rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-center text-xs font-semibold text-navy shadow-lg sm:bottom-28 sm:max-w-none sm:whitespace-nowrap">
-              Ask with the Mic · Read the Transcript
+              Speak or Type · Open the Transcript
             </p>
 
             {/* Sits above the button rather than beside it: the mic hint owns
                 the centre of this edge. */}
             {scene.originalPhotoSrc && (
               <p className="voyage-hints__photo absolute bottom-16 right-3 max-w-[52vw] rounded-md border border-brass/40 bg-card/95 px-3 py-1.5 text-xs font-semibold text-navy shadow-lg sm:bottom-20 sm:right-6 sm:max-w-none sm:whitespace-nowrap">
-                See the Original Photo
+                Check the Original Photo
               </p>
             )}
           </div>
