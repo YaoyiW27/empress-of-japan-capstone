@@ -6,6 +6,7 @@ converse with historical personas (a captain, a first-class passenger, a crew
 member) grounded in VMM archival material.
 
 - **Live app:** https://d2kekuy8p1ofvv.cloudfront.net
+- **Backend API:** https://d1dtybjmib9ba7.cloudfront.net
 - **Course:** Northeastern CS 7980 Capstone, Summer 2026
 - **Primary stakeholder:** Ashley Smith, VMM curator
 - **Final showcase:** 2026-08-10
@@ -65,6 +66,7 @@ This repo is organized by delivery surface rather than strict ownership:
 | `backend/` | FastAPI + LangGraph agents, RAG retrieval, session memory, ingest pipeline |
 | `data/` | pgvector schema plus persona and scene definitions used by the experience |
 | `infra/` and `.github/workflows/` | Terraform-managed AWS infrastructure, deploy workflows, observability, and security scans |
+| `load-tests/` | Bounded Locust smoke/stress scenarios and final-demo load-test evidence |
 | `dev-log/` and `docs/` | Weekly AI-assisted dev logs, architecture notes, and project planning |
 
 Track ownership and review expectations are documented in
@@ -137,11 +139,22 @@ never commit `*.tfstate*` or `.tfvars`. Deploys happen through GitHub Actions
 
 Built and working:
 
-- 360° panorama experience with drag + gyroscope look controls, per-narrator routes
-- Voice in (AWS Transcribe with Web Speech fallback) and out (Polly with browser fallback)
-- FastAPI + LangGraph persona chat over Bedrock
-- pgvector RAG store, Titan embeddings, `/retrieve`, and grounded persona chat
+- CloudFront-hosted visitor frontend with 360° panorama/ship exploration,
+  narrator routes, scene navigation, map/original-photo affordances, and
+  source/uncertainty display for grounded answers
+- Voice in (AWS Transcribe with Web Speech fallback) and out (Polly with browser
+  fallback)
+- FastAPI + LangGraph persona chat over Bedrock, including scene validation,
+  short-term session memory, structured answer-mode decisions, and citations
+  returned separately from spoken narration
+- pgvector RAG store, Titan embeddings, `/retrieve`, and privacy-filtered
+  archival grounding
 - Full Terraform-managed AWS stack, OIDC CI/CD, OTel → Honeycomb, cost budgets
+- Bounded Locust load-test tooling and evidence. The deployed backend handled
+  `/health` at 20 users with zero failures and handled `/chat` at 5, 10, and
+  20 concurrent Locust users with zero observed chat failures. A 50-user chat
+  stress run produced 502s and should be treated as the current boundary, not a
+  supported target. See [`load-tests/`](load-tests/).
 
 Planned / not yet wired (tracked in Issues):
 
@@ -151,3 +164,7 @@ Planned / not yet wired (tracked in Issues):
 - **API rate limiting is documented but not enforced** in code (issue #89); only
   input/output size caps and the ingest admin-token gate exist today.
 - **Chat is request/response**, not streamed.
+- **The live URLs depend on the AWS Innovation Sandbox.** Keep demo screenshots
+  and video artifacts because the CloudFront/ECS/RDS/Bedrock-backed deployment
+  may stop working after the lab account closes or resources are shut down for
+  cost control.
