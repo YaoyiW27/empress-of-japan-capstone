@@ -691,3 +691,104 @@ resource "aws_scheduler_schedule" "backend_refresh" {
     })
   }
 }
+
+# --- Event-driven self-heal for the #198 stale-password failure ---
+#
+# The daily backend_refresh above bounds staleness to ~a day, but a rotation
+# that lands *after* the morning refresh leaves the backend broken until the
+# next one (up to ~24h). This closes that window: the empress-backend-db-auth-
+# failure alarm (monitoring.tf) already fires within ~5 min of the exact
+# `password authentication failed` log line, so wire its ALARM action to a
+# Lambda that force-new-deploys backend + worker. Tasks re-pull the current
+# secret and the alarm self-clears.
+#
+# Keyed off our own log-metric alarm (auth is *actually* failing) rather than a
+# Secrets Manager RotationSucceeded CloudTrail event — the fragile pattern the
+# daily-refresh comment above deliberately avoided. A per-service cooldown in
+# the handler prevents a redeploy storm while a fix rolls out.
+
+data "archive_file" "db_auth_remediation" {
+  type        = "zip"
+  source_file = "${path.module}/lambda/db_auth_remediation/handler.py"
+  output_path = "${path.module}/lambda/db_auth_remediation.zip"
+}
+
+data "aws_iam_policy_document" "db_auth_remediation_assume" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "db_auth_remediation" {
+  name               = "empress-db-auth-remediation"
+  assume_role_policy = data.aws_iam_policy_document.db_auth_remediation_assume.json
+}
+
+data "aws_iam_policy_document" "db_auth_remediation" {
+  statement {
+    sid    = "ForceNewDeployment"
+    effect = "Allow"
+    actions = [
+      "ecs:UpdateService",
+      "ecs:DescribeServices",
+    ]
+    resources = [
+      "arn:aws:ecs:${var.region}:${data.aws_caller_identity.current.account_id}:service/${aws_ecs_cluster.app.name}/${aws_ecs_service.backend.name}",
+      "arn:aws:ecs:${var.region}:${data.aws_caller_identity.current.account_id}:service/${aws_ecs_cluster.app.name}/${aws_ecs_service.worker.name}",
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "db_auth_remediation" {
+  name   = "empress-db-auth-remediation"
+  role   = aws_iam_role.db_auth_remediation.id
+  policy = data.aws_iam_policy_document.db_auth_remediation.json
+}
+
+resource "aws_iam_role_policy_attachment" "db_auth_remediation_logs" {
+  role       = aws_iam_role.db_auth_remediation.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_lambda_function" "db_auth_remediation" {
+  function_name    = "empress-db-auth-remediation"
+  description      = "Force a new backend/worker deployment when the DB-auth-failure alarm fires so ECS re-pulls the rotated RDS password (issue #198)."
+  role             = aws_iam_role.db_auth_remediation.arn
+  filename         = data.archive_file.db_auth_remediation.output_path
+  source_code_hash = data.archive_file.db_auth_remediation.output_base64sha256
+  handler          = "handler.handler"
+  runtime          = "python3.12"
+  timeout          = 30
+
+  environment {
+    variables = {
+      CLUSTER          = aws_ecs_cluster.app.name
+      SERVICES         = "${aws_ecs_service.backend.name},${aws_ecs_service.worker.name}"
+      COOLDOWN_SECONDS = "900"
+    }
+  }
+}
+
+resource "aws_sns_topic" "db_auth_remediation" {
+  name = "empress-db-auth-remediation"
+}
+
+resource "aws_sns_topic_subscription" "db_auth_remediation" {
+  topic_arn = aws_sns_topic.db_auth_remediation.arn
+  protocol  = "lambda"
+  endpoint  = aws_lambda_function.db_auth_remediation.arn
+}
+
+resource "aws_lambda_permission" "db_auth_remediation_sns" {
+  statement_id  = "AllowSnsInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.db_auth_remediation.function_name
+  principal     = "sns.amazonaws.com"
+  source_arn    = aws_sns_topic.db_auth_remediation.arn
+}

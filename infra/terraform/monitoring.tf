@@ -392,6 +392,8 @@ resource "aws_cloudwatch_metric_alarm" "backend_db_auth_failure" {
   period              = 300
   statistic           = "Sum"
   treat_missing_data  = "notBreaching"
-  alarm_actions       = local.backend_alarm_actions
-  ok_actions          = local.backend_alarm_actions
+  # ALARM also triggers the self-heal Lambda (ecs.tf) via a dedicated topic;
+  # OK stays notify-only so a recovery doesn't kick off another deployment.
+  alarm_actions = concat(local.backend_alarm_actions, [aws_sns_topic.db_auth_remediation.arn])
+  ok_actions    = local.backend_alarm_actions
 }
