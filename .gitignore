@@ -28,6 +28,8 @@ aws-exports.js
 *.tfvars
 !*.tfvars.example
 backend.hcl*
+# Lambda build artifacts (archive_file zips the source at plan time)
+infra/terraform/lambda/*.zip
 
 # === Python ===
 __pycache__/
