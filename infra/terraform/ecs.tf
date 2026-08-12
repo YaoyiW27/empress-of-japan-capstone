@@ -118,6 +118,17 @@ resource "aws_iam_role_policy_attachment" "backend_task_sqs_send" {
   policy_arn = aws_iam_policy.sqs_jobs_send.arn
 }
 
+# The app now re-fetches the RDS-managed master password from Secrets Manager at
+# connect time, so a rotation no longer strands a running task with the password
+# ECS injected at container start (#198). That call is made by the FastAPI
+# process itself, so the permission belongs on the *task* role — the execution
+# role's copy of this same policy only covers the container-start `secrets`
+# injection below, which ECS performs before the app exists.
+resource "aws_iam_role_policy_attachment" "backend_task_kb_secret_read" {
+  role       = aws_iam_role.backend_task.name
+  policy_arn = aws_iam_policy.knowledge_base_secret_read.arn
+}
+
 # The worker has a separate task role so the API cannot consume jobs and the
 # worker cannot publish them. It only needs SQS consumption and Titan embeds.
 resource "aws_iam_role" "worker_task" {
@@ -138,6 +149,13 @@ resource "aws_iam_role_policy_attachment" "worker_task_titan" {
 resource "aws_iam_role_policy_attachment" "worker_task_ingest_sources" {
   role       = aws_iam_role.worker_task.name
   policy_arn = aws_iam_policy.worker_ingest_sources_read.arn
+}
+
+# Same as backend_task_kb_secret_read: the worker holds long-lived DB
+# connections too, so it needs to re-read the rotated password itself (#198).
+resource "aws_iam_role_policy_attachment" "worker_task_kb_secret_read" {
+  role       = aws_iam_role.worker_task.name
+  policy_arn = aws_iam_policy.knowledge_base_secret_read.arn
 }
 
 resource "aws_cloudwatch_log_group" "backend" {
@@ -278,8 +296,19 @@ resource "aws_ecs_task_definition" "backend" {
         { name = "OTEL_SERVICE_NAME", value = var.backend_otel_service_name },
         { name = "OTEL_EXPORTER_OTLP_ENDPOINT", value = var.backend_otel_exporter_otlp_endpoint },
         { name = "HONEYCOMB_DATASET", value = var.backend_honeycomb_dataset },
+        # Lets the app re-read the rotated master password at connect time (#198).
+        # A plain environment entry on purpose: this is the secret's *identifier*,
+        # not its value — the same ARN already appears in the `secrets` block below.
+        { name = "DB_PASSWORD_SECRET_ARN", value = aws_db_instance.knowledge_base.master_user_secret[0].secret_arn },
       ]
 
+      # Do NOT remove the DB_* entries below now that the app can fetch the
+      # password itself. They stay as the *bootstrap* credential: they are what
+      # lets the container start and connect before (or if) Secrets Manager is
+      # reachable, and DB_HOST/PORT/NAME/USER have no other source. The app only
+      # overrides the password, and falls back to these values on any fetch
+      # failure — deleting them would make Secrets Manager load-bearing at
+      # startup and turn a brownout into an outage.
       secrets = [
         {
           name      = "DB_HOST"
@@ -461,8 +490,11 @@ resource "aws_ecs_task_definition" "worker" {
         { name = "OTEL_SERVICE_NAME", value = "empress-worker" },
         { name = "OTEL_EXPORTER_OTLP_ENDPOINT", value = var.backend_otel_exporter_otlp_endpoint },
         { name = "HONEYCOMB_DATASET", value = var.backend_honeycomb_dataset },
+        # See the backend task definition above (#198).
+        { name = "DB_PASSWORD_SECRET_ARN", value = aws_db_instance.knowledge_base.master_user_secret[0].secret_arn },
       ]
 
+      # Bootstrap credential — keep. See the backend task definition above.
       secrets = [
         {
           name      = "DB_HOST"

@@ -333,11 +333,21 @@ retrieval is unavailable`, `/retrieve` returns `500`, and the frontend goes
 silent (it calls `/chat` before speaking) — it reads as "voice is broken" even
 though Polly/Transcribe are fine.
 
-This normally self-heals: `aws_scheduler_schedule.backend_refresh` force-deploys
-the backend every morning (`backend_refresh_schedule`, just after the RDS start),
-so tasks re-pull the current password daily. The
-`empress-backend-db-auth-failure` alarm fires (to the budget-alerts SNS topic) if
-it ever recurs between refreshes — e.g. a mid-day rotation. Fix is one command:
+**This should no longer happen.** The backend now re-fetches the master password
+from Secrets Manager at *connect* time (`backend/app/db_credentials.py`), so a
+rotation is picked up without a restart. It needs `DB_PASSWORD_SECRET_ARN` in the
+task definitions plus `empress-rds-knowledge-base-secret-read` on the **task**
+roles (`backend_task_kb_secret_read` / `worker_task_kb_secret_read`) — the
+execution role's copy only covers the container-start `secrets` injection.
+
+Three restart-based backstops remain, in order of how fast they react:
+
+1. `empress-backend-db-auth-failure` alarm → `empress-db-auth-remediation` SNS
+   topic → Lambda → `ecs update-service --force-new-deployment` on backend *and*
+   worker, with a 15-minute per-service cooldown (~5-10 min to recover).
+2. `aws_scheduler_schedule.backend_refresh` — forces a backend deployment every
+   morning just after the RDS start schedule.
+3. Manually, if both somehow fail:
 
 ```bash
 AWS_PROFILE=empress aws ecs update-service \
@@ -345,7 +355,11 @@ AWS_PROFILE=empress aws ecs update-service \
   --force-new-deployment
 ```
 
-Then re-check `/health` and a `/chat` call. No code or Terraform change is needed.
+**If that alarm fires now, treat it as a real bug, not routine.** It means the
+connect-time refresh did not work — check the task role's attached policies, that
+`DB_PASSWORD_SECRET_ARN` is set on the running task definition, and the backend
+logs for `secrets manager fetch failed`. Keep the alarm permanently; only
+consider retiring the daily refresh after a full natural rotation passes clean.
 
 ### Read CloudWatch logs and traces
 
