@@ -20,6 +20,12 @@ config = context.config
 # a password containing "%" is read as ConfigParser interpolation syntax and
 # raises "invalid interpolation syntax". Pass the URL object straight to the
 # engine instead, which handles the password safely. (#128)
+#
+# This engine deliberately does NOT get app.db_credentials' connect-time password
+# refresh (#198). Migrations run as short-lived one-off ECS tasks, so ECS resolves
+# DB_PASSWORD fresh at task start and the stale-password failure mode cannot
+# occur here. Keeping boto3 off alembic's import path also means `alembic` still
+# runs without AWS credentials. Don't "fix" this.
 db_url = get_settings().sqlalchemy_url
 
 if config.config_file_name is not None:
