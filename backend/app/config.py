@@ -37,6 +37,17 @@ class Settings(BaseSettings):
     db_user: str | None = None
     db_password: str | None = None
 
+    # --- Database credential refresh (#198) ----------------------------------
+    # The RDS master password is AWS-managed and rotates ~weekly. ECS resolves
+    # the `secrets` block only at container start, so a long-lived task ends up
+    # authenticating with a stale password. When this ARN is set, app.db fetches
+    # the current password from Secrets Manager at *connect* time instead.
+    # Leave it unset locally and in tests: nothing is registered and the engine
+    # keeps the boot-time password, i.e. behaviour is exactly as before.
+    db_password_secret_arn: str | None = None
+    db_password_refresh_ttl_seconds: int = Field(default=300, gt=0)
+    db_password_min_refresh_interval_seconds: int = Field(default=30, ge=0)
+
     # --- Ingest / embeddings -------------------------------------------------
     # "bedrock" (AWS Titan V2, real) or "fake" (deterministic local, no creds).
     # Defaults to fake so the pipeline runs/tests locally before Bedrock IAM is
