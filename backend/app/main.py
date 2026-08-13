@@ -33,7 +33,7 @@ from app.agents.llm import ChatModel, make_chat_model
 from app.agents.personas import load_personas, scene_to_personas
 from app.agents.scenes import load_scenes
 from app.config import Settings, get_settings
-from app.db import SessionLocal, engine, get_db
+from app.db import SessionLocal, credential_provider, engine, get_db
 from app.ingest.embed import make_embedder
 from app.jobs import IngestJob, SqsJobQueue
 from app.models import Ship
@@ -262,7 +262,7 @@ def create_app(
         memory = session_memory_backend
         try:
             if settings.enable_session_memory:
-                memory = memory or PostgresSessionMemory(settings, engine)
+                memory = memory or PostgresSessionMemory(settings, engine, credential_provider)
                 await asyncio.to_thread(memory.open)
                 app.state.session_memory = memory
                 app.state.session_graph = build_graph(
