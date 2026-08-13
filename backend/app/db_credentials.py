@@ -117,7 +117,14 @@ class DbCredentialProvider:
         if not self.enabled:
             return None
         with self._lock:
-            if self._cached is not None and self._clock() < self._expires_at:
+            # Deliberately not gated on `self._cached is not None`: a failed
+            # fetch also arms `_expires_at` (see `_fetch_locked`), so an outage
+            # is negative-cached even before we have ever held a credential.
+            # Without that, a Secrets Manager brownout after the TTL lapsed
+            # would send every new connection through a fresh ~5s API call,
+            # serialized under this lock — stalling connects instead of
+            # degrading to a fast fallback.
+            if self._clock() < self._expires_at:
                 return self._cached
             return self._fetch_locked(reason="ttl")
 
@@ -156,6 +163,11 @@ class DbCredentialProvider:
                 # *worse* than the stale-password bug it replaces.
                 span.record_exception(exc)
                 span.set_attribute("db.credentials.failed", True)
+                # Negative-cache the failure for the same interval that throttles
+                # forced refreshes. Otherwise `current()` re-enters this branch on
+                # every new connection once the TTL has lapsed, and each entry is
+                # a bounded-but-slow API call holding the lock.
+                self._expires_at = self._clock() + self._min_refresh_interval_seconds
                 logger.warning(
                     "secrets manager fetch failed (%s); using cached credential",
                     type(exc).__name__,
@@ -237,6 +249,51 @@ def looks_like_auth_failure(exc: BaseException) -> bool:
     return any(marker in message for marker in _AUTH_MARKERS)
 
 
+def _conninfo_with(settings: Settings, password: str | None) -> str:
+    """Render the driver-neutral conninfo, optionally overriding the password."""
+    url = settings.sqlalchemy_url
+    if password is not None:
+        url = url.set(password=password)
+    return url.set(drivername="postgresql").render_as_string(hide_password=False)
+
+
+def _connect_retrying_on_rotation(
+    provider: DbCredentialProvider,
+    attempt: Callable[[], Any],
+    retry: Callable[[DbCredential], Any | None],
+) -> Any:
+    """Connect, and on an auth rejection re-fetch the secret and try once more.
+
+    Shared by both credential paths so they carry identical guarantees. ``retry``
+    returns ``None`` to decline — that is the compare-and-skip gate: we only try
+    again when the freshly fetched password actually differs from the one just
+    rejected. For a stopped database or a genuinely wrong static credential the
+    password is unchanged, so the original exception propagates untouched and
+    nothing spins.
+
+    On the recovered path we must NEVER log the underlying psycopg message.
+    infra/terraform/monitoring.tf filters the whole backend log group for the
+    literal "password authentication failed" and routes ALARM to the
+    force-redeploy Lambda from PR #218, so echoing it after a *successful*
+    self-heal would trigger a pointless redeploy on every rotation. When the
+    retry fails the original error is raised (and logged by the caller) exactly
+    as before, which is what keeps that alarm working as a genuine backstop.
+    """
+    try:
+        return attempt()
+    except psycopg.OperationalError as exc:
+        if not looks_like_auth_failure(exc):
+            raise
+        refreshed = provider.force_refresh()
+        if refreshed is None:
+            raise
+        connection = retry(refreshed)
+        if connection is None:
+            raise
+        logger.info("db connect succeeded after credential refresh")
+        return connection
+
+
 def attach_credential_refresh(engine: Engine, provider: DbCredentialProvider) -> bool:
     """Make ``engine`` resolve its password per connection. Returns whether it did.
 
@@ -258,30 +315,59 @@ def attach_credential_refresh(engine: Engine, provider: DbCredentialProvider) ->
         if credential is not None:
             cparams["password"] = credential.password
 
-        try:
-            return dialect.connect(*cargs, **cparams)
-        except psycopg.OperationalError as exc:
-            if not looks_like_auth_failure(exc):
-                raise
-            refreshed = provider.force_refresh()
-            # Compare-and-skip: only retry if the password actually changed.
-            # This is what makes the fix correct without depending on the string
-            # match above — for a stopped database or a genuinely wrong static
-            # credential the password is unchanged, so the original exception
-            # propagates untouched and /health/db keeps its existing 503 body.
-            if refreshed is None or refreshed.password == cparams.get("password"):
-                raise
+        def _retry(refreshed: DbCredential) -> Any | None:
+            if refreshed.password == cparams.get("password"):
+                return None
             cparams["password"] = refreshed.password
-            connection = dialect.connect(*cargs, **cparams)
-            # NEVER log the underlying psycopg message on this recovered path.
-            # infra/terraform/monitoring.tf filters the whole log group for the
-            # literal "password authentication failed" and routes ALARM to the
-            # force-redeploy Lambda from PR #218 — echoing it here would trigger
-            # a pointless redeploy on every successful self-heal.
-            logger.info("db connect succeeded after credential refresh")
-            return connection
+            return dialect.connect(*cargs, **cparams)
+
+        return _connect_retrying_on_rotation(
+            provider, lambda: dialect.connect(*cargs, **cparams), _retry
+        )
 
     return True
+
+
+def connection_class_factory(
+    settings: Settings, provider: DbCredentialProvider
+) -> type[psycopg.Connection]:
+    """Return the ``connection_class`` for ``psycopg_pool.ConnectionPool``.
+
+    The callable conninfo alone is not enough for the pool. It only ever serves
+    ``provider.current()``, which is TTL-cached, so a rotation landing inside the
+    TTL leaves the pool handing the stale password to every new physical
+    connection until the TTL lapses. Worse, ``ConnectionPool._add_connection``
+    logs the failure verbatim (``"error connecting in %r: %s"``), which puts the
+    literal "password authentication failed" into the log group that
+    monitoring.tf greps — firing the PR #218 redeploy this fix exists to avoid.
+
+    Overriding ``connect`` gives this path the same force-refresh-and-retry as
+    the engine, so a rotation is absorbed before the pool ever sees an error and
+    nothing is logged. psycopg-pool calls
+    ``self.connection_class.connect(conninfo, **kwargs)`` on every new physical
+    connection, so this is the supported seam.
+    """
+    if not provider.enabled:
+        return psycopg.Connection
+
+    class CredentialRefreshingConnection(psycopg.Connection):
+        @classmethod
+        def connect(cls, conninfo: str = "", **kwargs: Any) -> Any:
+            def _base(dsn: str) -> Any:
+                return super(CredentialRefreshingConnection, cls).connect(dsn, **kwargs)
+
+            def _retry(refreshed: DbCredential) -> Any | None:
+                # Compare the rendered DSN rather than parsing the password back
+                # out of `conninfo`; equivalent, and it also declines when only
+                # the password we already tried would be reused.
+                retry_conninfo = _conninfo_with(settings, refreshed.password)
+                if retry_conninfo == conninfo:
+                    return None
+                return _base(retry_conninfo)
+
+            return _connect_retrying_on_rotation(provider, lambda: _base(conninfo), _retry)
+
+    return CredentialRefreshingConnection
 
 
 def conninfo_factory(settings: Settings, provider: DbCredentialProvider) -> str | Callable[[], str]:
@@ -289,16 +375,15 @@ def conninfo_factory(settings: Settings, provider: DbCredentialProvider) -> str 
 
     A plain string when the provider is disabled (unchanged behaviour), else a
     zero-arg callable — psycopg-pool >= 3.3 resolves it on every new physical
-    connection, so the pool picks up a rotated password on its own.
+    connection, so the pool picks up a rotated password on its own. Pair it with
+    :func:`connection_class_factory`, which adds the retry for a rotation that
+    lands inside the cache TTL.
     """
     if not provider.enabled:
         return settings.psycopg_conninfo
 
     def _current_conninfo() -> str:
-        url = settings.sqlalchemy_url
         credential = provider.current()
-        if credential is not None:
-            url = url.set(password=credential.password)
-        return url.set(drivername="postgresql").render_as_string(hide_password=False)
+        return _conninfo_with(settings, credential.password if credential else None)
 
     return _current_conninfo

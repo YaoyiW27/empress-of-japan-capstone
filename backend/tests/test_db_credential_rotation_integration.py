@@ -10,6 +10,7 @@ tests/test_ingest_integration.py), so CI without a DB stays green.
 Run locally with `docker compose up -d` in backend/.
 """
 
+import logging
 import time
 
 import psycopg
@@ -21,6 +22,7 @@ from app.config import Settings, get_settings
 from app.db_credentials import (
     DbCredentialProvider,
     attach_credential_refresh,
+    connection_class_factory,
     conninfo_factory,
 )
 
@@ -89,12 +91,13 @@ def _rotate(admin_engine, new_password):
         conn.execute(text(f"ALTER ROLE {ROLE} PASSWORD '{new_password}'"))
 
 
-def _provider(client):
+def _provider(client, ttl_seconds=0.0):
     return DbCredentialProvider(
         "arn:aws:secretsmanager:us-west-2:111122223333:secret:test",
         region="us-west-2",
         client=client,
-        ttl_seconds=0.0,  # always consult the client, so the test controls timing
+        # 0.0 by default: always consult the client, so the test controls timing.
+        ttl_seconds=ttl_seconds,
         min_refresh_interval_seconds=0.0,
     )
 
@@ -152,29 +155,39 @@ def test_engine_still_fails_when_the_secret_is_also_stale(admin_engine, rotating
     engine.dispose()
 
 
-def test_psycopg_pool_recovers_from_a_password_rotation(admin_engine, rotating_role):
-    """The session-memory checkpointer path: callable conninfo, resolved per connect."""
-    client = MutableSecretsClient(PW1)
-    settings = Settings(
+def _pool_settings(url):
+    return Settings(
         _env_file=None,
-        db_host=rotating_role.host,
-        db_port=rotating_role.port,
-        db_name=rotating_role.database,
+        db_host=url.host,
+        db_port=url.port,
+        db_name=url.database,
         db_user=ROLE,
         db_password=PW1,
     )
-    conninfo = conninfo_factory(settings, _provider(client))
-    assert callable(conninfo)
 
-    pool = ConnectionPool(
-        conninfo=conninfo,
-        min_size=1,
-        max_size=2,
-        open=True,
-        timeout=10.0,
-        max_lifetime=1.0,
-        kwargs={"connect_timeout": 5},
-    )
+
+def _build_pool(settings, provider, **overrides):
+    kwargs = {
+        "conninfo": conninfo_factory(settings, provider),
+        "connection_class": connection_class_factory(settings, provider),
+        "min_size": 1,
+        "max_size": 2,
+        "open": True,
+        "timeout": 10.0,
+        "kwargs": {"connect_timeout": 5},
+    }
+    kwargs.update(overrides)
+    return ConnectionPool(**kwargs)
+
+
+def test_psycopg_pool_recovers_from_a_password_rotation(admin_engine, rotating_role):
+    """The session-memory checkpointer path: callable conninfo, resolved per connect."""
+    client = MutableSecretsClient(PW1)
+    settings = _pool_settings(rotating_role)
+    provider = _provider(client)
+    assert callable(conninfo_factory(settings, provider))
+
+    pool = _build_pool(settings, provider)
     try:
         with pool.connection() as conn:
             assert conn.execute("SELECT 1").fetchone()[0] == 1
@@ -182,12 +195,51 @@ def test_psycopg_pool_recovers_from_a_password_rotation(admin_engine, rotating_r
         _rotate(admin_engine, PW2)
         client.password = PW2
 
-        # Outlive max_lifetime so the pooled connection is retired on return and
-        # the replacement re-resolves conninfo.
-        time.sleep(1.5)
-        with pool.connection() as conn:
-            conn.execute("SELECT 1")
+        # drain() is the documented way to force a connection re-configuration;
+        # relying on max_lifetime alone is not deterministic, since expiry is
+        # only evaluated when a connection is returned to the pool.
+        pool.drain()
+        time.sleep(1.0)
         with pool.connection() as conn:
             assert conn.execute("SELECT 1").fetchone()[0] == 1
+    finally:
+        pool.close()
+
+
+def test_psycopg_pool_recovers_from_a_rotation_inside_the_cache_ttl(
+    admin_engine, rotating_role, caplog
+):
+    """The case a callable conninfo alone cannot handle.
+
+    With a long TTL, `provider.current()` keeps serving the pre-rotation
+    password, so every new physical connection would be rejected until the TTL
+    lapsed — and ConnectionPool logs each failure verbatim, putting the literal
+    "password authentication failed" into the log group whose metric filter
+    fires the #218 force-redeploy Lambda. connection_class_factory's
+    force-refresh-and-retry has to absorb it before the pool ever sees an error.
+    """
+    client = MutableSecretsClient(PW1)
+    settings = _pool_settings(rotating_role)
+    # Long TTL: current() will keep returning the stale password.
+    provider = _provider(client, ttl_seconds=3600.0)
+
+    pool = _build_pool(settings, provider)
+    try:
+        with pool.connection() as conn:
+            assert conn.execute("SELECT 1").fetchone()[0] == 1
+
+        _rotate(admin_engine, PW2)
+        client.password = PW2  # Secrets Manager has it; the TTL cache does not.
+
+        with caplog.at_level(logging.DEBUG, logger="psycopg.pool"):
+            pool.drain()
+            time.sleep(1.0)
+            with pool.connection() as conn:
+                assert conn.execute("SELECT 1").fetchone()[0] == 1
+
+        # Verified non-vacuous: with the callable conninfo alone (no
+        # connection_class) this same scenario raises PoolTimeout and logs the
+        # alarm string three times.
+        assert "password authentication failed" not in caplog.text.lower()
     finally:
         pool.close()

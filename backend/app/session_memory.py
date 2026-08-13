@@ -9,12 +9,17 @@ from typing import Protocol
 
 from langgraph.checkpoint.postgres import PostgresSaver
 from opentelemetry import trace
+from psycopg import Connection
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 from sqlalchemy import Engine, text
 
 from app.config import Settings
-from app.db_credentials import DbCredentialProvider, conninfo_factory
+from app.db_credentials import (
+    DbCredentialProvider,
+    connection_class_factory,
+    conninfo_factory,
+)
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -53,17 +58,30 @@ class PostgresSessionMemory:
         self._cleanup_batch_size = settings.session_cleanup_batch_size
         # This pool is a second, independent credential path: it does not go
         # through app.db's engine, so the do_connect hook there does not cover
-        # it. psycopg-pool >= 3.3 resolves a callable conninfo on every new
-        # physical connection, so a rotated password is picked up without a
-        # restart (#198). Falls back to the plain string when no secret ARN is
-        # configured.
+        # it (#198). Two pieces are needed, and both matter:
+        #   - a callable conninfo, which psycopg-pool >= 3.3 re-resolves on every
+        #     new physical connection, so a rotation is picked up without a
+        #     restart;
+        #   - connection_class, which adds force-refresh-and-retry on an auth
+        #     rejection. Without it a rotation landing inside the credential
+        #     cache TTL would keep serving the stale password until the TTL
+        #     lapsed, and ConnectionPool logs each failed connect verbatim —
+        #     putting "password authentication failed" into the log group whose
+        #     metric filter fires the PR #218 redeploy.
+        # Both fall back to today's behaviour when no secret ARN is configured.
         conninfo = (
             conninfo_factory(settings, credential_provider)
             if credential_provider is not None
             else settings.psycopg_conninfo
         )
+        connection_class = (
+            connection_class_factory(settings, credential_provider)
+            if credential_provider is not None
+            else Connection
+        )
         self._pool = ConnectionPool(
             conninfo=conninfo,
+            connection_class=connection_class,
             min_size=1,
             max_size=10,
             open=False,
