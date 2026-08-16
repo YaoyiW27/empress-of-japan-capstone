@@ -5,13 +5,77 @@ visitors step aboard a 360° recreation of the *Empress of Japan* ocean liners a
 converse with historical personas (a captain, a first-class passenger, a crew
 member) grounded in VMM archival material.
 
-- **Live app:** https://d2kekuy8p1ofvv.cloudfront.net
+- **Live app:** https://d2kekuy8p1ofvv.cloudfront.net *(hosted on an AWS sandbox, decommissioned end of Aug 2026 — see [Demo](#demo) for the archived walkthrough)*
 - **Course:** Northeastern CS 7980 Capstone, Summer 2026
 - **Primary stakeholder:** Ashley Smith, VMM curator
 - **Final showcase:** 2026-08-10
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for team workflow and
 [`CLAUDE.md`](CLAUDE.md) for repo conventions.
+
+---
+
+## Demo
+
+> **Note:** the live app ran on an AWS Innovation Sandbox that is decommissioned at
+> the end of August 2026, so the CloudFront link above will stop resolving. The
+> recorded walkthrough and screenshots below are the archived record of the working
+> system.
+
+### Walkthrough video
+
+[![Watch the demo walkthrough](docs/media/key_art.jpeg)](https://youtu.be/VIDEO_ID)
+
+*~5-minute walkthrough: 360° ship exploration, persona voice Q&A, and the AWS
+infrastructure + observability behind it.*
+
+### The visitor experience
+
+|  |  |
+|---|---|
+| ![Landing page](docs/media/landing.jpeg) | ![3D ship hub](docs/media/hub.jpeg) |
+| Step aboard — landing | Interactive 3D ship hub: rotate, zoom, tap a hotspot to enter a scene |
+| ![Persona narrator](docs/media/narrator_cap.jpeg) | ![Voice Q&A with cited source](docs/media/voice_qa.jpeg) |
+| Meet a historical persona narrator | Ask by voice or text — answers grounded in VMM archives, with cited sources |
+| ![In-scene ship map](docs/media/scene_map.jpeg) | ![Original archival photo](docs/media/original_photo.jpeg) |
+| In-scene ship map & scene navigation | Compare the 3D scene to the original archival photo |
+
+**Meet the narrators**
+
+|  |  |  |
+|---|---|---|
+| ![Capt. Sinclair](docs/media/narrator_cap.jpeg) | ![Ms. Whitmore](docs/media/narrator_ms.jpeg) | ![Ming Chen](docs/media/narrator_chen.jpeg) |
+| Capt. Sinclair | Ms. Whitmore | Ming Chen |
+
+### UX & mobile
+
+![User journey map](docs/media/user_journey.jpeg)
+
+*Service journey mapped from museum entry through voice interaction to exit.*
+
+|  |
+|---|
+| ![Gyroscope look-around on mobile](docs/media/mobile_gyroscope.gif) |
+| Mobile-first: gyroscope-driven look-around (tilt the phone to look around the scene) |
+
+### Architecture & infrastructure
+
+![System architecture](docs/media/architecture_diagram.jpeg)
+
+The entire stack — CloudFront, ALB, ECS Fargate, RDS, SQS, Bedrock — ran inside a
+single **~$1,000 AWS sandbox**, provisioned with Terraform and observed end-to-end
+with OpenTelemetry → Honeycomb and CloudWatch:
+
+![AWS budget kept under $1,000](docs/media/aws_budget.jpeg)
+
+|  |  |
+|---|---|
+| ![Honeycomb distributed trace](docs/media/honeycomb_trace.jpeg) | ![Honeycomb service dashboard](docs/media/honeycomb_dashboard.jpeg) |
+| Distributed trace of a request (OpenTelemetry → Honeycomb) — here catching a real error span | Honeycomb service dashboard |
+| ![Per-endpoint latency in Honeycomb](docs/media/honeycomb_api.jpeg) | ![CloudWatch dashboard](docs/media/cloudwatch_dashboard1.jpeg) |
+| Per-endpoint latency in Honeycomb | CloudWatch dashboard & alarms |
+| ![CloudWatch metrics](docs/media/cloudwatch_dashboard2.jpeg) | ![ECS Fargate services](docs/media/ecs_fargate.jpeg) |
+| CloudWatch metrics | ECS Fargate services |
 
 ---
 
