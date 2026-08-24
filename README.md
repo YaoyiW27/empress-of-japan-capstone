@@ -5,7 +5,7 @@ visitors step aboard a 360° recreation of the *Empress of Japan* ocean liners a
 converse with historical personas (a captain, a first-class passenger, a crew
 member) grounded in VMM archival material.
 
-- **Live app:** https://d2kekuy8p1ofvv.cloudfront.net *(hosted on an AWS sandbox, decommissioned end of Aug 2026 — see [Demo](#demo) for the archived walkthrough)*
+- **Live app:** https://d2kekuy8p1ofvv.cloudfront.net *(hosted on an AWS sandbox, decommissioned end of Aug 2026 — see [Demo]([#demo](https://youtu.be/lk5c4xQ7ztc)) for the archived walkthrough)*
 - **Course:** Northeastern CS 7980 Capstone, Summer 2026
 - **Primary stakeholder:** Ashley Smith, VMM curator
 - **Final showcase:** 2026-08-10
@@ -24,7 +24,7 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for team workflow and
 
 ### Walkthrough video
 
-[![Watch the demo walkthrough](docs/media/key_art.jpeg)](https://youtu.be/VIDEO_ID)
+[![Watch the demo walkthrough](docs/media/key_art.jpeg)](https://youtu.be/lk5c4xQ7ztc)
 
 *~5-minute walkthrough: 360° ship exploration, persona voice Q&A, and the AWS
 infrastructure + observability behind it.*
